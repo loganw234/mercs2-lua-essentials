@@ -201,3 +201,10 @@ abruptly, that section should always reflect true current state.
 - 2026-07-16 (overnight) — built + live-verified items 2-4 (`Ess.Bones`/`Ess.Camera`/`Ess.Points`, the rest
   of Group F). All functions individually exercised live, all passed. Committed `86e57b7`. Moving to item
   5 (`Ess.Gfx`) next.
+- 2026-07-16 (overnight) — built + live-verified items 5-7 (`Ess.Gfx`, the `Ess.Net`/`UI`/`Contract`
+  adopt-aliases, `Ess.Override`). Tested Gfx against a real pre-existing "minimap" asset rather than
+  authoring a new WAD patch (deliberately out of scope tonight). Found + resolved a REPL-testing-
+  methodology quirk along the way (multi-return values fed directly into `tostring(...)` can misbehave in
+  this engine — not an Ess bug, just don't test that way; noted in FEATURE_SHEET.md). Committed `2854635`.
+  Only item 8 (Group G) remains — starting the required full re-read of ContractFramework.lua/
+  WaveDefense.lua now, per the explicit instruction not to work from a prior summary this time.
