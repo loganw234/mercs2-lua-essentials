@@ -349,6 +349,12 @@ Engine Namespaces section against what Ess actually covers:**
   templates completed instantly (0 valid targets) with the bridge staying fully responsive afterward — no
   crash — while the same test with a real `"blanco"` template still spawned, tracked, and completed
   normally (full regression check, not just the new guard in isolation).
+- **`Ess.Human.setInfiniteAmmo(uChar, bOn)`** (`src/14_human.lua`) — wraps `Object.SetInfiniteAmmo`,
+  confirmed live-tested in `wiki/snippets.md` with the real documented nuance (keeps RESERVE ammo maxed;
+  the magazine currently being fired still empties normally and still needs reloading). Lives on `Object`,
+  not `Human`/`Weapon`, but kept in this file anyway — same "character ammo concern" grouping already
+  used for the `Weapon` namespace's functions here. Live-tested error-free; left the player's ammo state
+  clean afterward (disabled + refilled to max).
 
 ## Non-goals
 

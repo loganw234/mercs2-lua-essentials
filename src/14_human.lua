@@ -21,6 +21,7 @@
 --   Ess.Human.maxAmmo(uWeapon) -> n                Weapon.GetMaxReserveAmmo
 --   Ess.Human.refillAmmo(uWeapon)                  the confirmed "set to GetMaxReserveAmmo" one-liner,
 --                                                   independently duplicated across pmccon001.lua/vzacon001.lua
+--   Ess.Human.setInfiniteAmmo(uChar, bOn)          Object.SetInfiniteAmmo -- maxes reserve ammo forever
 --   Ess.Easy.Human.giveWeapon(uChar, sTemplateName) -> ok    spawn-free "just give them a gun by name"
 
 local Ess = _G.Ess
@@ -89,6 +90,16 @@ end
 -- Weapon.SetReserveAmmo(w, Weapon.GetMaxReserveAmmo(w)).
 function Ess.Human.refillAmmo(uWeapon)
     Ess.Human.setAmmo(uWeapon, Ess.Human.maxAmmo(uWeapon))
+end
+
+-- Ess.Human.setInfiniteAmmo(uChar, bOn) -- CONFIRMED live-tested (wiki/snippets.md): Object.SetInfiniteAmmo
+-- keeps RESERVE ammo maxed forever; the magazine currently being fired still empties normally and still
+-- needs a reload (grenades: infinite reserve, still thrown one at a time). Note this is on the Object
+-- namespace (a character guid), not Human/Weapon -- kept in this file anyway since it's still squarely a
+-- "character ammo" concern, matching Ess.Human's own existing habit of folding in the small Weapon
+-- namespace for the same reason.
+function Ess.Human.setInfiniteAmmo(uChar, bOn)
+    pcall(Object.SetInfiniteAmmo, uChar, bOn and true or false)
 end
 
 -- Ess.Easy.Human.giveWeapon(uChar, sTemplateName) -> ok

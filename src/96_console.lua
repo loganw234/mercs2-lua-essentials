@@ -86,6 +86,8 @@ local REGISTRY = {
       desc = "Swaps a character's held weapon for a weapon guid (from primaryWeapon/secondaryWeapon)." },
     { ns = "Ess.Human", usage = "Ess.Human.refillAmmo(uWeapon)",
       desc = "Tops up a weapon's reserve ammo to its max." },
+    { ns = "Ess.Human", usage = "Ess.Human.setInfiniteAmmo(uChar, bOn)",
+      desc = "Keeps reserve ammo maxed forever (the current magazine still needs reloading)." },
     { ns = "Ess.Human", usage = "Ess.Human.knockdown(uChar, nDuration)",
       desc = "Knocks a character down for nDuration seconds." },
     { ns = "Ess.Easy (Human)", usage = "Ess.Easy.Human.giveWeapon(uChar, sTemplateName)",
