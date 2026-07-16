@@ -618,6 +618,11 @@ Engine Namespaces section against what Ess actually covers:**
   Remove-then-Add callback chaining shared with `swap()`, the `finished`-guard against double-completion)
   traced clean and consistent with its own documented design. Comment-only; hot-reloaded and confirmed
   both `Ess.Layers`/`Ess.Sandbox` still present.
+- **`43_ui_list.lua` (the raw scrollable list widget everything in Group E renders through) traced clean**
+  — the scroll-window keep-selection-visible logic, header-skipping `nearest()` search used by both mouse-
+  free navigation and post-`items()` reselection, and the empty-list edge case (a temporarily out-of-range
+  `_sel=1` that never gets read for indexing while `n==0`, so it's safe despite looking stale) all check
+  out self-consistent with the file's own documented behavior. No source change.
 
 ## Non-goals
 
