@@ -144,11 +144,22 @@ scope boundary:
   alongside `Ess` in this install, which it isn't) — both are defensively existence-checked, matching the
   `99_adopt.lua` precedent, not fabricated confidence.
 
-**Not built, and explicitly out of scope for this session:** `Ess.Mark`'s own tiered files (a smaller,
-separately-specified piece not part of the four Group G namespaces above); refactoring
-`ContractFramework.lua`/`WaveDefense.lua` themselves to actually CONSUME the new `Ess.*` code (a deliberate
-scope boundary — that's a more invasive cross-repo change to an already-working, co-op-tested system, and
-belongs in a reviewed follow-up, not an unsupervised session).
+**★ 2026-07-16 (overnight session) — `Ess.Mark` built and behaviorally verified** (`src/31_mark_raw/
+31_mark/31_mark_easy.lua`, Group D) — the tiered design's own motivating example, built after finishing
+Group G since it was still clearly available, well-specified work rather than the session being genuinely
+exhausted. `Ess.Mark.object`/`.zone`/`.clear` unify `ContractFramework`'s always-mark-all-three convention
+and `WaveDefense`'s radar+PDA-only convention into one opts-driven call. Live-tested: `object()` marked the
+player character on all three surfaces (radar/PDA names + a real world marker handle) and cleared cleanly;
+`zone()` spawned a real `TinyGeometry` anchor with a ground-disc handle plus radar/PDA names, cleared
+cleanly; `Ess.Easy.Mark.enemy()` confirmed to produce radar+PDA but explicitly NO world icon, exactly
+matching `WaveDefense`'s real convention. Zero errors across the whole batch.
+
+**Not built, and explicitly out of scope for this session:** refactoring `ContractFramework.lua`/
+`WaveDefense.lua` themselves to actually CONSUME the new `Ess.*` code (a deliberate scope boundary — that's
+a more invasive cross-repo change to an already-working, co-op-tested system, and belongs in a reviewed
+follow-up, not an unsupervised session); `Ess.ScrollLog` (Group E, the `MrxGuiTextBuffer` workaround) and
+the full `Ess.UI`/`Ess.Easy.UI` alias/preset layer (blocked on `uilib` actually being deployed alongside
+`Ess` to test against, which it isn't in this install) remain unbuilt.
 
 ## Non-goals
 
