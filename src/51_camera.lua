@@ -13,8 +13,8 @@
 --                                          1=black) -- a THIRD distinct native table, see below
 --   Ess.Easy.Camera.shake(i) / .fadeOut() / .fadeIn()
 --   -- CINEMATIC (steals mouse control until released):
---   Ess.Camera.beginCinematic(i, blend) / .placeCamera(x,y,z,i) / .lookAtObject(uGuid, bone, i) /
---     .lookAtPoint(x,y,z,i) / .hold(i) / .endCinematic(i) / .panicRevert()
+--   Ess.Camera.beginCinematic(i, blend) / .placeCamera(x,y,z,i) / .blend(i, dur) (re-arm for a smooth move) /
+--     .lookAtObject(uGuid, bone, i) / .lookAtPoint(x,y,z,i) / .hold(i) / .endCinematic(i) / .panicRevert()
 --   Ess.Easy.Camera.watch(uGuid, opts) -> stop()   watch a target (e.g. a heli you spawned) fly in;
 --                                        default = static locked shot, opts.chase = follow from opts.angle
 --   Ess.Easy.Camera.orbit(uGuid, opts) -> stop()    smoothly orbit a target (radius/height/speed/startAngle)
@@ -205,6 +205,15 @@ end
 function Ess.Camera.placeCamera(x, y, z, i)
     local c = Ess.Player.camera(i)
     if c then pcall(Camera.SetPosition, c, x, y, z, true) end
+end
+
+-- Ess.Camera.blend(i, nDur) -- (re)arm the blend time so the NEXT placeCamera eases to its new spot over
+-- nDur seconds instead of cutting. beginCinematic sets this once; call this to re-arm it for a later smooth
+-- move (e.g. swing the camera out to the side, then later swing it back). This is for DISCRETE moves -- one
+-- placeCamera per blend; a PER-TICK moving camera still wants blend 0 (the rubber-band rule, see below).
+function Ess.Camera.blend(i, nDur)
+    local c = Ess.Player.camera(i)
+    if c then pcall(Camera.Blend, c, nDur or 1) end
 end
 
 -- Ess.Camera.lookAtObject(uGuid, sBone, i) -- lock the camera onto an object (optionally a specific bone/

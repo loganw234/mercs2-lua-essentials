@@ -42,6 +42,7 @@ handler.
 | `CustomMenu` | F4 | **make your own menu of cool stuff** — a beginner template: Ess.UI.Menu wired to the Ess.Easy.* one-liners (spawn / effects / unlocks / world tweaks). Copy it and swap in your own entries. |
 | `CoopChat` | F2 | co-op text chat — per-player username over the wire, auto-fade (Net + UI.Chat) |
 | `CinematicDemo` | F9 | a 12-step showcase cutscene — camera / spawn / fly-in / orbit / narration (Cinematic) |
+| `CarStunt` | F10 | get in a car, rocket down the runway, launch + do aerial tricks, watch yourself fly (Impulse + Camera) |
 
 ## Running the smoke test
 
