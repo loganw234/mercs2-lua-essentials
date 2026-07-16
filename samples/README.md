@@ -27,6 +27,8 @@ handler.
 | `attach_effects` | particle FX at a point / attached to an object | Easy.Spawn |
 | `notify_the_player` | toast / banner / objective line / radio subtitle | Hud, UI |
 | `persistent_vars` | remember a value across save/reload | SaveVar |
+| `give_weapons` | give the player a weapon + infinite ammo | Human |
+| `an_arena` | run a save-safe ephemeral "arena" / minigame mode | Sandbox |
 | `a_simple_mission` | author a whole 2-objective mission with a reward | Contract |
 
 ## Interactive demos (`samples/OnKey/`)
