@@ -1,0 +1,297 @@
+# Ess — Feature Sheet (working design doc, v0.1)
+
+`Ess` (global `_G.Ess`, long form "Essentials") is the foundational Lua library for Mercenaries 2
+modding. Its job: take every hard-won pattern this project has discovered — bone manipulation, the
+32-bit-float RNG trap, leak-prone handle APIs, the corner-coordinate widget bug, the trigger/relations/
+AI-order vocabulary built for wave-defense — and make it a one-line call instead of folklore a new
+modder has to rediscover by crashing the game first.
+
+This document maps the **whole system** before any of it is built, so implementation has a target
+instead of growing organically. It is not final — naming and grouping are explicitly up for revision
+once we start writing code against it.
+
+## Non-goals
+
+- Not a replacement for `ModNet`/`uilib`/`ContractFramework`/`LayerFw`. Where one of those already solves
+  a problem well (and is co-op-verified in the case of ModNet/uilib/ContractFramework), `Ess` **adopts**
+  it as a dependency/provider rather than reimplementing it. Rebuilding a working, live-tested system from
+  scratch for consistency alone is not worth the regression risk.
+- Not a WAD/gfx authoring tool. `gfxforge`/`gfx_tool`/the movie-asset pipeline stay separate build-time
+  tools; `Ess.Gfx` only wraps the **runtime** `FlashWidget` API a movie is driven through.
+- Not a replacement for `lua-bridge` itself. `Loader.*`/`Tcp.*`/the script-loader hooks are the substrate
+  `Ess` is built on, not something it wraps.
+
+## Design principles
+
+1. **Adopt, don't duplicate.** `ModNet` → `Ess.Net`, `uilib` → `Ess.UI`/`Ess.Menu`, `ContractFramework` →
+   `Ess.Contract`, `LayerFw` → the `layers` provider inside `Ess.Sandbox`. Each keeps its own file/repo and
+   its own global for backward compatibility; `Ess` just gives it a home in one coherent namespace tree and
+   (where safe) reaches inside to promote an already-correct internal helper to public API (e.g.
+   `ContractFramework`'s private `mark`/`markZone` becoming public `Ess.Mark`).
+2. **Structural safety over documentation.** Where possible, make a footgun impossible to write rather
+   than warning about it in a comment. Example: `Ess.Override.wrap` should accept only a shape that
+   can't tail-call the original (see Known Bugs below) — not a helper that *could* be used wrong.
+3. **Auto-tracked handles.** Every leak-prone `AddX`/`RemoveX` pair discovered in the namespace survey
+   (`Marker`, `Event`, `Hud.Radar`, `Pda.Map`, `Object.AddQualityRef`, `Object.AddToDisposer`,
+   `Pg.AddContextAction`) gets a shared tracking primitive (`Ess.Track`) instead of five independent
+   ad-hoc `task.markers[#task.markers+1] = x` arrays like `ContractFramework` currently hand-rolls.
+4. **One canonical name per concept.** The namespace survey found the same "which of these 4/7/8 getters
+   do I want" problem repeatedly (`Player.*`, `Vehicle.*`, `Pg.FastCollect*`). `Ess` picks one name and an
+   index/kind argument instead of exposing the native sprawl.
+5. **One global, `_G.Ess`.** Short enough to type in a console one-liner; namespaced sub-tables for
+   everything else (`Ess.Player`, `Ess.Bones`, ...).
+
+---
+
+## Namespace catalog
+
+Each entry: **status** (`NEW` = nothing like this exists yet · `ADOPT` = wrap/re-export an existing
+framework unchanged · `EXTRACT` = pull working code out of `WaveDefense.lua`/`ContractFramework.lua` where
+it's currently private · `PROMOTE` = make an already-correct private helper public), the problem, and a
+concrete API sketch. Source column names which survey/read it came from (`DD`=deep-dives agent,
+`NS`=namespaces agent, `OB`=onboarding agent, or a direct file read).
+
+### Group A — Core primitives
+
+| Item | Status | Problem | Sketch |
+|---|---|---|---|
+| `Ess.Safe.call(fn, ...)` | NEW | The `local ok, r = pcall(...); if not ok then Loader.Printf(...) end` shape is the single most duplicated line in the entire corpus (DD, OB, and every file we've directly read). | `ok, result = Ess.Safe.call(fn, ...)`, auto-logs failures via `Loader.Printf` unless a 3rd `bSilent` arg is set. |
+| `Ess.Safe.string(ok, val, fallback)` | NEW | `SafeString` pattern from `world-inspector.md` — only trust a native return if `type(v)=="string"`. | direct port. |
+| `Ess.Guid(name)` / `Ess.Name(guid)` | NEW | `Sys.StringToGuid`/`GuidToString` and `Pg.GetGuidByName` each have both a namespaced form and a bare-global alias — confusing duplicate surface (NS). `Sys.GuidToString` is confirmed to throw on at least one real object (DD, world-inspector.md). | pcall-wrapped, one canonical name each direction. |
+| `Ess.Table.compact(t)` | EXTRACT | MissionForge's real, fixed bug: `t[#t]=nil` to "pop" leaves a nil hole that desyncs `#`/`ipairs`/`table.insert` (DD, mission-forge.md). | rebuild dense via `pairs()` + `table.sort`. |
+
+### Group B — Identity & world query
+
+| Item | Status | Problem | Sketch |
+|---|---|---|---|
+| `Ess.Player.character(i)` | NEW | The flagship ask. 8 overlapping getters: `GetLocalCharacter`/`GetPrimaryCharacter`/`GetSecondaryCharacter`/`GetAnyCharacter`/`GetLocalPlayer`/`GetPrimaryPlayer`/`GetSecondaryPlayer`/`GetCharacter(slot)` (NS). | `Ess.Player.character(0)` = local/primary, `Ess.Player.character(1)` = secondary (nil outside co-op, propagated safely — NS flagged raw `nil` flowing into a downstream `Object.*` call as a real risk). |
+| `Ess.Player.slot(i)` | NEW | Same problem, player-guid form instead of character-guid. | mirrors `.character`. |
+| `Ess.Player.camera(i)` | NEW | Every `Camera.*` call needs `Player.GetCamera(slot)` first — two-step boilerplate on every call site (NS). | resolves index → camera guid internally so `Ess.Camera.*` helpers can take a player index directly. |
+| `Ess.Player.giveCash(i, n)` / `giveFuel(i, n)` | NEW | `Player.SetCash`/`AddCash`/`SetFuel`/`AddFuel` confirmed to silently skip the HUD refresh `MrxPmc.AddCashQty`/`AddFuelQty` trigger (NS). Also directly confirmed in `ContractFramework.lua`'s `grantReward` and `WaveDefense.lua`'s `addCash`, both of which already correctly route through `MrxPmc`. | routes through `MrxPmc` unconditionally — makes the correct choice the *only* choice. |
+| `Ess.Player.pose(i)` | PROMOTE | `uilib.lua`'s private `pose()` (x,y,z,yaw,char,player) is exactly this, already correct, currently locked inside uilib. | promote to `Ess`, have `uilib`'s `UI.Menu` ctx call through it. |
+| `Ess.Object.vehicleOf(uGuid)` | NEW | 4 overlapping entry points across 2 namespaces: `Object.InSeat`, `Object.InVehicle`, `Player.GetControlledObject`, `Vehicle.GetFromRider` (NS). Confirmed idiom (`vehicle-occupancy-inspector` project): **poll**, don't hook — there's no native "entered a vehicle" event with an unknown target vehicle. | one wrapper; `Ess.Object.pollVehicleChange(uChar, onChange)` for the watch-for-nil→guid idiom. |
+| `Ess.Object.setInvincible(uGuid, bOn, reason)` | NEW | The reason-tag 3rd arg is easy to forget (NS) — should be required, not optional, in the wrapper even though the native call allows omitting it. | thin wrapper, non-optional 3rd param. |
+| `Ess.Vehicle.driver(uVeh)` / `.riderOf(uChar)` | NEW | 7 overlapping getters: `GetDriver`/`GetRiders`/`GetFromRider`/`GetSeatFromRider`/`GetRiderFromSeat`/`GetFromSeat`/`GetSeatByType` (NS). | 2 canonical names cover the common cases; escape hatch to the raw namespace stays available for the rest. |
+| `Ess.Vehicle.enterBestSeat` / `.enterSeatExcluding(uChar, uVeh, excl)` | EXTRACT | `MrxUtil.EnterBestAvailableSeat` d/g/p/c order, and the "partner never takes the driver seat" pattern, both confirmed live (DD, destroyer-vehicle.md). | pcall-wrapped ports. |
+| `Ess.Vehicle.followGhost(template, x,y,z)` | EXTRACT | `Object.SetPosition` confirmed to silently not move a spawned human — respawn-and-verify is the only fix (DD, forgecam.md; also independently rediscovered in ForgeCam's ghost preview). | spawn → verify-drift-each-tick → respawn-if-drifted, generalized. |
+| `Ess.Probe.nearby(pos, radius, kind, filter)` | NEW | `Pg.FastCollectHumans`/`GroundVehicles`/`Buildings`/`Flying`/`Tanks`/`Helicopters` (+ several unconfirmed siblings) are 11 separate names for "find nearby X" (NS). Already independently reimplemented as `collectInArea` in `ContractFramework.lua` and `sweepArena`/`adoptStrays`'s per-faction sweep in `WaveDefense.lua`. | one dispatcher; ports `ContractFramework`'s dedupe-by-guid-string logic (the correct existing implementation). |
+| `Ess.Probe.getFaction(uGuid)` | EXTRACT | `MrxUtil.GetFaction` → `MrxFactionManager.GetFactionAbbrev` fallback chain, from `world-inspector.md`'s `DescribeTarget`. | direct port. |
+| `Ess.Probe.describeSafe(uGuid)` | EXTRACT | Generic "explain this guid" (name/loc/health/model/faction), pcall'd with real diagnostic text on failure instead of a blank crash (DD, world-inspector.md). | direct port. |
+
+### Group C — Timing & input
+
+| Item | Status | Problem | Sketch |
+|---|---|---|---|
+| `Ess.Loop.start(id, interval, tickFn, needsTick)` | EXTRACT | The generation-guarded self-rescheduling `Event.TimerRelative` heartbeat is independently built at least **five** times: `uilib.lua`'s `ensureTick`, `contracts.lua`'s `poll()`, `WaveDefense.lua`'s main loop, plus ForgeMenu and MissionForge per the deep-dive survey (DD). `uilib`'s version is the most complete (generation counter, idle self-stop, `needsTick` predicate) — port that one. | `Ess.Loop.start(id, interval, fn, needsTick)` → auto-stops when `needsTick()` returns false, restarts on next `Ess.Loop.wake(id)`. |
+| `Ess.Timer.start()` / `:elapsed()` | NEW | `Sys.RealTimeStamp`/`Sys.TimeStampMark`/`Sys.TimeStampGetElapsed` is a 3-call primitive reimplemented as a wall-clock delta in `uilib`, `WaveDefense`, ForgeCam, and MissionForge, specifically because `Event.TimerRelative` freezes under world-pause (NS, DD). | object wrapping the 3 calls, clamped delta (uilib clamps to 0.25s — keep that). |
+| `Ess.Input.poll()` | EXTRACT | `Loader.PopKeyEvents()` (edge ring-drain) + `Loader.GetKeyboardState()` (held-state snapshot) is the *only* correct pattern — independently arrived at and documented as "2 calls/tick, never per-key `IsKeyDown` in a loop" in `uilib`, `contracts.lua`, ForgeMenu, and MissionForge, each after first getting it wrong and hitting a framerate bug (DD, OB, and this project's own `uilib-ui-kit`/`active-world-forge-project` memory). | `{pressed = {vk,...}, down = fn(vk)}` per tick; **the raw per-key `IsKeyDown`-in-a-loop pattern should not be exposed at all** — the whole point is making the mistake unavailable. |
+| `Ess.Input.VkToChar(vk, shift)` | EXTRACT | The shifted-digit/punctuation table is byte-for-byte duplicated between `MasterCheatMenu.lua` and `CommonSpawnMenu.lua` (OB), and `uilib.lua`'s `CHAR` table is a third, near-identical copy. | one canonical table (uilib's is a good base — already handles A-Z/digits/punctuation). |
+| `Ess.Input.hijackController(onInput)` / `.release()` | EXTRACT | The only way to get continuous analog input into Lua: find the `"PDA"` widget, `SetEventHandler("ControllerInput", fn)`, hide/show pair, fully reversible (DD, freecam.md/forgecam.md). | direct port, with the "letters-only nav while hijacked" reminder baked into the doc comment. |
+| `Ess.TextConsole.open(opts)` | EXTRACT | The whole open/close/buffer/backspace/escape/poll-loop console pattern (~80 lines) is duplicated near-verbatim between two shipped cheat/spawn menus, including the cross-script mutual-exclusion check (OB). | one library instead of two hand-rolled consoles. |
+| `Ess.State(name, defaults)` | NEW | The `_G.X = _G.X or {defaults}` idiom appears in every stateful `OnKey` script — and has a real, hit bug: a blind `or` silently drops newly-added fields on an existing session's table when the schema grows (DD, freecam.md's real bug; also see Known Bugs). | field-by-field merge (`for k,v in pairs(defaults) do if S[k]==nil then S[k]=v end end`), not a top-level `or`. |
+| `Ess.SaveVar.ns(prefix)` | EXTRACT | Every mod hand-rolls its own `loadv`/`savev` + unlock-flag idiom over `Loader.SaveVar`/`LoadVar` — directly confirmed duplicated in `WaveDefense.lua`. | `local sv = Ess.SaveVar.ns("MyMod"); sv:get("xp", 0)`, `sv:set("xp", n)`, `sv:flag("unlock_x")`. |
+
+### Group D — Tracking & cleanup
+
+| Item | Status | Problem | Sketch |
+|---|---|---|---|
+| `Ess.Track.new()` | NEW | The single most leak-prone shape in the engine, repeated everywhere a handle must be remembered to clean up later: `Event.Create`→`Event.Delete`, `Marker.Add*`→`Marker.Remove`, `Hud.Radar:AddObjective`→`RemoveObjective`, `Pda.Map:AddBlip`→`RemoveBlip`, `Object.AddQualityRef`→`RemoveQualityRef`, `Object.AddToDisposer`→`RemoveFromDisposer`, `Pg.AddContextAction`→`RemoveContextAction` (NS). `ContractFramework.lua`'s `task = {events={}, guids={}, markers={}, marks={}}` + `cleanupTask` is a *correct* hand-rolled instance of exactly this, repeated with variations in `WaveDefense.lua` (`W.drops`, `W.crates`, `run.enemies`). | a generic registry: `local t = Ess.Track.new(); t:event(Event.Create(...)); t:marker(Marker.AddBlip(...)); t:closeAll()` — `ContractFramework`'s task-cleanup becomes a thin wrapper over this instead of its own bespoke arrays. |
+| `Ess.Event.on(type, args, cb)` | EXTRACT | Wraps `Event.Create`, returns a tracked handle; validates the args-table shape against the event type before calling (a wrong shape doesn't error, it just silently never fires — NS). | thin wrapper + `Ess.Track` integration. |
+| `Ess.Mark.object(uGuid, kind)` / `.zone(x,y,z,r)` / `.clear(handle)` | PROMOTE | `ContractFramework.lua`'s private `mark`/`markZone`/`unmarkZone` (lines ~86–132) are **already the correct implementation** — spawns/marks on all three surfaces at once (round radar `Hud.Radar:AddObjective`, PDA `Pda.Map:AddBlip`, in-world `Marker.AddBlip`/`AddDisc`), keyed by guid string, torn down together. `WaveDefense.lua`'s own `addEnemyBlip` is radar+PDA **only** — it's missing the world marker `Contract`'s version has, a real gap that promoting this helper would have prevented. | move (or re-export) as `Ess.Mark`, have both `ContractFramework` and `WaveDefense` consume the one shared implementation. |
+
+### Group E — UI / GFX
+
+| Item | Status | Problem | Sketch |
+|---|---|---|---|
+| `Ess.Gfx.widget(file, x, y, w, h)` | EXTRACT (bug-fix) | `MrxGuiBase.FlashWidget:new()`+`SetOwner`+`SetLocation`+`SetSwfFile`+`AddWidget`+`SetVisible`+`AddWidgetToHud` boilerplate, duplicated in `uilib.lua`, `contracts.lua`, and (per DD) `custom-ui.md`/`forgecam.md`/`forge-menu.md`. **`uilib.lua`'s version is correct** (`SetLocation(x, y, x+w, y+h)` — corner coords); **`contracts.lua`'s own `make_widget` (line 55) and its `build()` (line 126) are NOT** — they still pass `SetLocation(x, y, w, h)`, the pre-fix convention `uilib` v2.1 already found and corrected elsewhere in the same repo. It happens not to visibly break by luck (the board renders ~10% smaller than intended, same as the still-unfixed ForgeMenu/MissionForge/ForgeCam instances), but it's a live, currently-shipping instance of an already-solved bug. | one constructor, corner-coordinate math done once, impossible to get wrong afterward — fixes `contracts.lua`'s bug at the source instead of needing a 5th independent fix. |
+| `Ess.Gfx.call(widget, fn, args)` | EXTRACT | pcall-wrapped `CallActionScriptCallback`, hand-written ad hoc everywhere. | thin wrapper. |
+| `Ess.Gfx.onEvent(widget, name, cb)` | EXTRACT | pcall-wrapped `SetFlashEventHandler` with the required `(_, v)` parameter shape and mandatory trailing `{}` (DD, custom-ui.md). | thin wrapper, gets the shape right so it can't be gotten wrong. |
+| `Ess.Gfx.setVisible(widget, bool)` | NEW (bug-fix) | `GetVisible()` (not `IsVisible()`, which silently nil-calls) returns `1`/`0`, and `not 0` is `false` in Lua — a naive `SetVisible(not w:GetVisible())` toggle never flips. Confirmed hit bug (this project's own `wiki` CLAUDE.md, and DD's custom-ui.md). | tracks an owned boolean in the widget wrapper's own state; never reads `GetVisible()` back to decide. |
+| `Ess.Gfx.warmupRerender(rt, ticks)` | PROMOTE | `SetSwfFile` is async — a paint immediately after building drops (movie not loaded yet). `uilib.lua`'s `WARMUP=8`-tick re-paint-on-show is the correct fix, already built. | promote from uilib. |
+| `Ess.Gfx.menuNav(widget, keys)` | PROMOTE | Edge-triggered Up/Down/Enter → `SetSelected`, needed because a HUD widget gets no native input of its own. `uilib.lua`'s `navName`/list nav is the reference implementation. | promote the input-mapping half; `Ess.Menu` (below) is the full widget. |
+| `Ess.ScrollLog.new(name, x,y,w,h)` | EXTRACT | `MrxGuiTextBuffer` via the direct `HandleInstantiationEventForTextBuffer` call — never the documented `InstantiateTextBuffer`, which crashes on a real shipped engine bug (`oWidget` undefined in its own scope). This ~30-line workaround is duplicated near-verbatim between `CoopChatUI` and `WorldProbeLogUI` (DD). Also: display-duration × message-count is real queued wall-clock time — a 194-line dump at a 15s default once blocked a UI for ~50 minutes (DD, world-inspector.md) — the port should default to a short duration for bulk dumps. | one library instead of two hand-rolled copies, with the duration-scaling guard built in. |
+| `Ess.Menu` / `Ess.UI` | ADOPT | `uilib.lua`'s `UI.Menu`/`List`/`Panel`/`Bar`/`Toast`/`Confirm`/`Input`/`Chat`/`Board` is a mature, engine-verified 9-widget kit built on the exact `Ess.Loop`/`Ess.Input`/`Ess.Gfx` primitives above. | `Ess.UI = UI` (alias) once uilib itself is rebased onto the shared primitives — no reimplementation. |
+
+### Group F — World manipulation
+
+| Item | Status | Problem | Sketch |
+|---|---|---|---|
+| `Ess.Bones.attachFX(uGuid, bone, template)` / `.detachFX` | EXTRACT | The 3-call attach recipe (`Pg.Spawn` the FX → `Object.Attach(char, bone, fx)` → `Object.SetTransformToObject(fx, char, bone)`) confirmed live end-to-end in `human-skeleton-boneprobe` (fire/smoke/flares on 30 finger joints). | direct port of the confirmed recipe. |
+| `Ess.Bones.waitForReady(uGuid, cb, maxTries)` | EXTRACT | A freshly `Pg.Spawn`'d model's hardpoints return nil for ~0.3s — confirmed gotcha (bone-manipulation deep-dive, `human-skeleton-boneprobe` memory). | poll `GetHardpointPosition` until non-nil instead of reading synchronously at spawn. |
+| `Ess.Bones.aimVector(uGuid, hpBase, hpTip)` | EXTRACT | Turret aim = the vector between two hardpoints (e.g. `hp_seat_cannon`→`hp_barreltip_cannon`), confirmed on the destroyer — this is genuinely new capability the destroyer deep-dive originally said wasn't Lua-reachable, until the bone-probe work proved otherwise. | direct port. |
+| `Ess.Bones.probeNames(uGuid, prefixes, suffixes)` | EXTRACT | The prefix×suffix pcall-probe pattern from `DestroyerTool.ProbeHardpoints`, generalized. Comes with a hard caveat worth keeping attached: `GetHardpointPosition` is confirmed **hash-keyed** (`pandemic_hash_m2`) — a garbage string can collide onto a real bone and return real coordinates, so a probe hit is not proof of a "real" name. | keep the caveat in the doc comment; this is a research tool, not a production API. |
+| `Ess.Camera.lookAtAnchor(x,y,z)` | EXTRACT | `Camera.SetPosition` silently no-ops without an active `SetLookAt` binding — the fix is spawning a `"Verification Camera"` anchor prop + one `SetLookAt` (DD, freecam.md). **Caveat directly confirmed this session:** `Pg.Spawn("Verification Camera")` into a *live, running* world triggers a support/camera call-in that fails and despawns — it's only safe as a paused-world anchor (ForgeCam), never mid-gameplay (`ContractFramework`'s own dive found this the hard way; its zone markers use a `TinyGeometry` anchor instead for exactly this reason). `Ess.Camera`'s port must carry the same caveat or default to `TinyGeometry`. | port with the corrected anchor choice built in as the default. |
+| `Ess.Camera.staleAxisDecay(axes, timeoutMs)` | EXTRACT | Force stick axes to 0 after silence — the engine omits idle fields instead of sending a final 0 (DD, freecam.md). | direct port. |
+| `Ess.Camera.followHardpoint(uGuid, hp)` | EXTRACT | Per-tick `GetHardpointPosition`→`SetPosition`/`SetLookAt`, the confirmed fallback for a dynamic (moving) vehicle where the object+hardpoint camera form no-ops. | direct port. Keep namespaced separately from **`Ess.RenderCamera`** (LOD/FOV/near-far) — `Camera` and `Graphics.Camera` are two unrelated APIs that share only a name, a confirmed cross-namespace footgun (NS). |
+| `Ess.Points.bucket(spawnList)` | EXTRACT | Arena spawn points tiered by radius (≤5 infantry / ≤15 vehicle / >15 heli) — directly confirmed working in `WaveDefense.lua`'s `bucketArena`, the natural runtime counterpart to a MissionForge arena export. | direct port. |
+| `Ess.Points.ideal(pts, refX, refZ, opts)` | EXTRACT | Distance-windowed spawn-point selection (nearest-first, min/max radius, capped count) — `WaveDefense.lua`'s `idealPoints`, generalized beyond wave-defense. | direct port. |
+| `Ess.RNG.new(seed)` | EXTRACT | Engine Lua numbers are 32-bit float — the obvious big Park-Miller LCG (`state*16807 mod 2^31`) silently degenerates because 2^31 exceeds the exact-integer ceiling (2^24). `WaveDefense.lua`'s ZX-Spectrum small-LCG (`state*75 mod 65537`) is the confirmed, engine-verified fix. This is exactly the kind of fact a new modder will otherwise only learn by watching every crate/unit roll come out identical. | `local r = Ess.RNG.new(); r:next() -> 0..1`, so multiple mods get independent sequences instead of sharing one `WaveDefense`-global stream. |
+| `Ess.RNG.weightedPick(list, weightKey)` | EXTRACT | The same accumulator-loop weighted-pick is written **three separate times** inside `WaveDefense.lua` alone (`pickUnit`, `pickDrop`, `pickCrate`) — same logic, copy-pasted. | one implementation. |
+
+### Group G — Encounter / gameplay toolkit
+
+*(This whole group already exists, fully built, inside `ContractFramework.lua` — but locked behind "is there an active contract." The point of this group is making it usable standalone, which directly unblocks the stalled Active-World director project.)*
+
+| Item | Status | Problem | Sketch |
+|---|---|---|---|
+| `Ess.AIOrders` | EXTRACT | `ContractFramework.lua`'s `AI_BEHAVIORS` table (`move`/`patrol`/`defend`/`attack`/`hold`/`face`/`follow`/`flee`/`enter`/`deploy`/`animate`) is a complete, well-designed "command a group of spawned units" API, built entirely on confirmed `Ai.Goal`/`Ai.Anchor`/`Ai.Deploy` primitives, with the `aiActor()` driver-not-hull targeting rule already correct. Currently only reachable through `def.waypoints` inside a running contract. | extract the behavior table + `groupGuids`/`aiActor`/`aiPri` helpers into a standalone `Ess.AIOrders.command(guids, behavior, opts)`; `ContractFramework`'s own waypoint runner becomes a thin consumer of it. |
+| `Ess.Relations` | EXTRACT | Faction snapshot→apply→restore, independently built **three times**: `ContractFramework.lua`'s `def.relations` (generic, trigger-aware), `WaveDefense.lua`'s `setupRelations`/`restoreRelations` (snapshot-based, records original `GetRelation` values first), and (per project memory) `TerritorialWar`. `ContractFramework`'s version has one confirmed gap: if the original `Ai.GetRelation` read fails, that direction is silently never restored — worth fixing while unifying. | one implementation both `ContractFramework` and any future gamemode call; fixes the silent-restore-skip. |
+| `Ess.Triggers` | EXTRACT | `ContractFramework.lua`'s `armTrigger` engine (immediate/once/recurring/proximity/onDestroy/onHealthBelow/onObjComplete/onCleared, plus `all`/`count` logic gates) is a complete declarative trigger system, currently reachable only via `def.support`/`def.waypoints`/`def.triggers`. **Confirmed real gap found this session:** a logic gate's `inputs` list can only reference ids that are themselves declared as *named* `def.triggers` entries — an id belonging to a `def.support`/`def.waypoints` entry (even one with its own inline `trigger` condition) never populates `inst.trigFired` and so can never satisfy a gate, contradicting the worked example on the framework's own wiki page. `Ess.Triggers` should validate gate inputs against the named-trigger table at registration time and fail loudly instead of silently never firing. | extract `armTrigger`/`namedTrig`/the gate-poll loop into `Ess.Triggers.arm(spec, onFire)` / `Ess.Triggers.gate(inputs, need, onFire)`, with the validation fix. |
+| `Ess.Sandbox` | EXTRACT | The single biggest unifying idea in this whole design. `LayerFw.lua`'s `begin`/`add`/`remove`/`swap`/`expect`/`finish` (snapshot → apply → **guaranteed** restore, with `Pg.SaveGame` gated the entire time so a crash mid-mode just leaves the pre-mode vanilla state) and `WaveDefense.lua`'s independently-built cash isolation (`isolateSupports`/`restoreSupports`, `restoreEconomy`, the `Pg.SaveGame` wrap in `WaveDefense.lua` itself) are **the same pattern applied to two different resources**, written twice, with `WaveDefense`'s copy duplicating the save-gate `LayerFw` already solved generically. | `Ess.Sandbox.register(name, {snapshot=fn, apply=fn, restore=fn})` — providers: `layers` (= `LayerFw`, finally wired in as the project's own memory has been flagging since 2026-07-12), `economy`, `supports`, `relations` (= `Ess.Relations` above). `Ess.Sandbox.begin(id, providerNames)` / `.finish(id)` drives every registered provider through one save-gated snapshot/restore, instead of one hand-rolled copy per gamemode. |
+
+### Group H — Networking
+
+| Item | Status | Problem | Sketch |
+|---|---|---|---|
+| `Ess.Net` | ADOPT | `ModNet.lua` is a mature, co-op-verified library (`Shared`/`Set`/`Get`/`Track`, `On`/`Send`, `OnRaw`/`SendRaw`, `IsCoop`/`IsHost`/`IsAuthority`, the v1.2 ready-gate handshake) with real, hard-won fixes behind it (the MAGIC-marker collision fix, the ready-gate late-join fix). Not touching its internals. | `Ess.Net = ModNet` (alias) once ModNet itself optionally sits on `Ess.Loop`'s heartbeat instead of its own inline one, for consistency only — not because it's broken. |
+| `Ess.Net.hijackCallback(moduleName, name, dispatch)` | NEW | `ModNet` solved *one specific* hijack (`MrxFactionManager.NetEventCallback`) correctly: capture-original-in-a-local, marker-tagged packets only, pcall the receive, never tail-call the original. That exact recipe is reusable for any other always-resident callback a future mod wants to safely extend, not just this one. | a generic "safely extend an existing engine callback without swallowing others' traffic" helper, modeled on `ModNet`'s own fix — not a `ModNet` replacement, a generalization of the *technique* `ModNet` proved. |
+
+### Group I — Missions
+
+| Item | Status | Problem | Sketch |
+|---|---|---|---|
+| `Ess.Contract` | ADOPT | `ContractFramework.lua` is the whole ephemeral-mission engine — `Register`/`Accept`/`Abort`/`Status`, 15 objective types, the task lifecycle. Not rebuilding this. | `Ess.Contract = Contract` (alias). `Ess`'s own docs should steer newcomers here *instead of* the native `WifMissionData`/`dynamic_import` path — the native path's landmines (never wrap `dynamic_import`, contracts need `bContract=true` or `IsMissionAContract` silently lies, lifecycle callbacks fire with **zero** arguments) are exactly the class of problem `ContractFramework` exists to make irrelevant, not something `Ess` needs its own helpers for. |
+
+### Group J — Meta
+
+| Item | Status | Problem | Sketch |
+|---|---|---|---|
+| `Ess.Override.wrap(target, name, newFn)` | NEW | Confirmed engine-wide crash pattern, not contract-specific: `return fOriginal(...)` inside a wrapper is a **tail call** that collapses the stack frame, breaking this engine's `getfenv(n)`-based module resolution. Hit as real crashes in the custom-contract deep-dive; the correct pattern (capture original in a local, call-then-return-as-a-second-statement, guard re-wrap via a flag) is already used correctly in `ModNet.lua`'s own hijack and `world-inspector.md`'s `SpawnScraper`. | accept only a function shape that makes the tail-call mistake syntactically unavailable — e.g. `Ess.Override.wrap` captures the original itself and always calls `local a,b,c = orig(...); return a,b,c` internally, so the caller's `newFn` never touches `orig` directly at all. |
+| `Ess.Override.mergeIntoLiveTable(t, key, data)` | EXTRACT | Prefer merging new data into a live table over replacing the function that reads it — every downstream reader keeps working unmodified (DD, function-override.md's wardrobe-unlock case). | direct port. |
+
+---
+
+## Known bugs this design should fix at the source
+
+Concrete, currently-real issues surfaced during this research pass — not hypothetical footguns:
+
+1. **`contracts.lua`'s `make_widget`/`build()` still use the pre-fix `SetLocation(x,y,w,h)`** (lines 55 and
+   126) instead of `uilib.lua`'s corrected `SetLocation(x,y,x+w,y+h)`. Currently harmless by luck (renders
+   slightly small), but it's a live regression of an already-solved bug in a sibling file of the same repo.
+2. **Trigger logic gates (`kind="all"/"count"`) can silently never fire** if any of their `inputs` names a
+   `def.support`/`def.waypoints` id rather than a named `def.triggers` id — contradicts the framework's own
+   documented worked example. `Ess.Triggers` should validate this at registration and fail loudly.
+3. **`WaveDefense.lua`'s enemy blips (`addEnemyBlip`) mark radar+PDA only** — missing the world marker that
+   `ContractFramework`'s `mark()` already does correctly. A shared `Ess.Mark` would have made this
+   impossible to under-implement.
+4. **`ContractFramework.lua`'s relation restore silently skips a direction whose original `Ai.GetRelation`
+   read failed** — the pre-existing stance is lost rather than restored. Fix while unifying into
+   `Ess.Relations`.
+5. **`Object.GetVisible()` not `IsVisible()`** (which doesn't exist and nil-calls silently under `pcall`),
+   and **`not w:GetVisible()` is *also* wrong** even with the right name, since the getter returns `1`/`0`
+   and only `nil`/`false` are falsy in Lua. `Ess.Gfx.setVisible` must track its own boolean, never read the
+   getter back to decide.
+6. **`Player.SetCash`/`AddCash`/`SetFuel`/`AddFuel` silently skip the HUD refresh** that `MrxPmc.AddCashQty`/
+   `AddFuelQty` trigger — `Ess.Player.giveCash`/`giveFuel` must hard-route through `MrxPmc`, no raw-setter
+   option.
+7. **The `X and false or Y` ternary substitute breaks when `X`'s "true" value is itself `false`** — hit as a
+   real load-time crash in `WaveDefense.lua`'s `loadMods` (indexed `mod.vals` for a toggle, which has none).
+   Worth a lint-style callout in `Ess`'s own contributor docs even though it can't be fixed by a wrapper.
+8. **`_G.X = _G.X or {defaults}` silently drops newly-added fields** on an existing session's table once the
+   schema grows — a real, hit bug (`freecam.md`). `Ess.State` merges field-by-field instead.
+9. **A blank/whitespace `Pg.Spawn` template string hard-crashes the engine even through `pcall`** — native
+   crashes can't be caught, only Lua errors can. `uilib.lua`'s `ctx:spawn` already validates this up front;
+   every `Ess` helper that reaches `Pg.Spawn` must do the same validation before the call, not rely on
+   `pcall` to make it safe.
+10. **Tail-calling the original inside an override (`return fOriginal(...)`)** collapses the stack frame and
+    breaks the engine's module system — see `Ess.Override` above.
+
+---
+
+## Repo / build architecture
+
+Per-namespace source files under `src/`, concatenated by a build script into one deployable file — the
+same shape this project already uses for `gfxforge-web`'s `build.py` bundler and the `mercs2-name-cracker`/
+`bone_dump` pipelines, so it's a familiar pattern rather than a new convention.
+
+```
+mercs2-lua-essentials/
+  FEATURE_SHEET.md        <- this document
+  README.md
+  src/
+    00_core.lua            Ess bootstrap, Ess.Safe, Ess.Table, Ess.Guid
+    10_player.lua           Ess.Player
+    11_object.lua           Ess.Object
+    12_vehicle.lua           Ess.Vehicle
+    13_probe.lua            Ess.Probe
+    20_loop.lua             Ess.Loop, Ess.Timer
+    21_input.lua            Ess.Input, Ess.TextConsole
+    22_state.lua            Ess.State, Ess.SaveVar
+    30_track.lua            Ess.Track, Ess.Event
+    31_mark.lua             Ess.Mark
+    40_gfx.lua              Ess.Gfx
+    41_scrolllog.lua         Ess.ScrollLog
+    50_bones.lua            Ess.Bones
+    51_camera.lua            Ess.Camera
+    52_points.lua            Ess.Points
+    53_rng.lua               Ess.RNG
+    60_aiorders.lua          Ess.AIOrders
+    61_relations.lua         Ess.Relations
+    62_triggers.lua          Ess.Triggers
+    63_sandbox.lua           Ess.Sandbox
+    90_override.lua          Ess.Override
+    99_adopt.lua             aliases: Ess.Net=ModNet, Ess.UI=UI, Ess.Contract=Contract
+  build/
+    merge.py                concatenates src/*.lua in filename order -> dist/Essentials.lua,
+                             stamps a version/build-date header banner
+  dist/
+    Essentials.lua          (generated; open question below on whether this is committed)
+```
+
+Numeric filename prefixes double as both load-order (matching the existing `1_`-prefix lua-bridge
+convention this project already uses for framework files) and a visual grouping in a file browser —
+`00`–`13` never depend on anything below them, `90`/`99` depend on everything.
+
+## Relationship to existing frameworks — the migration story
+
+- **`ModNet`, `uilib`, `ContractFramework`, `LayerFw` keep their own repos/files and globals.** Nothing
+  about how `WaveDefense.lua` currently deploys (`1_ModNet.lua`, `1_uilib.lua`, `1_ContractFramework.lua`)
+  needs to change on day one.
+- `Ess` ships as its own `1_Ess.lua` (or similarly prefixed), loaded alongside them. Its `99_adopt.lua`
+  aliases (`Ess.Net`, `Ess.UI`, `Ess.Contract`) only activate if the corresponding framework is already
+  loaded — existence-checked, never a hard dependency.
+- `LayerFw` is the one framework this design asks to change: its `begin`/`add`/`remove`/`swap`/`expect`/
+  `finish` API becomes the `layers` provider registered with `Ess.Sandbox`, finally wiring it into a real
+  consumer (this project's own memory has flagged "wire LayerFw into WaveDefense" as the next step since
+  2026-07-12 and it never happened).
+- `ContractFramework`'s private `mark`/`markZone`/`AI_BEHAVIORS`/`armTrigger`/relations code gets promoted
+  to public `Ess.*` namespaces; `ContractFramework` itself becomes a (thin, mechanically verified)
+  consumer of its own former internals, not a rewrite.
+- `WaveDefense.lua` is the biggest beneficiary and the biggest migration effort: its private RNG,
+  weighted-pick (×3), economy/support isolation, relations setup/restore, arena bucketing, and blip
+  marking all become `Ess.*` calls, and the file should get visibly *smaller*. This migration is **not**
+  part of this design pass — flagged here so it's an explicit, deliberate follow-up, not scope creep now.
+
+## Open questions (before implementation starts)
+
+1. **Naming:** `Ess` vs `Essentials` vs something else as the actual global — leaning `Ess` per your call,
+   confirming before it's baked into 20 files.
+2. **`Ess.RNG` — shared global stream or per-consumer instances?** `WaveDefense.lua` uses one shared
+   `W._rng`. Multiple mods sharing one `Ess`-global stream would perturb each other's sequences if both
+   draw from it in the same tick — instanced (`Ess.RNG.new()`) avoids that at the cost of every consumer
+   remembering to hold onto their own instance.
+3. **Is `dist/Essentials.lua` committed to the repo**, or built on demand / at release time only? Committing
+   it makes "just drop this one file in" trivially copy-pasteable for a newcomer; not committing it keeps
+   the repo free of generated-file diffs. (The `gfxforge-web` precedent commits neither — `dist/` is built
+   on demand there.)
+4. **How much of Group G (`AIOrders`/`Relations`/`Triggers`/`Sandbox`) ships in v1** versus being deferred —
+   this is the highest-value, highest-effort, highest-regression-risk group since it means touching
+   `ContractFramework.lua`'s internals. Could ship v1 with Groups A–F only (zero changes to any existing
+   framework) and treat G as a v2 that revisits `ContractFramework`/`WaveDefense` deliberately.
+5. **Versioning/compat policy** once other mods start depending on `Ess` directly, mirroring the
+   `MODULE_ASSETS`-style versioning `mercs2-lua-mods`' `repository.json` already uses for `lua-bridge`/
+   `lua-menu-widgets`.
+
+## Suggested build order (once the sheet above is approved)
+
+1. Group A + C (core primitives, loop/timer/input/state) — zero dependencies, immediately useful standalone,
+   zero risk to existing frameworks.
+2. Group B + D (identity/query + tracking) — still zero risk, builds on 1.
+3. Group F (bones/camera/points/RNG) — zero risk, mostly ports of already-confirmed-working code.
+4. Group E (`Ess.Gfx`) + the `Ess.UI`/`Ess.Net`/`Ess.Contract` aliases — first point of contact with the
+   existing frameworks, but as additive aliases, not edits to their source.
+5. Group G — the deliberate, higher-risk pass that actually opens up `ContractFramework.lua` and
+   `WaveDefense.lua` internals. Do this only once 1–4 are stable and (ideally) after a co-op smoke test of
+   whatever's live at the time.
+6. `Ess.Override` (Group J) can land any time after step 1 — it has no dependents yet, it's just a safety
+   primitive waiting to be used by whichever later group needs it first.
