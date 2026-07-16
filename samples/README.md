@@ -35,10 +35,14 @@ handler.
 | `for_fun` | swap your look + play a fanfare | Easy.Player, Easy.Fun |
 | `a_simple_mission` | author a whole 2-objective mission with a reward | Contract |
 
-## Interactive demos (`samples/OnKey/`)
+## Interactive scripts (`samples/OnKey/`)
 
-| Demo | Key | Shows |
+Larger bind-to-a-key scripts — demos to watch, plus the mission-authoring tool. Deploy the ones you want into
+the game's `scripts/OnKey/` and bind them in `lua_loader.ini` (e.g. `MissionForge.lua=F7` under `[OnKey]`).
+
+| Script | Key | What it is |
 |---|---|---|
+| `MissionForge` | F7 | **the mission-authoring tool** — walk (or fly) around and drop-at-your-position placement of units / objectives / support / triggers / AI-orders / **cinematic camera shots**, then export a `MISSIONFORGE_EXPORT` block for the web tool (or hand-authoring) to turn into an `Ess.Contract`. A full tool, not a demo (~1100 lines); consumes Ess throughout. |
 | `CustomMenu` | F4 | **make your own menu of cool stuff** — a beginner template: Ess.UI.Menu wired to the Ess.Easy.* one-liners (spawn / effects / unlocks / world tweaks). Copy it and swap in your own entries. |
 | `CoopChat` | F2 | co-op text chat — per-player username over the wire, auto-fade (Net + UI.Chat) |
 | `CinematicDemo` | F9 | a 12-step showcase cutscene — camera / spawn / fly-in / orbit / narration (Cinematic) |

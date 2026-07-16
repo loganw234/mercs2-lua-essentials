@@ -4,6 +4,7 @@
 --
 -- API:
 --   Ess.Input.poll() -> { pressed = {vk, ...}, down = function(vk) -> bool }
+--   Ess.Input.held(vk) -> bool                            is this key down RIGHT NOW (no buffer drain)
 --   Ess.Input.clear()                                     flush the pending key-event ring buffer
 --   Ess.Input.VkToChar(vk, bShift) -> sChar | nil
 --   Ess.Input.hijackController(onInput) -> release()      niche -- see caveat below; low priority to
@@ -42,6 +43,18 @@ function Ess.Input.poll()
         return (string.byte(ks, vk + 1) or 0) >= 128
     end
     return { pressed = pressed, down = down }
+end
+
+-- Ess.Input.held(vk) -> bool -- is `vk` down at this instant, read from the GetKeyboardState snapshot ONLY
+-- (no PopKeyEvents drain). Use this instead of poll().down(vk) when you ONLY care about a held key and
+-- something ELSE is draining the edge buffer -- e.g. a "hold Shift to boost" loop running alongside a menu:
+-- if that loop called poll() it would eat the ring-buffer edges the menu needs, so it uses held() and leaves
+-- the edges for the menu. (poll() still owns the discrete/pressed edges; this is purely the "is it down now"
+-- half, safe to call from any number of loops at once.)
+function Ess.Input.held(vk)
+    local ks = Loader.GetKeyboardState()
+    if not ks then return false end
+    return (string.byte(ks, vk + 1) or 0) >= 128
 end
 
 -- Ess.Input.clear() -- discard every key event currently buffered in the ring (Loader.ClearKeyEvents),
