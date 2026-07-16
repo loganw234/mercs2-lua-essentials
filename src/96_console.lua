@@ -35,6 +35,10 @@ local REGISTRY = {
       desc = "Order a group to patrol a list of {x,y,z} points." },
     { ns = "Ess.Easy.AIOrders", usage = "Ess.Easy.AIOrders.guard(guids, at)",
       desc = "Order a group to hold and defend a position." },
+    { ns = "Ess.Raw.AIOrders", usage = "Ess.Raw.AIOrders.priorityTarget(g)",
+      desc = "Makes hostile AI focus fire on this one guid -- boss fights, escort-defense." },
+    { ns = "Ess.Raw.AIOrders", usage = "Ess.Raw.AIOrders.enable(g, bOn)",
+      desc = "Freezes/unfreezes AI control of a subject -- hold it still for a scripted moment." },
 
     { ns = "Ess.Easy.Relations", usage = "Ess.Easy.Relations.makeHostile(factionList)",
       desc = "Every faction in the list becomes hostile to PMC." },

@@ -6,6 +6,8 @@
 --   Ess.Raw.AIOrders.actor(g) -> uGuid          the DRIVER of a vehicle, or g itself if g isn't one
 --   Ess.Raw.AIOrders.goal(args) -> handle|false  pcall-wrapped Ai.Goal
 --   Ess.Raw.AIOrders.haste(g, speed)             pcall-wrapped Ai.SetHaste, no-op if speed is nil
+--   Ess.Raw.AIOrders.priorityTarget(g)           pcall-wrapped Ai.SetPriorityTarget -- focus hostile AI on g
+--   Ess.Raw.AIOrders.enable(g, bOn)               pcall-wrapped Ai.Enable -- freeze/unfreeze AI control of g
 
 local Ess = _G.Ess
 Ess.Raw = Ess.Raw or {}
@@ -32,4 +34,20 @@ end
 
 function Ess.Raw.AIOrders.haste(g, speed)
     if speed then pcall(Ai.SetHaste, g, speed) end
+end
+
+-- Ess.Raw.AIOrders.priorityTarget(g) -- CONFIRMED (resident/mrxsupport.lua, resident/outpost.lua):
+-- Ai.SetPriorityTarget(uGuid) marks a subject as the priority target for hostile AI -- the standalone
+-- "make the enemies focus THIS" primitive a boss-fight or escort-defense scenario would reach for outside
+-- the group `command()` dispatcher.
+function Ess.Raw.AIOrders.priorityTarget(g)
+    pcall(Ai.SetPriorityTarget, g)
+end
+
+-- Ess.Raw.AIOrders.enable(g, bOn) -- CONFIRMED (resident/mrxactionhijack.lua, resident/mrxutil.lua):
+-- Ai.Enable(uGuid, bEnabled) toggles whether the AI system drives an object at all -- freeze a subject in
+-- place for a scripted/cutscene beat, then hand control back. Pairs naturally with Ess.Camera.fade/
+-- Ess.Hud for a scripted moment.
+function Ess.Raw.AIOrders.enable(g, bOn)
+    pcall(Ai.Enable, g, bOn and true or false)
 end

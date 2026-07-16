@@ -493,6 +493,23 @@ Engine Namespaces section against what Ess actually covers:**
   `Rumble` was the standout gap: a confirmed, simple, genuinely broad "juice" primitive (controller haptic
   feedback for a damage/impact/pickup moment) that nothing in the framework exposed. Live-tested: fired
   error-free against the local player.
+- **`Ess.Raw.AIOrders.priorityTarget(g)`/`.enable(g, bOn)`** (`src/60_aiorders_raw.lua`) — two more
+  confirmed `Ai` primitives, pulled from a survey of the `Ai` namespace (66 functions) specifically
+  targeting anything not already reachable through `Ess.AIOrders.command`/`Ess.Relations`. `SetHaste` was
+  already covered (`Ess.Raw.AIOrders.haste`, used internally by every speed-taking behavior); `Goal`/
+  `Role`/`Deploy`/`Anchor` are already the foundation `Ess.AIOrders.command`'s behaviors are built on.
+  `SetPriorityTarget` (confirmed `resident/mrxsupport.lua`/`outpost.lua`) makes hostile AI focus-fire one
+  guid — a standalone primitive for boss-fight/escort-defense scenarios outside the group `command()`
+  dispatcher. `Ai.Enable` (confirmed `mrxactionhijack.lua`/`mrxutil.lua`) freezes/unfreezes whether the AI
+  system drives a subject at all — pairs naturally with `Ess.Camera.fade`/`Ess.Hud` for a scripted/cutscene
+  beat where an NPC needs to hold perfectly still. The rest of `Ai` left unwrapped: the options-table
+  `Goal`/`Role`/`Squad`/`TestDropZone` family already has confirmed shapes only for the specific keys
+  `Ess.AIOrders` already uses (building a general passthrough would mean guessing untested keys); traffic/
+  spawn-list management (`SetRoadSpawning`/etc, zero confirmed call sites — the exact reason these were
+  already flagged as deliberately-not-built earlier this session); subject registration (`AddSubject`/
+  `RemoveSubject`, internal plumbing for player-join, not something a gameplay mod calls). Live-tested both
+  against a freshly spawned `blanco` dummy (settled 1.5s first, per this project's established "give a
+  fresh spawn a moment" rule): `priorityTarget` and `enable(false)`/`enable(true)` all fired error-free.
 
 ## Non-goals
 
