@@ -10,6 +10,7 @@
 --   Ess.Player.targetUnderReticle(i) -> uGuid|nil, x, y, z    "what am I aiming at" -- the flagship reason
 --                                        the wiki's whole Engine Namespaces section exists at all
 --   Ess.Player.removeBoundaries() -> nCleared    lifts every active out-of-bounds volume, all players
+--   Ess.Player.setInputEnabled(bOn, i)           freeze/restore gameplay input (Player.SetInputEnabled)
 --   Ess.Player.rumble(i, fLength)                Pg.Rumble -- controller haptic feedback
 --   Ess.Player.teleport(x, y, z, yaw, onDone)    warp the player(s) to a world spot -- the CONFIRMED
 --                                                MrxUtil.TeleportHeroesToLocations idiom (NOT raw SetPosition)
@@ -127,6 +128,19 @@ function Ess.Player.removeBoundaries()
         if pcall(Player.RemoveAllBoundary, p) then n = n + 1 end
     end
     return n
+end
+
+-- Ess.Player.setInputEnabled(bOn, i) -- enable (true) or freeze (false) a player's gameplay input
+-- (movement/actions) via Player.SetInputEnabled on the player-SLOT guid. The confirmed "freeze the player
+-- during a scripted moment / while a modal UI box has focus" primitive -- Ess.TextConsole uses this same
+-- native for its lockPlayer option, and every custom chat/console overlay wants exactly it (freeze on open,
+-- restore on close). Takes the player SLOT (not the character), matching the native; i defaults to local.
+-- CONFIRMED to leave the keyboard-event stream a Lua UI reads (Loader.PopKeyEvents) intact -- it gates
+-- GAME control only, so a chat box can still type while the world is frozen underneath it.
+function Ess.Player.setInputEnabled(bOn, i)
+    local p = Ess.Player.slot(i)
+    if not p then return end
+    pcall(Player.SetInputEnabled, p, bOn and true or false)
 end
 
 -- Ess.Player.rumble(i, fLength) -- CONFIRMED (wiki/namespaces/pg.md): Pg.Rumble(uCharacterGuid, fLength)
