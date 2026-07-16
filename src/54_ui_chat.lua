@@ -1,10 +1,13 @@
 -- Ess/54_ui_chat.lua -- Ess.UI.Chat: a scrolling message log (chat.gfx) with an optional typed input
 -- line. Direct port of uilib.lua's UI.Chat.
 --
--- local ch = Ess.UI.Chat{ x, y, title, onSubmit }
+-- local ch = Ess.UI.Chat{ x, y, title, onSubmit, autoHide }
 --   ch:push("a message")     -- add a line (keeps the last `max` visible; body auto-resizes)
 --   ch:prompt()              -- enter input mode: type, Enter -> push + onSubmit(text), Esc cancels
 --   ch:title(s)  ch:clear()
+--   autoHide = seconds       -- optional: auto-hide the window this long after the last pushed message.
+--                               Frozen while it has input focus (never fades mid-type) and re-surfaces on
+--                               the next push. Omit for the default always-visible behaviour.
 
 local Ess = _G.Ess
 Ess.UI = Ess.UI or {}
@@ -23,6 +26,7 @@ function Ess.UI.Chat(opts)
     o._cur, o._tgt = 100, 100
     o._setsize = function(v) c("SetSize", { v }) end
     o.onSubmit = opts.onSubmit
+    o._autoHide = opts.autoHide   -- seconds; nil = stay visible (default, unchanged behaviour)
     local BASE_H = 132
 
     local function paintLog()
@@ -41,6 +45,11 @@ function Ess.UI.Chat(opts)
         for _, line in ipairs(Ess.UI.wrap(tostring(text), 52)) do o._log[#o._log + 1] = line end
         while #o._log > o._max do table.remove(o._log, 1) end
         paintLog()
+        if o._autoHide then                      -- (re)start the auto-hide countdown; resurface if faded out
+            if o._shown == false then o:show() end
+            o._hideIn = o._autoHide
+            Ess.UI._ensureTick()
+        end
         return self
     end
     function o:clear() o._log = {}; paintLog(); return self end

@@ -48,14 +48,18 @@ end
 if not _G.EssCoopChat then
   _G.EssCoopChat = {}
   local C = _G.EssCoopChat
-  C.ui = Ess.UI.Chat{ x = 20, y = 330, w = 384, title = "CO-OP CHAT", onSubmit = onSubmit }
+  -- autoHide = 10: the window fades out 10s after the last message (frozen while you're typing), so co-op
+  -- chatter doesn't sit on screen forever. Received/sent lines re-surface it automatically.
+  C.ui = Ess.UI.Chat{ x = 20, y = 330, w = 384, title = "CO-OP CHAT", onSubmit = onSubmit, autoHide = 10 }
 
-  -- Freeze local player movement/actions while the input line has focus (typing stays intact -- Ess.Player.
-  -- setInputEnabled gates GAME control only, not the keyboard stream the UI reads). Wrap Chat's own prompt/
-  -- _endInput so entering input disables control and leaving it restores.
+  -- Wrap Chat's own prompt/_endInput to (a) freeze local player movement/actions while the input line has
+  -- focus -- typing stays intact, since Ess.Player.setInputEnabled gates GAME control only, not the keyboard
+  -- stream the UI reads -- and (b) manage the window: opening the prompt re-shows a faded window; closing it
+  -- (Esc) hides immediately, which is the "close it quicker than the 10s" manual dismiss. On Enter, Chat
+  -- re-pushes the sent line right after _endInput, so the window pops back up for its 10s read window.
   local basePrompt, baseEnd = C.ui.prompt, C.ui._endInput
-  C.ui.prompt    = function(self, cb) Ess.Player.setInputEnabled(false); return basePrompt(self, cb) end
-  C.ui._endInput = function(self)     Ess.Player.setInputEnabled(true);  return baseEnd(self)      end
+  C.ui.prompt    = function(self, cb) Ess.Player.setInputEnabled(false); self:show(); return basePrompt(self, cb) end
+  C.ui._endInput = function(self)     Ess.Player.setInputEnabled(true);  baseEnd(self); self:hide() end
 
   C.ui:push("[co-op chat ready -- press " .. KEYVAL .. " to type]")
   Ess.Log("[coopchat] built on Ess.Net + Ess.UI.Chat")

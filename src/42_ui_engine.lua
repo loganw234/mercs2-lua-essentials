@@ -166,6 +166,17 @@ local function service(dt)
                     if d > 0.5 or d < -0.5 then o._cur = o._cur + d * 0.35 else o._cur = o._tgt end
                     if o._setsize then o._setsize(o._cur) end
                 end
+                -- auto-hide countdown (opt-in per widget via o._autoHide; used by Ess.UI.Chat's autoHide).
+                -- Frozen and refreshed while the widget holds input focus, so a window never fades out from
+                -- under someone mid-interaction -- the countdown only runs once it's a passive display again.
+                if o._hideIn then
+                    if S.focus == o then o._hideIn = o._autoHide
+                    elseif o._shown == false then o._hideIn = nil
+                    else
+                        o._hideIn = o._hideIn - dt
+                        if o._hideIn <= 0 then o._hideIn = nil; pcall(function() o:hide() end) end
+                    end
+                end
             end
         end
     end
@@ -192,7 +203,7 @@ local function needsTick()
     if S.focus then return true end
     if S.live then
         for _, o in ipairs(S.live) do
-            if o._gfx and ((o._warmup and o._warmup > 0) or (o._cur and o._tgt and o._cur ~= o._tgt)) then
+            if o._gfx and ((o._warmup and o._warmup > 0) or (o._cur and o._tgt and o._cur ~= o._tgt) or o._hideIn) then
                 return true
             end
         end
