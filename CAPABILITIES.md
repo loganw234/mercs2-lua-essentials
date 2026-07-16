@@ -98,7 +98,7 @@ in-game.
 
 | Namespace | What it's for | Key calls |
 |---|---|---|
-| `Ess.Camera` | Camera effects (top-level `Camera` + `Graphics.Camera` + `Graphics.Effect`, kept clear) | `.shake/.stopShake`, `.fov/.restoreFov`, `.fade(amt)` (+ `Easy.Camera.shake/fadeOut/fadeIn`), `.lookAtAnchor`, `.followHardpoint`, `.staleAxisDecay`; **cinematic:** `.beginCinematic/.placeCamera/.lookAtObject/.lookAtPoint/.hold/.endCinematic/.panicRevert` + `Easy.Camera.watch(uGuid, {chase=})` (take over the camera to watch a target fly in — auto-tracks; steals control until stop()) |
+| `Ess.Camera` | Camera effects (top-level `Camera` + `Graphics.Camera` + `Graphics.Effect`, kept clear) | `.shake/.stopShake`, `.fov/.restoreFov`, `.fade(amt)` (+ `Easy.Camera.shake/fadeOut/fadeIn`), `.lookAtAnchor`, `.followHardpoint`, `.staleAxisDecay`; **cinematic:** `.beginCinematic/.placeCamera/.lookAtObject/.lookAtPoint/.hold/.endCinematic/.panicRevert` + `Easy.Camera.watch(uGuid, {chase=, angle=})` (locked-off tracking shot by default, or a `Blend 0` fixed-angle follow) + `Easy.Camera.orbit(uGuid, {radius=, speed=})` (smooth orbit). Steals control until `stop()`; use the static `watch` for high-velocity subjects |
 | `Ess.Bones` | The confirmed bone/hardpoint recipes | `.attachFX/.detachFX`, `.waitForReady`, `.aimVector`, `.probeNames` |
 | `Ess.Points` | Arena spawn-point selection | `.bucket(spawnList)`, `.ideal(pts, refX, refZ, opts)` |
 
