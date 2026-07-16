@@ -308,6 +308,15 @@ Engine Namespaces section against what Ess actually covers:**
   native calls — the visual result itself can't be confirmed remotely (no screenshot capability into this
   game), so this rests on the wiki's own already-screenshot-confirmed source rather than re-proving the
   visual here.
+- **`Ess.Camera.shake`/`.stopShake`/`.fov`/`.restoreFov`** (`src/51_camera.lua`) — two more confirmed
+  camera effects, extending the existing namespace rather than starting a new one. `shake` wraps
+  `Camera.Shake` (real preset names from real scripts: `"ShakeCameraMedium"` one-shot,
+  `"ShakeCameraConstantlyRandom"` + `stopShake`'s `"StopShakeCameraConstantly"` for an ongoing shake).
+  `fov`/`restoreFov` wrap `Graphics.Camera.SetFovParams`/`RestoreFovParams` — a genuinely DIFFERENT native
+  table than top-level `Camera` despite the shared name (confirmed cross-namespace footgun, already
+  flagged in this file's header), taking a player-slot INDEX directly rather than a camera guid. Plus
+  `Ess.Easy.Camera.shake(i)` (zero-config, no preset/amplitude to think about). Live-tested: one-shot
+  shake, start+stop of the ongoing shake variant, and a full FOV blend-then-restore cycle, all error-free.
 
 ## Non-goals
 

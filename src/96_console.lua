@@ -97,6 +97,11 @@ local REGISTRY = {
     { ns = "Ess.Hud", usage = "Ess.Hud.banner(sMsg)",
       desc = "A clean, icon-free, centered text banner across the middle of the screen." },
 
+    { ns = "Ess.Easy (Camera)", usage = "Ess.Easy.Camera.shake(i)",
+      desc = "Shakes player i's camera, no preset name/amplitude to think about." },
+    { ns = "Ess.Camera", usage = "Ess.Camera.fov(i, nAngle, nDuration)",
+      desc = "Blends player i's field-of-view to a new angle over nDuration seconds (a zoom effect)." },
+
     { ns = "Ess", usage = "Ess.Log(msg)",
       desc = "Prints a line to the Lua bridge log (lua_loader_printf.log)." },
     { ns = "Ess.TextConsole", usage = "Ess.TextConsole.open{ onSubmit = fn }",

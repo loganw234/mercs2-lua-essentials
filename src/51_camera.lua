@@ -5,9 +5,17 @@
 --   Ess.Camera.lookAtAnchor(x, y, z, i) -> uAnchor | nil
 --   Ess.Camera.staleAxisDecay(axes, timeoutMs) -> tracker  tracker:update(tInput, now)  tracker.values[name]
 --   Ess.Camera.followHardpoint(uGuid, hp, i, interval) -> stop()
+--   Ess.Camera.shake(i, sPreset, uSource, nAmplitude, nDuration)   Camera.Shake (per-player camera guid)
+--   Ess.Camera.stopShake(i, uSource)                               for the "ConstantlyRandom" preset
+--   Ess.Camera.fov(i, nAngle, nDuration) / .restoreFov(i, nDuration)   Graphics.Camera.*FovParams --
+--                                          takes the player INDEX directly, NOT a camera guid (see below)
 --
--- NOTE this is the Camera.* namespace (chase-cam/look-at/position), not Graphics.Camera (LOD/FOV/
--- near-far) -- confirmed cross-namespace footgun (they share only a name), keep them separate.
+-- NOTE this is the Camera.* namespace (chase-cam/look-at/position/shake), not Graphics.Camera (LOD/FOV/
+-- near-far) -- confirmed cross-namespace footgun (they share only a name), keep them separate. `fov`/
+-- `restoreFov` below ARE Graphics.Camera, deliberately placed in this same file (they're still "camera
+-- effects" from a modder's point of view) but calling a DIFFERENT native table with a DIFFERENT argument
+-- shape (an index, not a guid) than every other function here -- don't let the shared file confuse the
+-- two namespaces underneath.
 
 local Ess = _G.Ess
 Ess.Camera = Ess.Camera or {}
@@ -98,4 +106,46 @@ function Ess.Camera.followHardpoint(uGuid, hp, i, interval)
         return true
     end)
     return function() Ess.Loop.stop(id) end
+end
+
+-- Ess.Camera.shake(i, sPreset, uSource, nAmplitude, nDuration)
+-- CONFIRMED (wiki/namespaces/camera.md): Camera.Shake(uCameraGuid, sShakeName, uSourceGuid, nAmplitude,
+-- nDuration), real named presets seen in the corpus: "ShakeCameraMedium" (one-shot, e.g. an explosion),
+-- "ShakeCameraConstantlyRandom" (ongoing, paired with stopShake below). sPreset defaults to
+-- "ShakeCameraMedium" -- the confirmed one-shot preset -- since that's the safer default for a single
+-- call (an ongoing shake left unstopped would run until the player leaves the level).
+function Ess.Camera.shake(i, sPreset, uSource, nAmplitude, nDuration)
+    local cam = Ess.Player.camera(i)
+    if not cam then return end
+    pcall(Camera.Shake, cam, sPreset or "ShakeCameraMedium", uSource, nAmplitude or 6, nDuration or 5)
+end
+
+-- Ess.Camera.stopShake(i, uSource) -- the confirmed counterpart call for an ongoing
+-- "ShakeCameraConstantlyRandom" shake (started via Ess.Camera.shake with that preset name).
+function Ess.Camera.stopShake(i, uSource)
+    local cam = Ess.Player.camera(i)
+    if not cam then return end
+    pcall(Camera.Shake, cam, "StopShakeCameraConstantly", uSource)
+end
+
+-- Ess.Camera.fov(i, nAngle, nDuration) / .restoreFov(i, nDuration)
+-- CONFIRMED (wiki/namespaces/graphics.md): Graphics.Camera.SetFovParams(nCameraIndex, nAngle, nDuration) /
+-- RestoreFovParams(nCameraIndex, nDuration) -- blends the field-of-view to a new angle over nDuration
+-- seconds, then reverts. Every confirmed real call site passes a literal player-slot INDEX (0), not a
+-- camera guid -- this is a genuinely different native table than top-level Camera despite the shared
+-- "Camera" name (see file header). `i` here is that index directly, defaulting to 0 (the local player).
+function Ess.Camera.fov(i, nAngle, nDuration)
+    pcall(Graphics.Camera.SetFovParams, i or 0, nAngle, nDuration or 1)
+end
+
+function Ess.Camera.restoreFov(i, nDuration)
+    pcall(Graphics.Camera.RestoreFovParams, i or 0, nDuration or 1)
+end
+
+-- Ess.Easy.Camera.shake(i) -- zero-config "just shake the screen" for the common explosion/impact case.
+Ess.Easy = Ess.Easy or {}
+Ess.Easy.Camera = Ess.Easy.Camera or {}
+function Ess.Easy.Camera.shake(i)
+    local char = Ess.Player.character(i)
+    Ess.Camera.shake(i, "ShakeCameraMedium", char, 6, 5)
 end
