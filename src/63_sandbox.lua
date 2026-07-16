@@ -21,7 +21,6 @@
 local Ess = _G.Ess
 Ess.Sandbox = Ess.Sandbox or {}
 Ess.Sandbox._active = Ess.Sandbox._active or {}
-Ess.Sandbox._nActive = Ess.Sandbox._nActive or 0
 
 -- ============================================================
 -- Built-in provider: relations -- opts.relations is the {a,b,set} pairs list to pass straight through
@@ -123,19 +122,20 @@ Ess.Raw.Sandbox.register("layers", {
 
 -- ============================================================
 -- Ess.Sandbox.begin(id, providerNames, opts) -> ok
--- Gates saves (once, even across nested/concurrent sandboxes -- tracked by a simple active-count),
--- then calls apply(id, opts) on each named provider in order. A provider that errors is logged and
+-- Gates saves for this sandbox (via a per-id holder on the shared Ess.Save gate, so concurrent sandboxes
+-- gate independently and saves only resume once the LAST holder anywhere -- sandbox OR Ess.Layers -- is
+-- gone), then calls apply(id, opts) on each named provider in order. A provider that errors is logged and
 -- skipped -- it's simply not added to this id's active-provider list, so finish() won't try to restore
 -- something that never successfully applied.
 -- ============================================================
+local function saveKey(id) return "sandbox:" .. tostring(id) end
 function Ess.Sandbox.begin(id, providerNames, opts)
     if Ess.Sandbox._active[id] then
         Ess.Log("Sandbox.begin: '" .. tostring(id) .. "' is already active")
         return false
     end
     opts = opts or {}
-    Ess.Raw.Sandbox.gateSaves()
-    Ess.Sandbox._nActive = Ess.Sandbox._nActive + 1
+    Ess.Save.gate(saveKey(id))
     local applied = {}
     for _, name in ipairs(providerNames or {}) do
         local p = Ess.Raw.Sandbox._providers[name]
@@ -150,19 +150,23 @@ function Ess.Sandbox.begin(id, providerNames, opts)
             Ess.Log("Sandbox.begin: unknown provider '" .. tostring(name) .. "'")
         end
     end
+    -- Honest return + no leaked state: if EVERY named provider was unknown/failed (a typo'd provider name
+    -- would otherwise silently isolate nothing while reporting "ok"), release the save-gate holder we took
+    -- and DON'T record this id as active -- so the `false` return is safe (there's nothing for the caller
+    -- to finish()) and no save-gate holder is stranded.
+    if #applied == 0 then
+        Ess.Save.ungate(saveKey(id))
+        Ess.Log("Sandbox.begin '" .. tostring(id) .. "' -> nothing isolated (no provider applied); not activating")
+        return false
+    end
     Ess.Sandbox._active[id] = { providers = applied }
     Ess.Log("Sandbox.begin '" .. tostring(id) .. "' -> " .. table.concat(applied, ", "))
-    -- CONFIRMED real gap found on a deep re-read: this used to always `return true` here (as long as `id`
-    -- wasn't already active), even when EVERY named provider was unknown/failed and `applied` came back
-    -- empty -- a typo'd provider name would silently isolate nothing while still reporting "ok", with only
-    -- an easy-to-miss log line as the real signal. `#applied > 0` makes the return value honestly answer
-    -- "did this sandbox actually isolate anything," matching what the doc comment's "-> ok" already implied.
-    return #applied > 0
+    return true
 end
 
 -- Ess.Sandbox.finish(id) -- restores every provider that successfully applied under this id, in order,
--- then ungates saves once the LAST active sandbox finishes (not necessarily this one, if several are
--- nested/concurrent).
+-- then releases this sandbox's save-gate holder (saves resume only once the LAST holder anywhere -- any
+-- other sandbox OR Ess.Layers -- is also gone, handled by the shared Ess.Save gate).
 function Ess.Sandbox.finish(id)
     local a = Ess.Sandbox._active[id]
     if not a then return end
@@ -174,8 +178,7 @@ function Ess.Sandbox.finish(id)
         end
     end
     Ess.Sandbox._active[id] = nil
-    Ess.Sandbox._nActive = math.max(0, Ess.Sandbox._nActive - 1)
-    if Ess.Sandbox._nActive == 0 then Ess.Raw.Sandbox.ungateSaves() end
+    Ess.Save.ungate(saveKey(id))
     Ess.Log("Sandbox.finish '" .. tostring(id) .. "'")
 end
 

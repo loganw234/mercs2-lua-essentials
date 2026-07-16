@@ -6,8 +6,8 @@
 -- Pg.LoadLayer/UnloadLayer) so its _tLoadedLayers bookkeeping -- the single source of truth the native
 -- save reads -- stays authoritative and consistent with the world at all times. STATIC layers (terrain/
 -- geometry) are refused outright. Layer changes are applied for a mode's duration and ALWAYS restored on
--- finish(); saves are gated (no-op'd) the whole time, so a crash mid-mode just leaves the pre-mode
--- vanilla save on disk -- nothing to recover.
+-- finish(); saves are gated (no-op'd) the whole time via the shared Ess.Save gate (24_save.lua), so a
+-- crash mid-mode just leaves the pre-mode vanilla save on disk -- nothing to recover.
 --
 -- API:
 --   Ess.Layers.begin(sId)                  open a mode: snapshot baseline + gate saves. false if already open.
@@ -70,49 +70,16 @@ local function clean(list, opWord)
     return out
 end
 
--- ---- save gating: a raw stash-and-swap of Pg.SaveGame/Sys.RequestAutosave/Sys.ForceNextAutosave --
--- deliberately NOT routed through Ess.Override.wrap, since there's no tail-call concern here at all (the
--- gated replacement never calls through to the original while active; it simply IS the live function
--- until finish() puts the exact original reference back). This composes correctly with Ess.Sandbox's OWN
--- independent save-gate (63_sandbox_raw.lua) for TOGGLING (gate/ungate in either order, or nested), since
--- each only ever restores whatever IT personally saw as "current" at the moment it gated.
---
--- ⚠ ONE narrow real ordering hazard found on a deep re-read, NOT fully solved (documenting rather than
--- risking a structural fix this late in an unsupervised session): Ess.Sandbox's wrap of Pg.SaveGame is
--- installed LAZILY, on the FIRST-EVER call to Ess.Sandbox.begin() anywhere in the session (see
--- 63_sandbox_raw.lua's installSaveGate). If a mod calls Ess.Layers.begin() DIRECTLY (bypassing
--- Ess.Sandbox), and Ess.Sandbox.begin() happens to be called for the very first time anywhere in the
--- session WHILE that Layers mode is still active, Ess.Sandbox's wrap gets installed on top of Layers'
--- no-op -- then Ess.Layers.finish()'s direct reassignment (`Pg.SaveGame = L._origSaveGame`) restores the
--- PRE-Layers value, silently discarding Sandbox's freshly-installed wrap. Sandbox's own `_installed` flag
--- stays true, so it never re-installs -- its save-gate becomes permanently ineffective from that point on.
--- SAFE PATTERN: route layer isolation through Ess.Sandbox's own "layers" provider
--- (Ess.Sandbox.begin(id,{"layers",...})) instead of calling Ess.Layers directly, whenever the same session
--- might also use Ess.Sandbox for anything else -- Sandbox always gates first that way, so this ordering
--- can't occur.
-local function gateSaves()
-    if L._gated then return end
-    L._gated = true
-    if Pg and type(Pg.SaveGame) == "function" then
-        L._origSaveGame = Pg.SaveGame
-        Pg.SaveGame = function() Ess.Log("Layers: save suppressed (mode active)") end
-    end
-    if Sys and type(Sys.RequestAutosave) == "function" then
-        L._origReqAuto = Sys.RequestAutosave
-        Sys.RequestAutosave = function() end
-    end
-    if Sys and type(Sys.ForceNextAutosave) == "function" then
-        L._origForceAuto = Sys.ForceNextAutosave
-        Sys.ForceNextAutosave = function() end
-    end
-end
-local function ungateSaves()
-    if not L._gated then return end
-    if L._origSaveGame then Pg.SaveGame = L._origSaveGame; L._origSaveGame = nil end
-    if L._origReqAuto then Sys.RequestAutosave = L._origReqAuto; L._origReqAuto = nil end
-    if L._origForceAuto then Sys.ForceNextAutosave = L._origForceAuto; L._origForceAuto = nil end
-    L._gated = nil
-end
+-- ---- save gating: routes through the ONE shared gate (Ess.Save, 24_save.lua) instead of Ess.Layers
+-- stashing/swapping Pg.SaveGame itself. This is the structural fix for a real ordering hazard that existed
+-- when Ess.Layers and Ess.Sandbox each owned their own Pg.SaveGame swap: a specific interleaving could have
+-- Layers' finish() reassign Pg.SaveGame back to a value that silently discarded Sandbox's own wrap. Now
+-- nobody reassigns Pg.SaveGame directly -- both just add/remove a holder key on Ess.Save, and the single
+-- never-uninstalled wrap suppresses saves whenever ANY holder is active. Ess.Layers only ever runs one mode
+-- at a time (begin() refuses if already active), so a single fixed holder key is all it needs.
+local SAVE_KEY = "Ess.Layers"
+local function gateSaves()   Ess.Save.gate(SAVE_KEY)   end
+local function ungateSaves() Ess.Save.ungate(SAVE_KEY) end
 
 -- ---- public API ----------------------------------------------------------------------------
 function L.isActive() return L.active ~= nil end
