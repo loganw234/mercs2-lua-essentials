@@ -48,6 +48,7 @@ MANIFEST = [
     "52_points.lua",
     "53_rng.lua",
     "90_override.lua",
+    "70_net.lua",
     "60_aiorders_raw.lua",
     "60_aiorders.lua",
     "60_aiorders_easy.lua",

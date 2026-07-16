@@ -19,8 +19,14 @@
 
 local Ess = _G.Ess
 
+-- Ess.Net is special: 70_net.lua already put a standalone Ess.Net.hijackCallback on it before this file
+-- runs. A plain `Ess.Net = _G.ModNet` here would silently REPLACE that whole table with ModNet's own,
+-- losing hijackCallback the moment ModNet is actually deployed alongside Ess -- exactly the kind of
+-- ordering bug this project's own testing practice exists to catch. Preserve it across the adopt instead.
 if _G.ModNet then
+    local hijackCallback = Ess.Net and Ess.Net.hijackCallback
     Ess.Net = _G.ModNet
+    if hijackCallback and not Ess.Net.hijackCallback then Ess.Net.hijackCallback = hijackCallback end
 else
     Ess.Log("adopt: ModNet not present in this install -- Ess.Net unavailable")
 end

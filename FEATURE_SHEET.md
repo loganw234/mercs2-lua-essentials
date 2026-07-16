@@ -154,6 +154,24 @@ player character on all three surfaces (radar/PDA names + a real world marker ha
 cleanly; `Ess.Easy.Mark.enemy()` confirmed to produce radar+PDA but explicitly NO world icon, exactly
 matching `WaveDefense`'s real convention. Zero errors across the whole batch.
 
+**★ 2026-07-16 (overnight session) — `Ess.Net.hijackCallback` built and verified** (`src/70_net.lua`,
+Group H) — generalizes `ModNet.lua`'s own confirmed real-world fix (the co-op black-screen root cause: an
+earlier hijack of the shared `MrxFactionManager.NetEventCallback` unconditionally swallowed the game's own
+faction traffic; the fix was a magic-marker check, claim only marked packets, pass everything else
+through) into a reusable primitive for any always-resident callback, built on top of the already-verified
+`Ess.Override.wrap` rather than a second hand-rolled tail-call-avoidance copy — and stricter than ModNet's
+own literal code, which still tail-calls the original in its pass-through branch (`return orig(evt,
+tArgs)`); this version never does, in either branch. Live-tested against a mock callback (not a real
+engine callback, to avoid any risk to native networking/faction processing): a marker-tagged call was
+correctly claimed (not forwarded to the original) and an unmarked call correctly passed through to the
+real original function with its return value intact.
+
+**Real bug caught and fixed while testing this:** `99_adopt.lua`'s `Ess.Net = _G.ModNet` would have
+silently REPLACED the whole `Ess.Net` table (discarding `hijackCallback`) the instant ModNet is ever
+deployed alongside Ess — found by re-reading my own new code against the adopt file, not by a live symptom
+(ModNet isn't deployed in this install, so the path was never actually exercised tonight). Fixed to
+preserve `hijackCallback` across the adopt; re-verified working after the fix.
+
 **Not built, and explicitly out of scope for this session:** refactoring `ContractFramework.lua`/
 `WaveDefense.lua` themselves to actually CONSUME the new `Ess.*` code (a deliberate scope boundary — that's
 a more invasive cross-repo change to an already-working, co-op-tested system, and belongs in a reviewed
