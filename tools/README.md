@@ -4,9 +4,9 @@ Testing infrastructure for this repo, separate from `src/` (the actual `Ess` lib
 
 ## `xpad.py` -- virtual Xbox 360 controller for testing controller-driven Lua
 
-Lets automated tests actually generate real XInput controller events, so code like
-`Ess.Input.hijackController` (currently flagged unverified in `21_input.lua`) can be exercised end to
-end instead of just read-reviewed.
+Lets automated tests actually generate real XInput controller events, for exercising anything in this
+project that reads real controller input end to end instead of just read-reviewing it (originally built
+for `Ess.Input.hijackController` -- see that function's status note further down).
 
 **One-time setup:**
 ```
@@ -50,6 +50,7 @@ sequence) the same day.
 
 ```
 python tools/launch.py --all
+python tools/launch.py --all --wait-ess    # also poll for "[Ess]" in the background from launch onward
 ```
 
 Chains: `build/merge.py` -> copy `dist/Ess.lua` to `<game>/scripts/OnLoad/1_Ess.lua` (byte-verified) and
@@ -108,10 +109,20 @@ python tools/lua_repl.py --wait-log "[Ess]" --since-bytes N --wait-timeout 90   
 Single-line results only (a `tostring()`'d value containing its own newline truncates at the first one) --
 fine for scalars/coordinates, not for dumping a big table; nothing has needed more than that yet.
 
-### Suggested next test: `Ess.Input.hijackController`
+**`--wait-ess` on `launch.py`** (added later, see below) supersedes the manual `--wait-log "[Ess]"` dance
+above for the common case -- it polls in the background from the moment the game process starts,
+concurrent with `launch.py`'s own skip-intro sequence, so the ready-check and the menu navigation overlap
+instead of running one after the other. Known quirk: the background poll itself is prone to false-negative
+timeouts (reports "NOT confirmed" even when `[Ess]` genuinely showed up) -- always double-check directly
+with a plain `--code 'return tostring(_G.Ess ~= nil)'` before trusting a timeout warning. A `false` or an
+`attempt to index global 'Ess' (a nil value)` error on the FIRST check just means OnLoad hadn't finished
+yet -- wait a few more seconds and retry rather than treating either as a real failure.
 
-Have a probe script register `Ess.Input.hijackController` and log every event it receives, drive the
-virtual pad's stick/buttons via `xpad.py`, then read the log back via `lua_repl.py` to confirm the hijack
-actually receives real controller input (and that the "letters only while hijacked" caveat about the
-underlying PDA claiming arrows holds up). This is the concrete next step flagged in `FEATURE_SHEET.md`'s
-Implementation status section.
+### `Ess.Input.hijackController` -- status
+
+The real bug in the original implementation (`MrxGuiBase.WidgetIdIndex` treated as a function; it's
+actually a plain table, scanned by name per `wiki/deep-dives/freecam.md`'s own confirmed-working
+reference) was found and fixed. Further live verification (driving it with real controller input via
+`xpad.py`) was deliberately not pursued past that fix -- continuous-controller-input hijacking is a niche
+capability most mods don't need, not worth more session time. `xpad.py` remains available and fully
+functional if a future need for it comes up.
