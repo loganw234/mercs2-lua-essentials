@@ -130,6 +130,8 @@ local REGISTRY = {
       desc = "Returns a ready() function -- call it anytime, true at most once per `seconds` window." },
     { ns = "Ess.Time", usage = "Ess.Time.elapsed(uStamp)",
       desc = "Seconds since a Ess.Time.stamp() was marked -- polled elapsed-time, no callback needed." },
+    { ns = "Ess.Time", usage = "Ess.Time.format(nSeconds, bUseTenths)",
+      desc = "Formats a raw seconds value into a display string, e.g. for a HUD timer/countdown." },
     { ns = "Ess.Easy (Time)", usage = "Ess.Easy.Time.slowmo(n, seconds)",
       desc = "Slows the game to speed n (default 0.2) for `seconds`, then auto-restores normal speed." },
 

@@ -9,6 +9,7 @@
 --   Ess.Time.cooldown(seconds) -> ready() -> bool   one-line "has n seconds passed since last ready()==true"
 --   Ess.Time.scale(n)                           Sys.SetTimeScale, e.g. Ess.Time.scale(0.2) for slow-mo
 --   Ess.Time.restoreScale()                     Ess.Time.scale(1)
+--   Ess.Time.format(nSeconds, bUseTenths) -> s  Junk.FormatTime -- a display string for a HUD timer/countdown
 --   Ess.Easy.Time.slowmo(n, seconds)            scale(n) that auto-restores after `seconds` (default 0.2, 2)
 
 local Ess = _G.Ess
@@ -75,6 +76,16 @@ end
 
 function Ess.Time.restoreScale()
     Ess.Time.scale(1)
+end
+
+-- Ess.Time.format(nSeconds, bUseTenths) -> s
+-- CONFIRMED (resident/mrxtimer.lua, resident/mrxstatsmanager.lua): Junk.FormatTime(nTime[, bUseTenths])
+-- formats a raw seconds value (e.g. Ess.Time.elapsed(...)) into a display string -- pairs directly with
+-- the rest of this namespace for a HUD countdown/stopwatch, and is the confirmed idiom real scripts use
+-- for exactly that rather than hand-rolling minutes:seconds formatting.
+function Ess.Time.format(nSeconds, bUseTenths)
+    local ok, s = pcall(Junk.FormatTime, nSeconds, bUseTenths)
+    return (ok and s) or nil
 end
 
 -- Ess.Easy.Time.slowmo(n, seconds) -- zero-config "slow the game down for a bit" for the common

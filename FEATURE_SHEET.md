@@ -425,6 +425,17 @@ Engine Namespaces section against what Ess actually covers:**
   real wait); `elapsed`/`since` tracked real wall-clock time correctly across round-trips; `scale`/
   `restoreScale`/`Easy.Time.slowmo` all ran error-free with the auto-restore Loop callback completing
   cleanly (checked the log for the callback's own error path, none fired).
+- **`Ess.Time.format(nSeconds, bUseTenths)`** (`src/23_time.lua`) — wraps the confirmed `Junk.FormatTime`
+  (`resident/mrxtimer.lua`/`mrxstatsmanager.lua`), a natural pairing with the rest of `Ess.Time` for a HUD
+  countdown/stopwatch display string. The rest of the `Junk` namespace (24 functions total) was surveyed
+  and deliberately left unwrapped — this was the one confirmed, broadly-useful function in it; the rest is
+  either dev/install-menu plumbing (`InstallToHDD`/`DumpMemory`/etc, confirmed but not gameplay-relevant)
+  or has zero confirmed call sites anywhere in the corpus to build a real argument shape from
+  (`SpawnHomingProjectile`/`DescribeGuid`/`Subdue`/etc — this project's established discipline is not to
+  guess native argument shapes). `Junk.ToggleAlarm` is confirmed and gameplay-relevant but narrow (only
+  applies to placed alarm props in specific levels) — skipped as too niche for a core-foundations pass.
+  Live-tested `.format` against real values: `format(65)="1:05"`, `format(65.7, true)="1:05.7"`,
+  `format(3661)="1:01:01"`.
 
 ## Non-goals
 
