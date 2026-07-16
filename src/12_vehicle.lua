@@ -8,6 +8,8 @@
 --   Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats) -> ok, sSeatTypeUsed
 --   Ess.Vehicle.exit(uVeh, uChar) -> ok
 --   Ess.Vehicle.followGhost(template, x, y, z) -> ghost | nil         ghost.guid, ghost:update(x,y,z), ghost:remove()
+--   Ess.Easy.Vehicle.summon(sTemplate, opts) -> uVeh | nil            spawn a vehicle in front + hop in the
+--                                        driver seat -- the whole "give me a <vehicle>" thought in ONE line
 
 import("MrxUtil")
 
@@ -129,4 +131,23 @@ function Ess.Vehicle.followGhost(template, x, y, z)
     end
 
     return ghost
+end
+
+-- ============================================================
+-- Ess.Easy.Vehicle.summon(sTemplate, opts) -> uVeh | nil
+-- The beginner one-liner this whole namespace exists to make possible: the thought "I want a UH1
+-- Transport" becomes `Ess.Easy.Vehicle.summon("UH1 Transport")` and you're flying it. Spawns the vehicle a
+-- short way IN FRONT of the local player (no coordinate/yaw math to know -- Ess.Object.spawnAhead hides it)
+-- and drops the player into the best (driver-first) seat. Midair by default so an aircraft hovers the
+-- instant you're piloting it and a ground vehicle just settles; opts.dist / opts.height override.
+-- Returns the vehicle guid (nil if the template name was wrong -- spawn logs which).
+-- ============================================================
+Ess.Easy = Ess.Easy or {}
+Ess.Easy.Vehicle = Ess.Easy.Vehicle or {}
+function Ess.Easy.Vehicle.summon(sTemplate, opts)
+    opts = opts or {}
+    local v = Ess.Object.spawnAhead(sTemplate, opts.dist or 18, opts.height or 10)
+    if not v then return nil end
+    Ess.Vehicle.enterBestSeat(Ess.Player.character(0), v)
+    return v
 end

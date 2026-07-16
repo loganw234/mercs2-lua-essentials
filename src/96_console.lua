@@ -91,8 +91,12 @@ local REGISTRY = {
     { ns = "Ess.Track", usage = "Ess.Track.new()",
       desc = "A cleanup tracker: t:event(h)/:guid(u)/:marker(h)/:qualityRef(u,n)/:disposer(u,cat), then t:closeAll()." },
 
+    { ns = "Ess.Easy (Vehicle)", usage = "Ess.Easy.Vehicle.summon(sTemplate)",
+      desc = "Spawns a vehicle in front of you and puts you in the driver seat -- e.g. \"UH1 Transport\"." },
     { ns = "Ess.Object", usage = "Ess.Object.spawn(sTemplate, x, y, z, yaw)",
       desc = "Spawns a template at a spot and returns its guid (blank-template crash guard built in)." },
+    { ns = "Ess.Object", usage = "Ess.Object.spawnAhead(sTemplate, nDist, nHeight)",
+      desc = "Spawns a template in front of the player -- hides the 'in front of me' yaw/trig math." },
     { ns = "Ess.Object", usage = "Ess.Object.pos(uGuid) / .setPos(uGuid, x, y, z)",
       desc = "Read or set an object's world position." },
     { ns = "Ess.Object", usage = "Ess.Object.health(uGuid) / .setHealth(uGuid, n) / .heal(uGuid)",

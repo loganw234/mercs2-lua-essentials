@@ -25,6 +25,8 @@
 --   Ess.Object.impulse(uGuid, x,y,z, bLocal)        Object.ApplyImpulse (launch/knockback)
 --   -- spawn (the one create-verb -- Pg.Spawn, not Object.*, with the blank-template crash guard built in)
 --   Ess.Object.spawn(sTemplate, x,y,z, yaw) -> uGuid | nil
+--   Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i) -> uGuid | nil   spawn in front of the player
+--                                        (hides the yaw->sin/cos "in front of me" trig a beginner won't know)
 --   -- vehicle-entry watch
 --   Ess.Object.vehicleOf(uChar) -> uVehicleGuid | nil
 --   Ess.Object.pollVehicleChange(uChar, onChange, interval) -> stop()
@@ -251,4 +253,19 @@ function Ess.Object.spawn(sTemplate, x, y, z, yaw)
     end
     if yaw then pcall(Object.SetYaw, u, yaw) end
     return u
+end
+
+-- Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i) -> uGuid | nil
+-- Spawn sTemplate nDist units IN FRONT of player i (default local), nHeight units up, facing the same way
+-- the player is. This hides the forward-projection trig (the yaw -> sin/cos math EVERY "spawn in front of
+-- me" needs and that a beginner has no way to know) behind one call -- the confirmed projection is uilib's
+-- own ctx:spawn recipe. nDist default 18, nHeight default 0 (bump it up for aircraft / a midair drop).
+function Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i)
+    local px, py, pz, yaw = Ess.Player.pose(i or 0)
+    if not px then return nil end
+    nDist = nDist or 18
+    local yr = math.rad(yaw or 0)
+    local x = px - math.sin(yr) * nDist
+    local z = pz + math.cos(yr) * nDist
+    return Ess.Object.spawn(sTemplate, x, py + (nHeight or 0), z, yaw)
 end
