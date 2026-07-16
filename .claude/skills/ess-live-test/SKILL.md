@@ -132,3 +132,10 @@ python tools/lua_repl.py --code "local r = Ess.RNG.new(1); return string.format(
   it means the offline design was wrong about something the live engine actually does. Fix the source in
   `src/*.lua`, then repeat from step 2 (rebuild+redeploy; the running game needs a level reload or relaunch
   to pick up an OnLoad change, a plain `--code` resend does NOT re-run OnLoad).
+- **`--wait-log` times out even though the game clearly loaded**: check whether `lua_loader_printf.log` is
+  now SMALLER than the `--since-bytes` offset you passed (`ls -la` it, or `--log-size`). The game truncates/
+  resets this log on every fresh launch, so an offset recorded against a previous, longer session's log
+  will seek past the new file's EOF and read nothing forever. Fixed 2026-07-16: both `_poll_log` and
+  `wait_log` in `lua_repl.py` now detect `current_size < since_bytes` and reset to 0 automatically — if
+  you're ever debugging this tool itself and see this symptom again, check that guard is still there rather
+  than re-inventing the workaround.

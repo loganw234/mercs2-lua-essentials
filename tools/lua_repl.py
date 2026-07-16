@@ -29,7 +29,10 @@ USAGE
   python tools/lua_repl.py --probe                          # just check whether the bridge is reachable
   python tools/lua_repl.py --log-size                       # print the log's current byte size -- record
                                                              # this BEFORE launching the game, then pass it
-                                                             # as --since-bytes to --wait-log afterward
+                                                             # as --since-bytes to --wait-log afterward.
+                                                             # (safe even if the game truncates the log on
+                                                             # launch -- both poll functions detect a
+                                                             # shrunk file and treat it as starting fresh)
   python tools/lua_repl.py --wait-log "[Ess]" --since-bytes 12345 --wait-timeout 90
                                                              # block until TEXT appears in NEW log content
                                                              # (or timeout) -- e.g. confirm OnLoad actually
@@ -112,6 +115,11 @@ def _poll_log(game_dir, tag_ok, tag_err, since_bytes, timeout):
     deadline = time.monotonic() + timeout
     while True:
         if p.exists():
+            if p.stat().st_size < since_bytes:
+                # The game truncates/resets this log on a fresh launch. If since_bytes was recorded
+                # against a PRIOR session's (longer) log, seeking to it in the new, shorter file would
+                # silently read nothing forever -- so a shrunk file means "treat as new file, from 0".
+                since_bytes = 0
             with open(p, "r", encoding="utf-8", errors="replace") as f:
                 f.seek(since_bytes)
                 new_text = f.read()
@@ -156,6 +164,10 @@ def wait_log(game_dir, text, since_bytes, timeout):
     deadline = time.monotonic() + timeout
     while True:
         if p.exists():
+            if p.stat().st_size < since_bytes:
+                # see comment in _poll_log -- a fresh launch truncates this log, so a stale offset
+                # from before the (re)launch must be treated as "start of a new file", not honored as-is.
+                since_bytes = 0
             with open(p, "r", encoding="utf-8", errors="replace") as f:
                 f.seek(since_bytes)
                 new_text = f.read()
