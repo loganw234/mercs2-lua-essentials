@@ -193,3 +193,11 @@ abruptly, that section should always reflect true current state.
   single-player (not a valid co-op check, use `character(1)`); spawn+enter-vehicle from the PMC HQ interior
   preceded a 30s+ bridge stall, recovered via process kill+relaunch, causation unconfirmed but flagged.
   Committed `e178e6b`. Moving to item 2 (`Ess.Bones`) next.
+- 2026-07-16 (overnight) — hit a real stall during smoke-testing: spawning+entering a Veyron from inside
+  the PMC HQ interior preceded the bridge's Lua tick freezing for 30s+ (process alive/"Responding", zero
+  chunks executed). Recovered via process kill + relaunch (single-instance lock meant `launch.py --all`
+  silently failed with exit 1 until the old process was actually gone — watch for that pattern). Flagged
+  in `src/12_vehicle.lua`, not repeated.
+- 2026-07-16 (overnight) — built + live-verified items 2-4 (`Ess.Bones`/`Ess.Camera`/`Ess.Points`, the rest
+  of Group F). All functions individually exercised live, all passed. Committed `86e57b7`. Moving to item
+  5 (`Ess.Gfx`) next.
