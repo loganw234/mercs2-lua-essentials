@@ -220,8 +220,8 @@ local function finish(seq)
     if seq.ctx._hintId then Ess.Hud.hideHint(seq.ctx._hintId) end
     pcall(function() seq.ctx.track:closeAll() end)       -- drop only the ephemeral spawns (persistent ones stay)
     if Ess.Cinematic._active == seq then Ess.Cinematic._active = nil end
-    if type(seq.opts.onDone) == "function" then pcall(seq.opts.onDone, seq.ctx) end
     Ess.Log("Cinematic: done (" .. tostring(seq.idx) .. "/" .. tostring(#seq.steps) .. " steps)")
+    if type(seq.opts.onDone) == "function" then pcall(seq.opts.onDone, seq.ctx) end   -- fire AFTER the done log so callback logs read in order
 end
 
 local function tick(seq)

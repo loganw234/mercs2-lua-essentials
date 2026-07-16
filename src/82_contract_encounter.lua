@@ -14,7 +14,7 @@
 -- triggers' fires={} and support/order trigger={ref=id} may target support ids OR waypoint ids.
 -- effects: artillery(ammo) / flyby(=airstrike, vehicle) / bombingrun(vehicle+ammo) / heli /
 --   reinforce(deliver=copter|paradrop) / say(text) / music(cue) / vfx(particle) / damage(target,pct|kill) /
---   vo(lines) / shake(preset,amplitude,duration,player) / hint(text,id) / custom
+--   vo(lines) / shake(preset,amplitude,duration,player) / hint(text,id) / cinematic(steps) / custom
 -- trigger conditions: "immediate" | "once" | "recurring" | {proximity=r} | {onDestroy="nearest"|name}
 --   | {onHealthBelow={target=,pct=}} | {onCleared={faction=,radius=}} | {ref=id}
 --   LOGIC GATES (as def.triggers entries): kind="all"/"count" with inputs={trigIds}, need=N (count).
@@ -152,6 +152,12 @@ SUPPORT_EFFECTS.shake = function(inst, task, ev)           -- camera shake feedb
 end
 SUPPORT_EFFECTS.hint = function(inst, task, ev)            -- native tutorial-style HUD hint popup (icon+sound)
     Ess.Hud.hint(ev.text or ev.msg, ev.id)
+end
+SUPPORT_EFFECTS.cinematic = function(inst, task, ev)      -- play an Ess.Cinematic cutscene mid-mission (trigger-fired)
+    if not Ess.Cinematic then return end
+    local steps = ev.steps or ev.cinematic
+    if type(steps) ~= "table" then return end
+    pcall(Ess.Cinematic.play, steps, ev.opts or { skippable = ev.skippable ~= false })
 end
 
 -- ---- normalize a def.triggers entry's `kind` field into an Ess.Raw.Triggers.arm-compatible spec

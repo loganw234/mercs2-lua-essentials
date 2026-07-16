@@ -10,8 +10,12 @@
 --
 -- MODDER API (unchanged from ContractFramework.lua, just under Ess.Contract now):
 --   Ess.Contract.Register{ id=, title=, briefing=, reward={cash=,fuel=}, start={x,y,z,yaw},
+--                          cinematic = { <Ess.Cinematic steps> } | { steps=, opts= },  -- intro cutscene
 --                          objectives = { Ess.Contract.Destroy{...}, Ess.Contract.Reach{...}, ... },
 --                          onComplete=fn, onFail=fn }
+--   def.cinematic plays an Ess.Cinematic cutscene AFTER heroes are placed (def.start) and relations are
+--   set, and the objectives don't begin until it finishes (or is skipped with ESC) -- a proper mission
+--   intro. A mid-mission trigger-fired cutscene is a support effect instead: {effect="cinematic", steps=}.
 --   Objective builders: .Destroy{} .Reach{} .Defend{} .Collect{} .Escort{} .Enter{} .Hold{} .Group{}
 --                        .Interact{} .Verify{} .Extract{} .Race{} .Survive{} .Chase{} .Protect{} .StayInArea{}
 --   Ess.Contract.Accept(idOrDef)  Ess.Contract.Abort()  Ess.Contract.Status()  Ess.Contract.List()
@@ -332,15 +336,35 @@ function C.Accept(idOrDef)
         Ess.Log("starting '" .. (def.title or def.id) .. "' (" .. #(def.objectives or {}) .. " objectives)")
         if def.intro then hudSay(def.intro, 7) end                    -- opening radio line
 
-        -- the OPTIONAL relations/support/trigger setup must NEVER block the core objective runner:
-        -- pcall each so a bad relation/support/trigger can't kill begin() before C._runList.
+        -- Relations FIRST -- before any intro cinematic runs -- so anything a cutscene spawns already has
+        -- the right faction stances. pcall'd so a bad relation can't kill begin().
         if C._applyRelations then local ok, e = pcall(C._applyRelations, inst); if not ok then Ess.Log("relations setup error -> " .. tostring(e)) end end
-        local sbOk, sbE = pcall(C._startBackground, inst); if not sbOk then Ess.Log("support/trigger setup error -> " .. tostring(sbE)) end
-        -- ESCAPE HATCH: after heroes are placed + the contract's background is up, hand off to a bespoke
-        -- gamemode. pcall'd so it can NEVER block the objective runner.
-        if def.onBegin then local obOk, obE = pcall(def.onBegin, inst); if not obOk then Ess.Log("onBegin error -> " .. tostring(obE)) end end
-        C._runList(inst, def.objectives or {}, def.mode, function(ok) C._finish(inst, ok) end,
-                   function(i, ok) if ok then inst.objDone[i] = true end end)
+
+        -- The rest of the mission: background spawns/support/triggers, the onBegin escape hatch, then the
+        -- objective runner. Split out so an intro cinematic can GATE it -- objectives don't start until the
+        -- cutscene finishes. Each piece is pcall'd so it can never block the objective runner.
+        local function runMission()
+            if not inst.bActive then return end
+            local sbOk, sbE = pcall(C._startBackground, inst); if not sbOk then Ess.Log("support/trigger setup error -> " .. tostring(sbE)) end
+            if def.onBegin then local obOk, obE = pcall(def.onBegin, inst); if not obOk then Ess.Log("onBegin error -> " .. tostring(obE)) end end
+            C._runList(inst, def.objectives or {}, def.mode, function(ok) C._finish(inst, ok) end,
+                       function(i, ok) if ok then inst.objDone[i] = true end end)
+        end
+
+        -- def.cinematic: an intro cutscene (Ess.Cinematic). It plays now; the mission BEGINS when it ends
+        -- (or is skipped). Fully guarded: if the cinematic can't start for any reason, fall straight through
+        -- to the mission so a bad cutscene can never leave a contract hung with no objectives running.
+        if def.cinematic and Ess.Cinematic then
+            local steps, copts = def.cinematic, nil
+            if def.cinematic.steps then steps, copts = def.cinematic.steps, def.cinematic.opts end
+            copts = copts or {}
+            local userDone = copts.onDone
+            copts.onDone = function(ctx) if type(userDone) == "function" then pcall(userDone, ctx) end; runMission() end
+            local okC, seq = pcall(Ess.Cinematic.play, steps, copts)
+            if not okC or not seq then Ess.Log("cinematic did not start -> beginning mission directly"); runMission() end
+        else
+            runMission()
+        end
     end
     if def.start then
         local s = def.start
