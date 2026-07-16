@@ -31,16 +31,36 @@ against the real running game (not `loadcheck.py`'s stubbed lupa environment):
   3 values in a row: `0.001 0.086 0.437`) — this is the single most important hard-won fact in the whole
   project (the big-LCG-degenerates trap) confirmed working live, not just reasoned about.
 
-**Still unverified:** everything else in Groups A-D + RNG hasn't been individually exercised yet (only
-`Ess.Player.character`/`Ess.RNG` have real behavioral confirmation so far) — `tools/lua_repl.py` now makes
-checking any of them a one-line `--code` call away. `tools/xpad.py` (virtual Xbox 360 controller) exists
-specifically to drive further tests like `Ess.Input.hijackController` against real controller events once
-there's a probe script for it.
+**★ 2026-07-16 (overnight session) — full behavioral smoke-test pass, everything in Groups A-D + RNG now
+individually exercised live** except `Ess.Input.hijackController` (still an honest documented gap, see
+below): `Ess.Safe.call/quiet/string`, `Ess.Table.compact`, `Ess.Guid`/`Ess.Name`, `Ess.Player.slot/camera/
+pose/giveCash/giveFuel`, `Ess.Object.vehicleOf/setInvincible/pollVehicleChange`, `Ess.Vehicle.driver/riders/
+seatOf/enterBestSeat/followGhost`, `Ess.Probe.nearby/getFaction/describeSafe`, `Ess.Loop.start/stop/
+isRunning` (confirmed a live self-incrementing heartbeat actually ticks asynchronously AND that `.stop()`
+halts it before any further tick), `Ess.Timer` (elapsed + the 0.25s clamp), `Ess.State` (confirmed the
+actual field-merge fix: an existing field survives a later `defaults` call while a newly-added default
+field still gets picked up), `Ess.SaveVar` (real `Loader.SaveVar`/`LoadVar` round-trip), `Ess.Track`
+(confirmed reverse-registration teardown order), `Ess.Event.on/off` (confirmed a tracked timer both fires
+AND can be cancelled before firing), `Ess.Input.poll`/`VkToChar`. All passed.
+
+**Two genuine discoveries from this pass, now documented in-source:**
+- `Ess.Player.slot(1)` (⁠→`Player.GetSecondaryPlayer()`) returns a real, non-nil, distinct-from-slot-0 guid
+  even in single-player — unlike `Ess.Player.character(1)`, which correctly nils outside co-op. Do not use
+  `slot(1)` as a co-op check; `character(1)` is the correct one (already was, this just confirms it's the
+  ONLY correct one). See `src/10_player.lua`.
+- `Ess.Vehicle.enterBestSeat` itself is confirmed working (returns true, character actually seats) — but
+  spawning a `Veyron` and entering it from INSIDE the PMC HQ interior cell was immediately followed by the
+  bridge's Lua execution tick stalling for 30+s (process stayed alive/"Responding" per Windows, but zero
+  chunks executed, not even a bare `return 1+1`), recovered only via killing the process and a fresh
+  relaunch. Causation unconfirmed (could be coincidental) but flagged in `src/12_vehicle.lua` — avoid
+  repeating spawn+enter-vehicle from an interior cell without review.
 
 **Two documented gaps, left honest rather than guessed:** `Ess.Vehicle.enterSeatExcluding` falls back to
 `enterBestSeat` without enforcing the exclusion (the real native call wasn't confirmed against primary
 source this pass); `Ess.Input.hijackController` is synthesized from a deep-dive survey summary, not a
-direct source read — both are flagged in their own file's header comment.
+direct source read — both are flagged in their own file's header comment, and `hijackController`
+specifically remains untested (lower priority than building the unbuilt namespaces below; `tools/xpad.py`
+exists to eventually drive a real controller-event test for it).
 
 **Not yet built:** the rest of Group F (Bones/Camera/Points), Group E (`Ess.Gfx` + the `uilib`/`ModNet`/
 `ContractFramework` aliases), and Group G (the tiered encounter toolkit — Sandbox/Triggers/AIOrders/

@@ -40,6 +40,15 @@ end
 -- Ess.Vehicle.enterBestSeat(uChar, uVeh) -> ok
 -- pcall-wrapped MrxUtil.EnterBestAvailableSeat -- confirmed d/g/p/c (driver/gunner/passenger/cargo) seat
 -- priority order.
+--
+-- CONFIRMED LIVE (2026-07-16, PMC HQ interior): the call itself returns true and the character does
+-- enter the seat. CAUTION, unconfirmed causally but suspicious: immediately after a Pg.Spawn'd Veyron +
+-- enterBestSeat from INSIDE this interior cell, the very next bridge chunk (even a bare `return 1+1`)
+-- stalled the Lua execution tick for 30+s with the game process still alive/"Responding" per Windows --
+-- recovered only via killing the process and a fresh relaunch. Never confirmed the vehicle-entry was the
+-- actual cause (could be coincidental), but flagging: avoid spawning+entering a vehicle from inside an
+-- interior cell again without Logan's review, and if testing this elsewhere, don't immediately chain a
+-- follow-up query in the same breath -- leave a beat and re-probe first.
 function Ess.Vehicle.enterBestSeat(uChar, uVeh)
     local ok = pcall(MrxUtil.EnterBestAvailableSeat, uChar, uVeh)
     return ok and true or false

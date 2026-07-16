@@ -35,6 +35,11 @@ end
 
 -- Ess.Player.slot(i) -> uPlayerGuid | nil -- same idea, the player-SLOT guid (what Camera.*/some Ai.*
 -- calls actually want) instead of the character guid.
+--
+-- CONFIRMED LIVE (2026-07-16, single-player, PMC HQ): unlike Ess.Player.character(1) which correctly
+-- returns nil outside co-op, Player.GetSecondaryPlayer() returns a REAL, distinct, non-nil player-slot
+-- guid (different from slot 0's) even in single-player. Do NOT use `Ess.Player.slot(1) ~= nil` as a
+-- "are we in co-op" check -- it will false-positive. Use Ess.Player.character(1) ~= nil for that instead.
 function Ess.Player.slot(i)
     if i == 1 then
         local ok, p = pcall(Player.GetSecondaryPlayer)
