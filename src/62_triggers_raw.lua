@@ -20,8 +20,8 @@
 -- NOT ported: ContractFramework's `onObjComplete` (fires on a top-level CONTRACT objective index) -- that
 -- concept only exists inside a running Contract instance. Ess.Contract (80_contract.lua onward) handles
 -- it locally instead, since it's the one place that concept actually applies -- not something to
--- generalize into this standalone file. Compose from other triggers via Ess.Triggers.gate (62_triggers.lua)
--- for anything else that needs cross-trigger logic.
+-- generalize into this standalone file. Compose from other triggers via a scope's :gate (62_triggers.lua,
+-- Ess.Triggers.scope()) for anything else that needs cross-trigger logic.
 --
 -- `tracker`, if given (an Ess.Track), gets every scheduled Event.Create handle registered for cleanup.
 -- Returns cancel() -- call it to stop this trigger from ever firing, even if its condition is later met.

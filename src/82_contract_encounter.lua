@@ -39,13 +39,13 @@ local function evPos(ev) if ev.at then return C._xyz(ev.at) end return ev.x, ev.
 local function ownerGuid(ev) if ev.owner then return factionGuid(ev.owner) end end
 
 -- ---- relations: now a two-line wrapper over Ess.Relations, replacing the ~25-line hand-rolled
--- snapshot/apply/restore pair this file used to carry independently.
+-- snapshot/apply/restore pair this file used to carry independently. Holds the handle on the instance so
+-- each contract restores exactly its own relation set.
 function C._applyRelations(inst)
-    inst._relId = "Ess.Contract:" .. tostring(inst._id)
-    Ess.Relations.apply(inst._relId, inst.def.relations or {})
+    inst._relHandle = Ess.Relations.apply(inst.def.relations or {}, "Ess.Contract:" .. tostring(inst._id))
 end
 function C._restoreRelations(inst)
-    if inst._relId then Ess.Relations.restore(inst._relId); inst._relId = nil end
+    if inst._relHandle then Ess.Relations.restore(inst._relHandle); inst._relHandle = nil end
 end
 
 -- ---- support effects: one-shot actions a trigger fires. Push spawns/events into `task` for cleanup.
@@ -208,11 +208,12 @@ function C._startSupport(inst)
     for _, wp in ipairs(d.waypoints or {}) do if wp.id then inst.waypoints[wp.id] = wp end end
     local task = C._newTask()
     inst.tasks[#inst.tasks + 1] = task
-    -- Ess.Triggers' _known/_fired registries are GLOBAL and never cleared (a trigger id from a PREVIOUS
-    -- contract accept would otherwise look "already fired" to a brand new instance using the same id) --
-    -- namespace every id this instance registers by its own identity so each Accept starts clean from
-    -- the registry's point of view, without needing to touch Ess.Triggers itself.
-    local ns = "Ess.Contract:" .. tostring(inst._id) .. ":"
+    -- Each contract instance gets its OWN Ess.Triggers scope, so a trigger/gate id from a PREVIOUS accept
+    -- (or another instance) can never look "already fired" to this one -- isolation is structural now, not
+    -- a per-instance string-prefix workaround over a shared global registry (the id namespace that used to
+    -- be spelled `ns .. t.id` is just `t.id` within this scope).
+    local trigScope = Ess.Triggers.scope()
+    inst.trigScope = trigScope
 
     local function fireSupport(idOrEv)
         local ev = type(idOrEv) == "table" and idOrEv or inst.support[idOrEv]
@@ -272,25 +273,25 @@ function C._startSupport(inst)
             local function poll()
                 if not inst.bActive then return end
                 if inst.objDone and inst.objDone[idx] then
-                    Ess.Triggers._fired[ns .. t.id] = true
+                    trigScope:markFired(t.id)
                     return trigAction(t)
                 end
                 C._addEv(task, Event.Create(Event.TimerRelative, { 0.4 }, poll))
             end
-            Ess.Triggers._known[ns .. t.id] = true
+            trigScope:declare(t.id)
             poll()
         elseif t.kind == "all" or t.kind == "count" then               -- LOGIC GATE
             local inputs = {}
-            for _, id in ipairs(t.inputs or {}) do inputs[#inputs + 1] = ns .. id end
+            for _, id in ipairs(t.inputs or {}) do inputs[#inputs + 1] = id end
             local need = (t.kind == "all") and #(t.inputs or {}) or (t.need or #(t.inputs or {}))
-            Ess.Triggers._known[ns .. t.id] = true   -- so ANOTHER gate/fires{} can reference this gate's own id too
-            Ess.Triggers.gate(inputs, need, function()
-                Ess.Triggers._fired[ns .. t.id] = true
+            trigScope:declare(t.id)   -- so ANOTHER gate/fires{} can reference this gate's own id too
+            trigScope:gate(inputs, need, function()
+                trigScope:markFired(t.id)
                 Ess.Log("  gate '" .. tostring(t.id) .. "' (" .. t.kind .. ") satisfied")
                 trigAction(t)
             end, task)
         else
-            Ess.Triggers.armNamed(ns .. t.id, namedSpec(t), function() trigAction(t) end, task)
+            trigScope:armNamed(t.id, namedSpec(t), function() trigAction(t) end, task)
         end
     end
 end

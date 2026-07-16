@@ -6,25 +6,25 @@
 -- 61_relations_raw.lua) fixed at the source instead of needing a third independent fix.
 --
 -- API:
---   Ess.Relations.apply(id, pairs) -- pairs = { {a,b,set}, ... } or { {a=,b=,set=}, ... }
---   Ess.Relations.restore(id)
---   Ess.Relations.isActive(id) -> bool
+--   Ess.Relations.apply(pairs [, label]) -> handle   pairs = { {a,b,set}, ... } or { {a=,b=,set=}, ... }
+--   Ess.Relations.restore(handle)
+--   Ess.Relations.isActive(handle) -> bool
 --   Ess.Relations.getFeeling(uGuidA, uGuidB) -> n / .setFeeling(uGuidA, uGuidB, n)   INDIVIDUAL-pair
 --                                                relation (Ai.GetFeeling/SetFeeling), distinct from the
 --                                                FACTION-level apply/restore above -- no snapshot/restore
 --                                                needed, it's a thin direct wrapper
 --
--- ⚠ Same shared-flat-namespace shape as Ess.Triggers' `_known`/`_fired` (see that file's header): `id`
--- keys the module-level `_active` table directly, not per-caller. `Ess.Sandbox`'s relations provider and
--- `Ess.Contract` both already pass their own uniquely-scoped id through safely -- give your own id a
--- unique prefix too if calling apply/restore directly, or a second independent caller reusing a generic id
--- like "combat" would restore/overwrite the wrong relation set.
+-- HANDLE-BASED so two independent callers can NEVER collide (an earlier id-keyed version shared a flat
+-- module table -- two callers reusing a generic id like "combat" would restore/overwrite the wrong set).
+-- Each apply() mints its own opaque handle carrying its own snapshot; restore(handle) undoes exactly that
+-- one apply, nothing else. `label` is optional and purely for log readability. Hold the handle (in your own
+-- var, an Ess.Track, or an instance field) until you restore -- there is no global "restore everything"
+-- because there is no longer any global registry to collide in.
 
 import("MrxFactionManager")
 
 local Ess = _G.Ess
 Ess.Relations = Ess.Relations or {}
-Ess.Relations._active = Ess.Relations._active or {}
 
 -- set values, matching both ContractFramework.lua and WaveDefense.lua's confirmed conventions.
 local REL_VALUE = { friend = 100, ally = 100, allied = 100, neutral = 0, enemy = -100, hostile = -100 }
@@ -38,16 +38,18 @@ local function factionGuid(name)
     return nil
 end
 
--- Ess.Relations.apply(id, pairs)
+-- Ess.Relations.apply(pairs [, label]) -> handle
 -- `pairs` entries: {a, b, set} or {a=, b=, set=} where `set` is "friend"/"ally"/"neutral"/"enemy"/
 -- "hostile" (case-insensitive) or a raw number. Sets BOTH directions (a->b and b->a) to the same value,
 -- mirroring both source implementations -- a "mutual stance," not a one-way read.
 --
--- `id` names this application so `Ess.Relations.restore(id)` can undo exactly this set later, even if
--- multiple relation sets are active for different purposes at once (unlike WaveDefense's single global
--- W._relSnap, which can only ever track one).
-function Ess.Relations.apply(id, pairsList)
-    local snaps = {}
+-- Returns an opaque handle. Pass it to Ess.Relations.restore(handle) to undo exactly this set later. Any
+-- number of relation sets can be active at once for different purposes and they can't interfere -- each
+-- carries its own snapshot on its own handle (unlike WaveDefense's single global W._relSnap, which could
+-- only ever track one, and unlike the earlier id-keyed version of THIS function, which two callers could
+-- collide in).
+function Ess.Relations.apply(pairsList, label)
+    local h = { label = label or "relations", snaps = {}, restored = false }
     for _, r in ipairs(pairsList or {}) do
         local a, b = r.a or r[1], r.b or r[2]
         local setVal = r.set or r[3] or "neutral"
@@ -59,31 +61,31 @@ function Ess.Relations.apply(id, pairsList)
             -- it correctly (SetAttitudeMutable), not just the raw Ai.SetRelation numeric stance below.
             if b == "PMC" and FACTION_ABBREV[a] then pcall(MrxFactionManager.SetAttitudeMutable, FACTION_ABBREV[a]) end
             if a == "PMC" and FACTION_ABBREV[b] then pcall(MrxFactionManager.SetAttitudeMutable, FACTION_ABBREV[b]) end
-            snaps[#snaps + 1] = { ga = ga, gb = gb, snap = Ess.Raw.Relations.snapshot(ga, gb) }
-            snaps[#snaps + 1] = { ga = gb, gb = ga, snap = Ess.Raw.Relations.snapshot(gb, ga) }
+            h.snaps[#h.snaps + 1] = { ga = ga, gb = gb, snap = Ess.Raw.Relations.snapshot(ga, gb) }
+            h.snaps[#h.snaps + 1] = { ga = gb, gb = ga, snap = Ess.Raw.Relations.snapshot(gb, ga) }
             Ess.Raw.Relations.set(ga, gb, val)
             Ess.Raw.Relations.set(gb, ga, val)
-            Ess.Log("Relations.apply[" .. tostring(id) .. "]: " .. tostring(a) .. "<->" .. tostring(b) .. " = " .. tostring(setVal))
+            Ess.Log("Relations.apply[" .. h.label .. "]: " .. tostring(a) .. "<->" .. tostring(b) .. " = " .. tostring(setVal))
         else
-            Ess.Log("Relations.apply[" .. tostring(id) .. "]: unknown faction '" .. tostring(a) .. "' / '" .. tostring(b) .. "'")
+            Ess.Log("Relations.apply[" .. h.label .. "]: unknown faction '" .. tostring(a) .. "' / '" .. tostring(b) .. "'")
         end
     end
-    Ess.Relations._active[id] = snaps
+    return h
 end
 
--- Ess.Relations.restore(id) -- undoes exactly the pairs applied under this id, back to their pre-apply
--- values (or logs+skips a direction whose original read failed, per the Known Bug #3 fix).
-function Ess.Relations.restore(id)
-    local snaps = Ess.Relations._active[id]
-    if not snaps then return end
-    for _, s in ipairs(snaps) do
+-- Ess.Relations.restore(handle) -- undoes exactly the pairs applied under this handle, back to their
+-- pre-apply values (or logs+skips a direction whose original read failed, per the Known Bug #3 fix).
+-- Idempotent: restoring an already-restored (or nil) handle is a safe no-op.
+function Ess.Relations.restore(h)
+    if type(h) ~= "table" or h.restored then return end
+    for _, s in ipairs(h.snaps) do
         Ess.Raw.Relations.restore(s.ga, s.gb, s.snap)
     end
-    Ess.Relations._active[id] = nil
+    h.restored = true
 end
 
-function Ess.Relations.isActive(id)
-    return Ess.Relations._active[id] ~= nil
+function Ess.Relations.isActive(h)
+    return type(h) == "table" and h.restored == false
 end
 
 -- Ess.Relations.getFeeling(uGuidA, uGuidB) -> n / .setFeeling(uGuidA, uGuidB, n)

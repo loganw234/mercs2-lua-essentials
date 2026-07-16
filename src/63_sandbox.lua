@@ -23,15 +23,20 @@ Ess.Sandbox = Ess.Sandbox or {}
 Ess.Sandbox._active = Ess.Sandbox._active or {}
 
 -- ============================================================
--- Built-in provider: relations -- opts.relations is the {a,b,set} pairs list to pass straight through
--- to Ess.Relations.apply/restore, keyed by the SAME sandbox id so they tear down together.
+-- Built-in provider: relations -- opts.relations is the {a,b,set} pairs list passed straight through to
+-- Ess.Relations.apply, whose handle is stashed by sandbox id (same shape as the supports provider's
+-- _supportSnaps below) so finish() restores exactly this sandbox's relation set.
 -- ============================================================
+Ess.Raw.Sandbox._relHandles = Ess.Raw.Sandbox._relHandles or {}
 Ess.Raw.Sandbox.register("relations", {
     apply = function(id, opts)
-        if opts and opts.relations then Ess.Relations.apply(id, opts.relations) end
+        if opts and opts.relations then
+            Ess.Raw.Sandbox._relHandles[id] = Ess.Relations.apply(opts.relations, "sandbox:" .. tostring(id))
+        end
     end,
     restore = function(id)
-        Ess.Relations.restore(id)
+        Ess.Relations.restore(Ess.Raw.Sandbox._relHandles[id])
+        Ess.Raw.Sandbox._relHandles[id] = nil
     end,
 })
 
