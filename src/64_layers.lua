@@ -74,10 +74,22 @@ end
 -- deliberately NOT routed through Ess.Override.wrap, since there's no tail-call concern here at all (the
 -- gated replacement never calls through to the original while active; it simply IS the live function
 -- until finish() puts the exact original reference back). This composes correctly with Ess.Sandbox's OWN
--- independent save-gate (63_sandbox_raw.lua) regardless of which one gates/ungates first or is nested
--- inside the other, since each only ever restores whatever IT personally saw as "current" at the moment
--- it gated -- the same reasoning already relied on when this was an external LayerFw dependency, still
--- holds now that it's native.
+-- independent save-gate (63_sandbox_raw.lua) for TOGGLING (gate/ungate in either order, or nested), since
+-- each only ever restores whatever IT personally saw as "current" at the moment it gated.
+--
+-- ⚠ ONE narrow real ordering hazard found on a deep re-read, NOT fully solved (documenting rather than
+-- risking a structural fix this late in an unsupervised session): Ess.Sandbox's wrap of Pg.SaveGame is
+-- installed LAZILY, on the FIRST-EVER call to Ess.Sandbox.begin() anywhere in the session (see
+-- 63_sandbox_raw.lua's installSaveGate). If a mod calls Ess.Layers.begin() DIRECTLY (bypassing
+-- Ess.Sandbox), and Ess.Sandbox.begin() happens to be called for the very first time anywhere in the
+-- session WHILE that Layers mode is still active, Ess.Sandbox's wrap gets installed on top of Layers'
+-- no-op -- then Ess.Layers.finish()'s direct reassignment (`Pg.SaveGame = L._origSaveGame`) restores the
+-- PRE-Layers value, silently discarding Sandbox's freshly-installed wrap. Sandbox's own `_installed` flag
+-- stays true, so it never re-installs -- its save-gate becomes permanently ineffective from that point on.
+-- SAFE PATTERN: route layer isolation through Ess.Sandbox's own "layers" provider
+-- (Ess.Sandbox.begin(id,{"layers",...})) instead of calling Ess.Layers directly, whenever the same session
+-- might also use Ess.Sandbox for anything else -- Sandbox always gates first that way, so this ordering
+-- can't occur.
 local function gateSaves()
     if L._gated then return end
     L._gated = true

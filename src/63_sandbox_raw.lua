@@ -39,6 +39,11 @@ end
 -- $0, factions mid-hostile-swap, a layer mid-transition) would bake that transient state into the save.
 -- Confirmed real risk in WaveDefense.lua's own comments ("the death -> medevac flow fires a savegame in
 -- that window; if it lands at $0 ... their money is gone").
+--
+-- ⚠ installSaveGate() below installs LAZILY (first-ever call, then never again -- see `_installed`) --
+-- see 64_layers.lua's own header for a narrow but real ordering hazard this creates if a mod mixes direct
+-- Ess.Layers calls with Ess.Sandbox in the same session. Prefer Ess.Sandbox's "layers" provider over
+-- calling Ess.Layers directly when both might be in play.
 function Ess.Raw.Sandbox.gateSaves()
     installSaveGate()
     Ess.Raw.Sandbox._gated = true

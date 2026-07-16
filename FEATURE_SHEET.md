@@ -598,6 +598,26 @@ Engine Namespaces section against what Ess actually covers:**
   fundamentally different from the earlier `Ess.Triggers.gate` empty-inputs finding, which was a STATIC
   misconfiguration detectable at call time; these are dynamic runtime conditions that can't be validated up
   front, the same as any "watch until X" pattern in any system. No source change, doc-only checkpoint.
+- **The most consequential finding of this deep-read arc, in `64_layers.lua`**: its own header claimed
+  its save-gate "composes correctly with `Ess.Sandbox`'s OWN independent save-gate... regardless of which
+  one gates/ungates first" — true for TOGGLING, but the claim missed that `Ess.Sandbox`'s wrap of
+  `Pg.SaveGame` installs LAZILY, only on the first-ever call to `Ess.Sandbox.begin()` anywhere in the whole
+  session (confirmed via grep: `installSaveGate` has no other call site). Traced the real sequence: if a
+  mod calls `Ess.Layers.begin()` DIRECTLY (bypassing `Ess.Sandbox`), and `Ess.Sandbox.begin()` happens to
+  be called for the very first time in the session WHILE that Layers mode is still active, Sandbox's wrap
+  installs on top of Layers' no-op — then `Ess.Layers.finish()`'s direct reassignment restores the
+  PRE-Layers value, silently discarding Sandbox's freshly-installed wrap. Sandbox's own `_installed` flag
+  never resets, so it never re-installs — its save-gate becomes permanently ineffective for the rest of the
+  session, a silent save-safety failure in exactly the class of thing this whole subsystem exists to
+  prevent. Given the genuine subtlety and the stakes (save corruption), documented the hazard clearly in
+  both `64_layers.lua` and `63_sandbox_raw.lua` with the safe usage pattern (route layer isolation through
+  `Ess.Sandbox`'s own `"layers"` provider instead of calling `Ess.Layers` directly, whenever a session might
+  also use `Ess.Sandbox` for anything else — Sandbox always gates first that way, so the hazard can't
+  occur) rather than attempt a structural fix to the already-live-verified Layers mechanics this late in an
+  unsupervised stretch. Rest of `64_layers.lua` (the diff-based restore in `finish()`, the async
+  Remove-then-Add callback chaining shared with `swap()`, the `finished`-guard against double-completion)
+  traced clean and consistent with its own documented design. Comment-only; hot-reloaded and confirmed
+  both `Ess.Layers`/`Ess.Sandbox` still present.
 
 ## Non-goals
 
