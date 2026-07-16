@@ -579,6 +579,17 @@ Engine Namespaces section against what Ess actually covers:**
   fix, the `GetVisible`/1-0-truthy `setVisible` fix, the async-load `warmupRerender`, `menuNav`'s edge-
   triggered polling) traced clean, no behavioral changes. Comment-only; hot-reloaded and confirmed
   `Ess.Gfx`/`Ess.UI` both still present.
+- **The deep-read pass continued onto `61_relations.lua`/`61_relations_raw.lua`** and found the same shape
+  of collision risk `62_triggers.lua` just turned up: `Ess.Relations._active[id]` is a module-level shared
+  table, not per-caller-scoped — two independent direct callers of `Ess.Relations.apply`/`.restore` reusing
+  a generic id (e.g. `"combat"`) would restore/overwrite each other's relation sets. `Ess.Sandbox`'s
+  relations provider and `Ess.Contract` both already pass their own uniquely-scoped id through safely.
+  Added the same consistent warning + fix pattern to the file header as `Ess.Triggers` got. The rest of
+  the file traced clean: `apply()` correctly snapshots BOTH directions of a pair before applying either
+  (so the snapshot reflects true pre-apply state), and `Ess.Raw.Relations`'s `ok`/`val`-separated snapshot
+  shape (the Known Bug #3 fix, distinguishing "read a real 0" from "the read failed") matches its own
+  documented design intent exactly. Comment-only; hot-reloaded and confirmed `Ess.Relations.apply` still
+  present and callable.
 
 ## Non-goals
 

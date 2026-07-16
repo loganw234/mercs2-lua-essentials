@@ -13,6 +13,12 @@
 --                                                relation (Ai.GetFeeling/SetFeeling), distinct from the
 --                                                FACTION-level apply/restore above -- no snapshot/restore
 --                                                needed, it's a thin direct wrapper
+--
+-- ⚠ Same shared-flat-namespace shape as Ess.Triggers' `_known`/`_fired` (see that file's header): `id`
+-- keys the module-level `_active` table directly, not per-caller. `Ess.Sandbox`'s relations provider and
+-- `Ess.Contract` both already pass their own uniquely-scoped id through safely -- give your own id a
+-- unique prefix too if calling apply/restore directly, or a second independent caller reusing a generic id
+-- like "combat" would restore/overwrite the wrong relation set.
 
 import("MrxFactionManager")
 
