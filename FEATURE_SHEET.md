@@ -10,6 +10,26 @@ This document maps the **whole system** before any of it is built, so implementa
 instead of growing organically. It is not final — naming and grouping are explicitly up for revision
 once we start writing code against it.
 
+## Implementation status (2026-07-16)
+
+**Built:** Groups A, B, C, D (`Ess.Safe`/`Table`/`Guid`/`Name`/`Log`, `Ess.Player`, `Ess.Object`,
+`Ess.Vehicle`, `Ess.Probe`, `Ess.Loop`/`Timer`, `Ess.Input`, `Ess.State`/`SaveVar`, `Ess.Track`/`Event`)
+plus `Ess.RNG` pulled forward from Group F — all single-tier, zero dependency on `ModNet`/`uilib`/
+`ContractFramework`. Source in `src/00_core.lua` through `src/53_rng.lua`; `build/merge.py` concatenates
+them into `dist/Ess.lua` (gitignored, build it yourself: `python build/merge.py`). Verified with the
+existing corpus's own `tools/loadcheck.py` — loads clean, chunk reaches the bottom, boot line fires.
+**Not yet in-engine tested** — `loadcheck.py` catches load-time errors, not actual behavior; treat every
+function here as unverified against the live game until it's actually been run there.
+
+**Two documented gaps, left honest rather than guessed:** `Ess.Vehicle.enterSeatExcluding` falls back to
+`enterBestSeat` without enforcing the exclusion (the real native call wasn't confirmed against primary
+source this pass); `Ess.Input.hijackController` is synthesized from a deep-dive survey summary, not a
+direct source read — both are flagged in their own file's header comment.
+
+**Not yet built:** the rest of Group F (Bones/Camera/Points), Group E (`Ess.Gfx` + the `uilib`/`ModNet`/
+`ContractFramework` aliases), and Group G (the tiered encounter toolkit — Sandbox/Triggers/AIOrders/
+Relations/Mark). Per the suggested build order, these come next in roughly that sequence.
+
 ## Non-goals
 
 - Not a replacement for `ModNet`/`uilib`/`ContractFramework`/`LayerFw`. Where one of those already solves
@@ -314,7 +334,7 @@ mercs2-lua-essentials/
                              alphabetical glob) -> dist/Essentials.lua, stamps a version/build-date
                              header banner
   dist/
-    Essentials.lua          (generated; open question below on whether this is committed)
+    Ess.lua                  (generated; open question below on whether this is committed)
 ```
 
 Numeric filename prefixes double as both load-order (matching the existing `1_`-prefix lua-bridge
@@ -351,10 +371,11 @@ explicit ordered file list for exactly this reason rather than globbing and sort
    `W._rng`. Multiple mods sharing one `Ess`-global stream would perturb each other's sequences if both
    draw from it in the same tick — instanced (`Ess.RNG.new()`) avoids that at the cost of every consumer
    remembering to hold onto their own instance.
-3. **Is `dist/Essentials.lua` committed to the repo**, or built on demand / at release time only? Committing
+3. **Is `dist/Ess.lua` committed to the repo**, or built on demand / at release time only? Committing
    it makes "just drop this one file in" trivially copy-pasteable for a newcomer; not committing it keeps
    the repo free of generated-file diffs. (The `gfxforge-web` precedent commits neither — `dist/` is built
-   on demand there.)
+   on demand there.) **Currently: not committed** (`dist/` is gitignored) — revisit once there's a release
+   to actually ship, not just a working build.
 4. **How much of Group G (`AIOrders`/`Relations`/`Triggers`/`Sandbox`) ships in v1** versus being deferred —
    this is the highest-value, highest-effort, highest-regression-risk group since it means touching
    `ContractFramework.lua`'s internals. Could ship v1 with Groups A–F only (zero changes to any existing
