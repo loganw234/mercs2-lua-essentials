@@ -4,6 +4,7 @@
 --
 -- API:
 --   Ess.Input.poll() -> { pressed = {vk, ...}, down = function(vk) -> bool }
+--   Ess.Input.clear()                                     flush the pending key-event ring buffer
 --   Ess.Input.VkToChar(vk, bShift) -> sChar | nil
 --   Ess.Input.hijackController(onInput) -> release()      niche -- see caveat below; low priority to
 --                                                          verify further, most mods don't need this
@@ -41,6 +42,15 @@ function Ess.Input.poll()
         return (string.byte(ks, vk + 1) or 0) >= 128
     end
     return { pressed = pressed, down = down }
+end
+
+-- Ess.Input.clear() -- discard every key event currently buffered in the ring (Loader.ClearKeyEvents),
+-- pcall-guarded. The canonical use: a script activated BY a keypress (an OnKey menu, a console) drains the
+-- buffer once on activate so its OWN trigger key -- and anything the user mashed while it was loading --
+-- doesn't immediately fire an action on the first tick. Ess.TextConsole.open does exactly this; exposing it
+-- here means a consumer never has to reach past Ess to raw Loader for the one "flush pending input" case.
+function Ess.Input.clear()
+    pcall(Loader.ClearKeyEvents)
 end
 
 -- ============================================================

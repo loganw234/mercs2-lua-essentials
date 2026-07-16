@@ -70,7 +70,7 @@ in-game.
 |---|---|---|
 | `Ess.Time` | All wall-clock timing (survives world-pause) | `.stamp()`/`.elapsed(s)`/`.mark(s)` (explicit), `.cooldown(seconds)` → `ready()`, `.clock(maxDelta)` → `:delta()` (auto-advancing per-frame dt), `.scale(n)`/`.restoreScale()`, `.format(sec, tenths)`; `Ess.Easy.Time.slowmo(n, seconds)` |
 | `Ess.Loop` | The one shared reload-safe heartbeat | `.start(id, interval, tickFn)`, `.stop(id)`, `.isRunning(id)` |
-| `Ess.Input` | The only correct key-polling shape + device query | `.poll()` → `{pressed, down(vk)}`, `.VkToChar(vk, shift)`, `.usingController()`, `.hijackController(onInput)` |
+| `Ess.Input` | The only correct key-polling shape + device query | `.poll()` → `{pressed, down(vk)}`, `.clear()` (flush the key buffer), `.VkToChar(vk, shift)`, `.usingController()`, `.hijackController(onInput)` |
 | `Ess.TextConsole` | A typed-input console, no `.gfx` asset needed | `.open{ onSubmit=, … }`, `.close()`, `.isOpen()` |
 
 ## Tracking & cleanup
@@ -92,8 +92,8 @@ in-game.
 | Tier | Key calls |
 |---|---|
 | `Ess.Easy.Mark` | `.enemy(guid)` (radar+PDA), `.objective(guid)` (all 3), `.zone(x,y,z,r)` (world ring) |
-| `Ess.Mark` | `.object(guid, {radar=, pda=, world=})`, `.zone(x,y,z,r, opts)`, `.clear(handle)` |
-| `Ess.Raw.Mark` | `.radar/.pda/.world/.worldDisc` (3 surfaces independently), `.pulse/.haltPulse` (flash existing), `.showPlayerMarkers(on)` |
+| `Ess.Mark` | `.object(guid, {radar=, pda=, world=, disc=, kind=, rgb=, radius=, discAlpha=, size=, dist=})`, `.zone(x,y,z,r, {world=, radar=, pda=, icon=, kind=, rgb=, discAlpha=, size=, dist=})`, `.clear(handle)` — every surface (radar / PDA / ground ring / floating icon) is an independent opt, so one call covers any combination |
+| `Ess.Raw.Mark` | `.radar/.pda/.world(guid,tex,rgb,size,dist)/.worldDisc` (4 surfaces independently), `.pulse/.haltPulse` (flash existing), `.showPlayerMarkers(on)` |
 
 ## Camera, bones & spatial
 

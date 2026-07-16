@@ -6,9 +6,18 @@
 -- this same function with different opts, not two different implementations.
 --
 -- API:
---   Ess.Mark.object(uGuid, opts) -> handle     opts: radar=true, pda=true, world=true, kind=, rgb=
+--   Ess.Mark.object(uGuid, opts) -> handle
+--       opts: radar=true, pda=true, world=true (floating icon), disc=false (ground ring), kind=, rgb=,
+--             radius= (disc), discAlpha=, size=/dist= (floating-icon size + draw-distance)
 --   Ess.Mark.zone(x, y, z, radius, opts) -> handle
+--       opts: world=true (ground ring), radar=true, pda=true, icon=false (ALSO a floating icon), kind=,
+--             rgb=, discAlpha=, size=/dist= (floating-icon size + draw-distance)
 --   Ess.Mark.clear(handle)
+--
+-- Every surface (round-radar, PDA blip, ground ring, floating in-world icon) is an independent opt so ONE
+-- call covers any combination -- the design goal is that a consumer never has to drop to Ess.Raw.Mark and
+-- hand-assemble a multi-surface marker just because it wants, say, a ground ring AND a floating icon on the
+-- same anchor (the exact combination MissionForge needed, which motivated the `icon`/`disc`/size/dist opts).
 
 local Ess = _G.Ess
 Ess.Mark = Ess.Mark or {}
@@ -26,31 +35,38 @@ local OBJ_ICONS = {
 -- Ess.Mark.object(uGuid, opts) -> handle
 -- opts.radar/opts.pda/opts.world each default true (opt OUT, not opt in -- matches ContractFramework's
 -- all-three-by-default convention; pass radar=true,pda=true,world=false to match WaveDefense's instead).
--- opts.kind picks the icon set (destroy/verify/defend/action/destination, default "action").
+-- opts.world is the floating in-world icon; opts.disc (default OFF) adds a ground ring around the object
+-- too (opts.radius default 15, opts.discAlpha its fill). opts.kind picks the icon set (destroy/verify/
+-- defend/action/destination, default "action"); opts.size/opts.dist tune the floating icon's look.
 function Ess.Mark.object(uGuid, opts)
     opts = opts or {}
     local ic = OBJ_ICONS[opts.kind] or OBJ_ICONS.action
     local h = { uGuid = uGuid }
     if opts.radar ~= false then h.radarName = Ess.Raw.Mark.radar(uGuid, ic.rdr, opts.rgb) end
     if opts.pda ~= false then h.pdaName = Ess.Raw.Mark.pda(uGuid, "icon_yellow_mc") end
-    if opts.world ~= false then h.worldHandle = Ess.Raw.Mark.world(uGuid, ic.wld, opts.rgb) end
+    if opts.world ~= false then h.worldHandle = Ess.Raw.Mark.world(uGuid, ic.wld, opts.rgb, opts.size, opts.dist) end
+    if opts.disc then h.discHandle = Ess.Raw.Mark.worldDisc(uGuid, opts.radius or 15, opts.rgb, opts.discAlpha) end
     return h
 end
 
 -- Ess.Mark.zone(x, y, z, radius, opts) -> handle|nil
--- Spawns a TinyGeometry anchor (safe mid-gameplay, per Ess.Camera's own documented caveat) and marks it
--- as a "destination" -- ContractFramework.lua's markZone, generalized with the same opts shape as object().
--- opts.world (default true) draws the ground ring (Marker.AddDisc); opts.radar/opts.pda (default true)
--- add the round-radar/PDA destination blip on the SAME anchor.
+-- Spawns a TinyGeometry anchor (via the guarded Ess.Object.spawn -- a blank template would hard-crash, and
+-- this is the one create-verb that guards it) and marks it. opts.world (default true) draws the ground ring
+-- (Marker.AddDisc, opts.discAlpha its fill); opts.radar/opts.pda (default true) add the round-radar/PDA blip
+-- on the SAME anchor; opts.icon (default OFF) ALSO drops a floating in-world icon on it. opts.kind picks the
+-- icon set for the radar blip AND the floating icon (default "destination"); opts.size/opts.dist tune the
+-- floating icon. The zone OWNS its anchor, so Ess.Mark.clear removes the prop for you.
 function Ess.Mark.zone(x, y, z, radius, opts)
     opts = opts or {}
-    local ok, anchor = pcall(Pg.Spawn, "TinyGeometry", x, y, z)
-    if not ok or not anchor then return nil end
+    local ic = OBJ_ICONS[opts.kind] or OBJ_ICONS.destination
+    local anchor = Ess.Object.spawn("TinyGeometry", x, y, z)
+    if not anchor then return nil end
     local h = { anchor = anchor }
     if opts.world ~= false then
-        h.discHandle = Ess.Raw.Mark.worldDisc(anchor, radius, opts.rgb, opts.alpha)
+        h.discHandle = Ess.Raw.Mark.worldDisc(anchor, radius, opts.rgb, opts.discAlpha or opts.alpha)
     end
-    if opts.radar ~= false then h.radarName = Ess.Raw.Mark.radar(anchor, OBJ_ICONS.destination.rdr, opts.rgb) end
+    if opts.icon then h.worldHandle = Ess.Raw.Mark.world(anchor, ic.wld, opts.rgb, opts.size, opts.dist) end
+    if opts.radar ~= false then h.radarName = Ess.Raw.Mark.radar(anchor, ic.rdr, opts.rgb) end
     if opts.pda ~= false then h.pdaName = Ess.Raw.Mark.pda(anchor, "icon_yellow_mc") end
     return h
 end

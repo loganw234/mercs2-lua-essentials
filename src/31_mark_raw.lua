@@ -4,7 +4,7 @@
 -- API:
 --   Ess.Raw.Mark.radar(uGuid, tex, rgb) -> sName|nil     / .removeRadar(sName)
 --   Ess.Raw.Mark.pda(uGuid, tex) -> sName|nil             / .removePda(sName)
---   Ess.Raw.Mark.world(uGuid, tex, rgb) -> handle|nil     / .removeWorld(handle)
+--   Ess.Raw.Mark.world(uGuid, tex, rgb, size, dist) -> handle|nil   / .removeWorld(handle)
 --   Ess.Raw.Mark.worldDisc(uGuid, radius, rgb, alpha) -> handle|nil   (a ground ring, not a floating icon)
 --   Ess.Raw.Mark.pulse(uGuid, rgb) / .haltPulse(uGuid)   flash an EXISTING marker in a color -- takes the
 --                                                         object uGuid directly, not a marker handle
@@ -52,11 +52,15 @@ function Ess.Raw.Mark.removePda(sName)
     if sName then pcall(function() Pda.Map:RemoveBlip({ sName = sName }) end) end
 end
 
--- Ess.Raw.Mark.world(uGuid, tex, rgb) -> handle|nil -- the floating in-world icon. Returns a real
--- Marker.AddBlip handle (NOT a name) -- RemoveWorld/Marker.Remove takes the handle, not sName.
-function Ess.Raw.Mark.world(uGuid, tex, rgb)
+-- Ess.Raw.Mark.world(uGuid, tex, rgb, size, dist) -> handle|nil -- the floating in-world icon. Returns a
+-- real Marker.AddBlip handle (NOT a name) -- RemoveWorld/Marker.Remove takes the handle, not sName.
+-- `size` is the on-screen icon size (Marker.AddBlip's 3rd arg, default 32) and `dist` is the last arg
+-- (default 175) that shipped call sites vary between ~175 and ~220 -- both optional and exposed so a
+-- consumer can match its own visual style instead of being locked to one hardcoded look (the two values
+-- MissionForge, ForgeCam and the contract markers each picked differently before this was configurable).
+function Ess.Raw.Mark.world(uGuid, tex, rgb, size, dist)
     local r, g, b = rgbOf(rgb)
-    local ok, m = pcall(Marker.AddBlip, uGuid, tex or "HUD_objective_action", 32, r, g, b, 255, 2, 5, 175)
+    local ok, m = pcall(Marker.AddBlip, uGuid, tex or "HUD_objective_action", size or 32, r, g, b, 255, 2, 5, dist or 175)
     if ok then return m end
     return nil
 end
