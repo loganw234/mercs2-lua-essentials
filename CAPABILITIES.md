@@ -44,7 +44,7 @@ Relations, Triggers, Sandbox). Simple namespaces (RNG, Time, Table…) are singl
 | `Ess.Player` | Player/character identity without the 8-getter sprawl | `.character(i)` (0 local, 1 co-op partner), `.slot(i)`, `.camera(i)`, `.pose(i)`, `.giveCash(n)`, `.giveFuel(n)`, `.targetUnderReticle(i)`, `.rumble(i, len)`, `.removeBoundaries()`, `.teleport(x,y,z, yaw, onDone)` (co-op-safe warp) |
 | `Ess.Object` | The everyday object-manipulation namespace | **spawn:** `.spawn(template, x,y,z, yaw)` (guarded); **transform:** `.pos/.setPos`, `.yaw/.setYaw`, `.distance`; **life:** `.health/.setHealth/.maxHealth/.heal`, `.kill/.revive/.remove`, `.alive/.valid`, `.setInvincible`; **state:** `.visible/.setVisible`, `.hasLabel/.addLabel/.removeLabel`, `.displayName`, `.playerControlled`; **physics:** `.enablePhysics/.disablePhysics`, `.impulse`; **vehicle watch:** `.vehicleOf`, `.pollVehicleChange` |
 | `Ess.Vehicle` | Seats/riders/entry | `.driver(veh)`, `.riders(veh)`, `.seatOf(char)`, `.enterBestSeat(char, veh)`, `.enterSeatExcluding(char, veh, excl)`, `.exit(veh, char)`, `.followGhost(template, x,y,z)` |
-| `Ess.Probe` | Nearby-object collection, one dispatcher | `.nearby(x,y,z,r, kind, filter, includeSelf)` (**excludes the player by default**), `.getFaction(guid)`, `.describeSafe(guid)` |
+| `Ess.Probe` | Nearby-object collection, one dispatcher | `.nearby(...)` (**excludes the player by default**), `.nearest(...)` (closest match), `.getFaction(guid)`, `.describeSafe(guid)` |
 
 ## Timing & input
 

@@ -97,6 +97,8 @@ local REGISTRY = {
       desc = "Read or set an object's world position." },
     { ns = "Ess.Object", usage = "Ess.Object.health(uGuid) / .setHealth(uGuid, n) / .heal(uGuid)",
       desc = "Read/set health, or heal to full." },
+    { ns = "Ess.Object", usage = "Ess.Object.damage(uGuid, nAmount)",
+      desc = "Deal damage (kills outright if it would drop to <= 0) -- there's no native damage call." },
     { ns = "Ess.Object", usage = "Ess.Object.kill(uGuid) / .remove(uGuid) / .alive(uGuid)",
       desc = "Kill (leaves a wreck), remove (deletes outright), or check if still alive." },
     { ns = "Ess.Object", usage = "Ess.Object.impulse(uGuid, x, y, z, bLocal)",

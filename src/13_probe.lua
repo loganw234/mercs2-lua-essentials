@@ -2,6 +2,7 @@
 --
 -- API:
 --   Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf) -> { uGuid, ... }
+--   Ess.Probe.nearest(x, y, z, radius, kind, filter, includeSelf) -> uGuid, nDist | nil  the single closest
 --   Ess.Probe.getFaction(uGuid) -> sAbbrev | nil
 --   Ess.Probe.describeSafe(uGuid) -> sDescription
 
@@ -64,6 +65,20 @@ function Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf)
         end
     end
     return out
+end
+
+-- Ess.Probe.nearest(x, y, z, radius, kind, filter, includeSelf) -> uGuid, nDist | nil
+-- The single CLOSEST match from Ess.Probe.nearby (same args, same player-excluded-by-default behavior).
+-- The "find the one thing near here" case that otherwise means calling nearby() and hand-rolling the
+-- min-distance loop every time (Ess.Contract's onDestroy="nearest" trigger does exactly that internally).
+-- Returns the guid and its distance, or nil if nothing matched in range.
+function Ess.Probe.nearest(x, y, z, radius, kind, filter, includeSelf)
+    local best, bestD
+    for _, u in ipairs(Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf)) do
+        local d = Ess.Object.distance(u, x, y, z)
+        if d and (not bestD or d < bestD) then best, bestD = u, d end
+    end
+    return best, bestD
 end
 
 -- Ess.Probe.getFaction(uGuid) -> sAbbrev | nil

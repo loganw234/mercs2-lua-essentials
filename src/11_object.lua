@@ -12,6 +12,7 @@
 --   -- health & life
 --   Ess.Object.health(uGuid) -> n | nil             Ess.Object.setHealth(uGuid, n)
 --   Ess.Object.maxHealth(uGuid) -> n | nil          Ess.Object.heal(uGuid)   (set-to-GetMaxHealth)
+--   Ess.Object.damage(uGuid, nAmount) -> nNewHealth | nil   deal damage (kills if it would drop <= 0)
 --   Ess.Object.kill(uGuid) / .revive(uGuid, nDelay) / .remove(uGuid)
 --   Ess.Object.alive(uGuid) -> bool / .valid(uGuid) -> bool
 --   Ess.Object.setInvincible(uGuid, bOn, sReason)
@@ -148,6 +149,19 @@ end
 function Ess.Object.maxHealth(uGuid)
     local ok, n = pcall(Object.GetMaxHealth, uGuid)
     if ok then return n end
+end
+-- Ess.Object.damage(uGuid, nAmount) -> nNewHealth | nil -- deal nAmount of damage. There is NO native
+-- "damage" call on this engine (only GetHealth/SetHealth/Kill), so this reads current health, subtracts,
+-- and applies -- and if the result would be <= 0 it Kill()s outright, since SetHealth(uGuid, 0) does NOT
+-- reliably register as death here. Returns the new health (0 if it killed), or nil if health couldn't be
+-- read. The natural complement to .heal (full up) and .setHealth (set exactly).
+function Ess.Object.damage(uGuid, nAmount)
+    local ok, hp = pcall(Object.GetHealth, uGuid)
+    if not ok or not hp then return nil end
+    local nw = hp - (nAmount or 0)
+    if nw <= 0 then pcall(Object.Kill, uGuid); return 0 end
+    pcall(Object.SetHealth, uGuid, nw)
+    return nw
 end
 -- Ess.Object.kill / .remove -- both one-way per the Object namespace's own notes: Kill destroys (leaves a
 -- corpse/wreck), Remove deletes the object outright. Kept as distinct verbs because they mean different
