@@ -1,7 +1,10 @@
 -- Ess/40_gfx.lua -- Ess.Gfx: the raw FlashWidget primitives (Ess.Raw tier for custom-UI work).
--- Ess.Menu/Ess.UI (Core/Easy tiers) alias uilib's already-engine-verified widget kit instead of
--- reimplementing it -- see src/99_adopt.lua. This file is only the boilerplate every one of uilib.lua,
--- contracts.lua, ForgeCam, and ForgeMenu independently hand-rolled around MrxGuiBase.FlashWidget.
+-- Ess.UI (42_ui_engine.lua onward) is built NATIVELY on top of this file -- a full absorbed port of
+-- uilib.lua's widget kit, not an alias to an external uilib.lua deployment (`src/99_adopt.lua`, which did
+-- alias it that way, was deleted once the absorption was complete -- see FEATURE_SHEET.md's "Design
+-- principle 1" for that pivot's history; this comment was stale until a deep-read pass caught it). This
+-- file is only the boilerplate every one of uilib.lua, contracts.lua, ForgeCam, and ForgeMenu independently
+-- hand-rolled around MrxGuiBase.FlashWidget.
 --
 -- API:
 --   Ess.Gfx.widget(file, x, y, w, h) -> widget | nil     widget = { raw = <FlashWidget>, shown = bool }

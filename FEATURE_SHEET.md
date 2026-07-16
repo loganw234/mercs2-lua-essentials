@@ -569,6 +569,16 @@ Engine Namespaces section against what Ess actually covers:**
   `Ess.Timer` has a real, narrow consumer (`Ess.UI`'s own heartbeat) that a structural change would need to
   re-verify. Comment-only; hot-reloaded and confirmed both namespaces still coexist correctly
   (`Ess.Timer ~= nil` and `Ess.Time ~= nil` both `true`), no regression.
+- **A stale doc reference found continuing onto `40_gfx.lua`** (the lowest-level widget primitive
+  everything in Group E is built on): its header still said `Ess.UI` "alias[es] uilib's already-engine-
+  verified widget kit... see `src/99_adopt.lua`" — but `99_adopt.lua` was deleted back when the absorption
+  pivot made `Ess.UI` fully native (see the `64c096e` absorption-complete entry above), and the comment was
+  never updated. Confirmed via `grep` that `40_gfx.lua` was the ONLY file anywhere in `src/` still
+  referencing the deleted file. Fixed to describe current reality (`Ess.UI` built natively on this file,
+  not aliasing an external deployment). Rest of the file's actual logic (the corner-coordinate `SetLocation`
+  fix, the `GetVisible`/1-0-truthy `setVisible` fix, the async-load `warmupRerender`, `menuNav`'s edge-
+  triggered polling) traced clean, no behavioral changes. Comment-only; hot-reloaded and confirmed
+  `Ess.Gfx`/`Ess.UI` both still present.
 
 ## Non-goals
 
