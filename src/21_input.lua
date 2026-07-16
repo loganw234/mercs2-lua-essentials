@@ -7,6 +7,8 @@
 --   Ess.Input.VkToChar(vk, bShift) -> sChar | nil
 --   Ess.Input.hijackController(onInput) -> release()      niche -- see caveat below; low priority to
 --                                                          verify further, most mods don't need this
+--   Ess.Input.usingController() -> bool                    Gui.ControllerInUse -- for branching HUD hint
+--                                                           text ("Press A" vs "Press E"), the common case
 --   Ess.TextConsole.open{ prompt=, text=, max=, lockPlayer=, onSubmit=, onCancel=, onChange= }
 --   Ess.TextConsole.close()
 --   Ess.TextConsole.isOpen() -> bool
@@ -62,6 +64,23 @@ function Ess.Input.VkToChar(vk, bShift)
     local m = CHAR[vk]
     if not m then return nil end
     return bShift and m.s or m.n
+end
+
+-- Ess.Input.usingController() -> bool
+-- CONFIRMED (wiki/namespaces/gui.md): Gui.ControllerInUse(), always guard-checked at every real call site
+-- (`if Gui.ControllerInUse and Gui.ControllerInUse() then` -- `vzacon001.lua`/tutorial scripts), a strong
+-- signal it may not exist on every platform build -- this wrapper copies that guard so callers don't have
+-- to. The common real use: branching a HUD hint/prompt's wording ("Press A" vs "Press E") without a
+-- separate settings flag to track.
+--
+-- Explicit `b == true or b == 1` rather than a naive `if b then` -- this engine's getters are already
+-- documented (wiki/CLAUDE.md) to sometimes return 1/0 instead of a real boolean, and 0 is TRUTHY in Lua
+-- (only nil/false are falsy), so a naive truthy check would silently report "using a controller" even
+-- when the real answer is 0/false.
+function Ess.Input.usingController()
+    if not Gui.ControllerInUse then return false end
+    local ok, b = pcall(Gui.ControllerInUse)
+    return ok and (b == true or b == 1)
 end
 
 -- ============================================================

@@ -464,6 +464,24 @@ Engine Namespaces section against what Ess actually covers:**
   tested: `fadeOut()` then `fadeIn()` a second later, both ran error-free, screen left in the clear
   (non-faded) state afterward — deliberately tested the round trip rather than just the one-shot call, to
   avoid leaving the live game visually broken.
+- **`Ess.Input.usingController()`** (`src/21_input.lua`) and **`Ess.Raw.Mark.showPlayerMarkers(bOn)`**
+  (`src/31_mark_raw.lua`) — two confirmed functions pulled from a survey of the `Gui` namespace (38
+  functions: marker-visibility toggles, internal `_Marker*` primitives already covered by the public
+  `Marker` API, localization, input-device detection, shell-lifecycle hooks). `usingController` wraps
+  `Gui.ControllerInUse` — every real call site guard-checks it first (`if Gui.ControllerInUse and
+  Gui.ControllerInUse() then`, a signal it may not exist on every platform build), so the wrapper copies
+  that guard. **Written carefully around this project's own already-documented `not 0 == false` engine
+  footgun** (native getters sometimes return `1`/`0` instead of a real boolean, and `0` is truthy in Lua) —
+  checks `b == true or b == 1` explicitly rather than a naive truthy test. `showPlayerMarkers` wraps
+  `Gui.EnablePlayerMarkers` (confirmed in `mrxbriefing.lua`, hide/restore around a cutscene/briefing) — a
+  GLOBAL toggle unlike every per-guid function elsewhere in that file. The rest of `Gui` left unwrapped:
+  `_Marker*` (underscore-prefixed internal primitives, `Marker`/`Ess.Mark` already the correct public
+  surface), `LoadFont`/`LoadTexture`/`GetReticlePosition`/`FindGuiLocation` (asset-preload/UI-anchoring
+  tools, narrower use cases than a core-foundations pass targets), and the shell-lifecycle hooks
+  (`OnGlobalExit`/`DoSigninCheck`/etc — called BY the engine's own bootstrap, not something a gameplay mod
+  would invoke). Live-tested both: `usingController()` correctly returned `true` (consistent with this
+  dev-loop's virtual Xbox controller being active), `showPlayerMarkers(false)` then `(true)` both
+  error-free.
 
 ## Non-goals
 

@@ -8,6 +8,8 @@
 --   Ess.Raw.Mark.worldDisc(uGuid, radius, rgb, alpha) -> handle|nil   (a ground ring, not a floating icon)
 --   Ess.Raw.Mark.pulse(uGuid, rgb) / .haltPulse(uGuid)   flash an EXISTING marker in a color -- takes the
 --                                                         object uGuid directly, not a marker handle
+--   Ess.Raw.Mark.showPlayerMarkers(bOn)                   Gui.EnablePlayerMarkers -- a GLOBAL toggle, not
+--                                                          per-guid like everything else in this file
 
 local Ess = _G.Ess
 Ess.Raw = Ess.Raw or {}
@@ -81,4 +83,12 @@ function Ess.Raw.Mark.pulse(uGuid, rgb)
 end
 function Ess.Raw.Mark.haltPulse(uGuid)
     pcall(Marker.HaltPulse, uGuid)
+end
+
+-- Ess.Raw.Mark.showPlayerMarkers(bOn) -- CONFIRMED (mrxbriefing.lua): Gui.EnablePlayerMarkers(bEnabled),
+-- a GLOBAL on/off toggle (not keyed to a guid like every other function in this file) for whether OTHER
+-- players' HUD markers render at all. Real confirmed use: hide during a cutscene/briefing, restore after --
+-- the same "temporarily quiet the HUD for a scripted moment" need Ess.Camera.fade/Ess.Hud already serve.
+function Ess.Raw.Mark.showPlayerMarkers(bOn)
+    pcall(Gui.EnablePlayerMarkers, bOn and true or false)
 end

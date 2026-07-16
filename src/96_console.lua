@@ -127,6 +127,10 @@ local REGISTRY = {
       desc = "Blends player i's field-of-view to a new angle over nDuration seconds (a zoom effect)." },
     { ns = "Ess.Easy (Camera)", usage = "Ess.Easy.Camera.fadeOut() / .fadeIn()",
       desc = "Full-screen fade to black / back in -- a mission-start/end or cutscene transition." },
+    { ns = "Ess.Raw.Mark", usage = "Ess.Raw.Mark.showPlayerMarkers(bOn)",
+      desc = "Global on/off for other players' HUD markers -- hide during a cutscene, restore after." },
+    { ns = "Ess.Input", usage = "Ess.Input.usingController()",
+      desc = "True if the player's using a gamepad -- branch a HUD prompt's wording on it." },
 
     { ns = "Ess.Time", usage = "Ess.Time.cooldown(seconds)",
       desc = "Returns a ready() function -- call it anytime, true at most once per `seconds` window." },
