@@ -155,9 +155,9 @@ SUPPORT_EFFECTS.hint = function(inst, task, ev)            -- native tutorial-st
 end
 SUPPORT_EFFECTS.cinematic = function(inst, task, ev)      -- play an Ess.Cinematic cutscene mid-mission (trigger-fired)
     if not Ess.Cinematic then return end
-    local steps = ev.steps or ev.cinematic
-    if type(steps) ~= "table" then return end
-    pcall(Ess.Cinematic.play, steps, ev.opts or { skippable = ev.skippable ~= false })
+    local ref = ev.steps or ev.cinematic or ev.named      -- inline steps, or a "named-id" string (Ess.Cinematic.define)
+    if type(ref) == "string" then pcall(Ess.Cinematic.playNamed, ref, ev.opts)
+    elseif type(ref) == "table" then pcall(Ess.Cinematic.play, ref, ev.opts or { skippable = ev.skippable ~= false }) end
 end
 
 -- ---- normalize a def.triggers entry's `kind` field into an Ess.Raw.Triggers.arm-compatible spec

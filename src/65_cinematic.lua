@@ -1,7 +1,7 @@
 -- Ess/65_cinematic.lua -- Ess.Cinematic: a declarative CUTSCENE TIMELINE runtime. Play an ordered list of
 -- steps -- camera cuts/tracks/dollies/orbits/chases, waits, spawns + face (turn an actor), AI orders, heli
--- fly-ins, narration (say banner / subtitle / hint / VO), fades, shakes, music, teleports -- pacing them
--- with per-step "hold" durations. The engine a "cinematic suite"
+-- fly-ins, narration (say banner / subtitle / hint / VO), fades, shakes, music/sound, teleports -- pacing
+-- them with per-step "hold" durations. The engine a "cinematic suite"
 -- for mission building sits on: MissionForge captures the SPATIAL steps (camera vantages, look-at points,
 -- action markers) in-game, the web tool authors the SEQUENCING (order/durations/params), and both just emit
 -- a `steps` list this runs. Ess.Contract plays one as a mission intro (def.cinematic).
@@ -24,6 +24,7 @@
 --   Ess.Cinematic.skip()                fast-forward the active cutscene (drain remaining steps instantly)
 --   Ess.Cinematic.stop([seq])           end it now, restore control, run onDone
 --   Ess.Cinematic.isPlaying() -> bool   /  Ess.Cinematic.active() -> seq | nil
+--   Ess.Cinematic.define(id, steps, opts) / .playNamed(id, extraOpts)   name a reusable cutscene, play by id
 --
 -- STEP CONTEXT: steps share a `ctx` -- ctx.named[name]=guid (a `spawn` with name= registers here; camera
 -- look=/order target=/fly target= resolve names, plus "player"/"partner"), ctx.groups[grp]={guids} (a
@@ -236,6 +237,12 @@ STEP.music = function(step)
     else pcall(MrxMusic.PlaySpecialMusic, step.cue or "mu_pmc_panicloop_01") end
 end
 
+-- {type="sound", cue=, on=<ref>} -- a one-shot sound EFFECT (Ess.Sound.cue), distinct from music/vo. on=
+-- attaches it to an object (positional -- an alarm, an impact); omit for a plain UI/HUD one-shot.
+STEP.sound = function(step, ctx)
+    Ess.Sound.cue(step.on and resolveGuid(ctx, step.on) or nil, step.cue)
+end
+
 -- {type="fade", to=0|1} / {out=true} -- full-screen fade (0 clear, 1 black). Pairs across two steps for a
 -- fade-out-then-in transition. (The cutscene ALSO auto-clears to 0 when it ends, so it can't strand black.)
 STEP.fade = function(step) Ess.Camera.fade(step.to or (step.out and 1) or 0) end
@@ -336,6 +343,35 @@ function Ess.Cinematic.stop(seq)
 end
 function Ess.Cinematic.isPlaying() return Ess.Cinematic._active ~= nil end
 function Ess.Cinematic.active()    return Ess.Cinematic._active end
+
+-- ---- named cinematics: define once, play/reference by id (the reuse + web-tool pipeline) ---------------
+-- Reset each load (the consuming mod re-defines in its OnLoad, exactly like Ess.Contract's registry) so a
+-- def never carries stale coords across a level change.
+Ess.Cinematic._defs = {}
+
+-- Ess.Cinematic.define(id, steps, opts) -- register a reusable cutscene under a name. Then play it directly
+-- (Ess.Cinematic.playNamed) OR reference it from a contract (def.cinematic = "id") or a trigger's cinematic
+-- support effect ({effect="cinematic", cinematic="id"}).
+function Ess.Cinematic.define(id, steps, opts)
+    if type(id) ~= "string" or type(steps) ~= "table" then return end
+    Ess.Cinematic._defs[id] = { steps = steps, opts = opts or {} }
+    Ess.Log("Cinematic: defined '" .. id .. "' (" .. #steps .. " steps)")
+end
+
+-- Ess.Cinematic.playNamed(id, extraOpts) -> seq | nil -- play a defined cinematic. extraOpts shallow-merges
+-- over the defined opts (e.g. a per-call onDone), so the same cutscene can be replayed with a different
+-- completion callback each time.
+function Ess.Cinematic.playNamed(id, extraOpts)
+    local d = Ess.Cinematic._defs[id]
+    if not d then Ess.Log("Cinematic.playNamed: no cinematic '" .. tostring(id) .. "' defined"); return nil end
+    local opts = d.opts
+    if extraOpts then
+        opts = {}
+        for k, v in pairs(d.opts) do opts[k] = v end
+        for k, v in pairs(extraOpts) do opts[k] = v end
+    end
+    return Ess.Cinematic.play(d.steps, opts)
+end
 
 -- Ess.Easy.Cinematic.play(steps, onDone) -- the zero-opts entry (skippable cutscene, camera takeover).
 function Ess.Easy.Cinematic.play(steps, onDone)

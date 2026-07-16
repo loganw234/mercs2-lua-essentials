@@ -13,9 +13,10 @@
 --                          cinematic = { <Ess.Cinematic steps> } | { steps=, opts= },  -- intro cutscene
 --                          objectives = { Ess.Contract.Destroy{...}, Ess.Contract.Reach{...}, ... },
 --                          onComplete=fn, onFail=fn }
---   def.cinematic plays an Ess.Cinematic cutscene AFTER heroes are placed (def.start) and relations are
---   set, and the objectives don't begin until it finishes (or is skipped with ESC) -- a proper mission
---   intro. A mid-mission trigger-fired cutscene is a support effect instead: {effect="cinematic", steps=}.
+--   def.cinematic -- inline Ess.Cinematic steps, {steps=,opts=}, OR a "named-id" string from Ess.Cinematic.
+--   define -- plays a cutscene AFTER heroes are placed (def.start) and relations are set; the objectives
+--   don't begin until it finishes (or is skipped with ESC). A mid-mission trigger-fired cutscene is a
+--   support effect instead: {effect="cinematic", steps=|cinematic="id", trigger=}.
 --   Objective builders: .Destroy{} .Reach{} .Defend{} .Collect{} .Escort{} .Enter{} .Hold{} .Group{}
 --                        .Interact{} .Verify{} .Extract{} .Race{} .Survive{} .Chase{} .Protect{} .StayInArea{}
 --   Ess.Contract.Accept(idOrDef)  Ess.Contract.Abort()  Ess.Contract.Status()  Ess.Contract.List()
@@ -355,12 +356,17 @@ function C.Accept(idOrDef)
         -- (or is skipped). Fully guarded: if the cinematic can't start for any reason, fall straight through
         -- to the mission so a bad cutscene can never leave a contract hung with no objectives running.
         if def.cinematic and Ess.Cinematic then
-            local steps, copts = def.cinematic, nil
-            if def.cinematic.steps then steps, copts = def.cinematic.steps, def.cinematic.opts end
-            copts = copts or {}
-            local userDone = copts.onDone
-            copts.onDone = function(ctx) if type(userDone) == "function" then pcall(userDone, ctx) end; runMission() end
-            local okC, seq = pcall(Ess.Cinematic.play, steps, copts)
+            local okC, seq
+            if type(def.cinematic) == "string" then                    -- a NAMED cinematic (Ess.Cinematic.define'd)
+                okC, seq = pcall(Ess.Cinematic.playNamed, def.cinematic, { onDone = function() runMission() end })
+            else                                                        -- inline steps ({...} or {steps=,opts=})
+                local steps, copts = def.cinematic, nil
+                if def.cinematic.steps then steps, copts = def.cinematic.steps, def.cinematic.opts end
+                copts = copts or {}
+                local userDone = copts.onDone
+                copts.onDone = function(ctx) if type(userDone) == "function" then pcall(userDone, ctx) end; runMission() end
+                okC, seq = pcall(Ess.Cinematic.play, steps, copts)
+            end
             if not okC or not seq then Ess.Log("cinematic did not start -> beginning mission directly"); runMission() end
         else
             runMission()
