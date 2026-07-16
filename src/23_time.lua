@@ -1,10 +1,16 @@
--- Ess/23_time.lua -- Ess.Time: the Sys.*TimeStamp elapsed-time idiom + time-scale, wrapped.
+-- Ess/23_time.lua -- Ess.Time: the Sys.*TimeStamp elapsed-time idiom + time-scale, wrapped. The one home
+-- for all wall-clock timing in Ess (this is why it wraps the same 3 native stamp calls as no other file --
+-- Ess.Timer, an earlier duplicate, was folded into Ess.Time.clock() below).
 --
--- NOT the same thing as Ess.Timer (20_loop.lua), despite wrapping the same 3 native calls -- see that
--- file's own cross-reference comment for the full distinction. Short version: Ess.Timer is Ess.UI's
--- private, auto-advancing, CLAMPED per-frame dt helper; this is the public cooldown/stamp API, explicit
--- and unclamped, because a cooldown check must be idempotent (elapsed() alone never resets it, only mark()
--- does). This is the one to reach for from mod code.
+-- Two flavours of "how much time passed", pick by what you're doing:
+--   * an EXPLICIT stamp (stamp/elapsed/mark, and cooldown built on them) -- elapsed() reads the true value
+--     and never advances on its own, so a cooldown check is idempotent (only mark() resets it). Use for
+--     "has N seconds passed since X", timers, cooldowns.
+--   * an AUTO-ADVANCING clock (Ess.Time.clock) -- :delta() returns "since my own last :delta()" and clamps,
+--     the right shape for a per-frame dt in a heartbeat that must survive a pause/hitch. Ess.UI's own
+--     heartbeat uses this.
+-- Both survive world-pause (menus/PDA), unlike Event.TimerRelative's own delta, because they read the
+-- real-world clock.
 --
 -- API:
 --   Ess.Time.stamp() -> uStamp                 real-world clock mark
@@ -13,6 +19,8 @@
 --   Ess.Time.elapsed(uStamp) -> n | 0           seconds since the stamp was marked
 --   Ess.Time.since(uStamp) -> n | 0             alias of elapsed (reads better at some call sites)
 --   Ess.Time.cooldown(seconds) -> ready() -> bool   one-line "has n seconds passed since last ready()==true"
+--   Ess.Time.clock(maxDelta) -> clock           clock:delta() -> seconds since last :delta(), clamped
+--                                                (default 0.25s) -- an auto-advancing per-frame dt timer
 --   Ess.Time.scale(n)                           Sys.SetTimeScale, e.g. Ess.Time.scale(0.2) for slow-mo
 --   Ess.Time.restoreScale()                     Ess.Time.scale(1)
 --   Ess.Time.format(nSeconds, bUseTenths) -> s  Junk.FormatTime -- a display string for a HUD timer/countdown
@@ -53,6 +61,27 @@ function Ess.Time.elapsed(uStamp)
 end
 
 Ess.Time.since = Ess.Time.elapsed
+
+-- Ess.Time.clock(maxDelta) -> clock -- an AUTO-ADVANCING per-frame delta timer (was Ess.Timer, folded in
+-- here so all wall-clock timing lives in one namespace). clock:delta() returns the seconds since the LAST
+-- clock:delta() call (or since creation, the first time), clamped to maxDelta (default 0.25s) so a long
+-- pause/hitch can't blow up per-tick math downstream. This is the shape a heartbeat wants for its `dt`.
+local Clock = {}
+Clock.__index = Clock
+
+function Ess.Time.clock(maxDelta)
+    local ok, stamp = pcall(Sys.RealTimeStamp)
+    return setmetatable({ stamp = ok and stamp or nil, max = maxDelta or 0.25 }, Clock)
+end
+
+function Clock:delta()
+    if not self.stamp then return 0 end
+    local ok, e = pcall(Sys.TimeStampGetElapsed, self.stamp)
+    if not ok or not e then e = 0 end
+    if e > self.max then e = self.max end
+    pcall(Sys.TimeStampMark, self.stamp)
+    return e
+end
 
 -- Ess.Time.cooldown(seconds) -> ready() -> bool
 -- One-line answer to "am I allowed to do this again yet" -- every real cooldown call site hand-rolls a

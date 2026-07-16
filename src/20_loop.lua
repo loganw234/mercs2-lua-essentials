@@ -1,10 +1,12 @@
--- Ess/20_loop.lua -- Ess.Loop: the one shared self-rescheduling heartbeat primitive. Ess.Timer: wall-clock delta.
+-- Ess/20_loop.lua -- Ess.Loop: the one shared self-rescheduling heartbeat primitive.
+-- (Wall-clock delta timing lives in Ess.Time -- see Ess.Time.clock in 23_time.lua. It used to live here as
+-- a separate Ess.Timer, which duplicated Ess.Time's native stamp calls; folded into Ess.Time so there's one
+-- home for timing.)
 --
 -- API:
 --   Ess.Loop.start(id, interval, tickFn)   tickFn() returns true to keep going, false/nil to auto-stop
 --   Ess.Loop.stop(id)
 --   Ess.Loop.isRunning(id) -> bool
---   Ess.Timer.start() -> timer                   timer:elapsed() -> seconds since last call, clamped 0.25s
 
 local Ess = _G.Ess
 Ess.Loop = Ess.Loop or {}
@@ -66,37 +68,3 @@ function Ess.Loop.isRunning(id)
     return Ess.Loop._reg[id] ~= nil
 end
 
--- ============================================================
--- Ess.Timer -- Sys.RealTimeStamp/Sys.TimeStampMark/Sys.TimeStampGetElapsed, collapsed to one object.
--- Needed because Event.TimerRelative's OWN delta freezes under world-pause (menus/PDA) but the wall clock
--- does not -- every heartbeat in this project that has to keep working while the game is paused
--- (uilib, WaveDefense, ForgeCam, MissionForge) ends up hand-rolling this exact 3-call primitive.
---
--- NOT the same thing as the later, public Ess.Time (23_time.lua) despite wrapping the identical 3 native
--- calls -- found on a deep re-read of 42_ui_engine.lua that these two were built in different sessions
--- without cross-referencing each other, so the distinction is spelled out here rather than left as a
--- surprise: Ess.Timer is Ess.UI's PRIVATE per-frame delta helper -- :elapsed() auto-advances (each call
--- measures "since my own last call") and CLAMPS to 0.25s so a hitch/pause can't blow up per-tick math.
--- Ess.Time is the PUBLIC modder-facing API for cooldowns/"how long has X been going on" -- its elapsed()
--- does NOT auto-advance (only an explicit mark() does), unclamped, because a cooldown check needs to be
--- idempotent and see the true elapsed value, not reset itself just by being polled. Use Ess.Timer only
--- for Ess.UI's own per-frame dt; reach for Ess.Time for anything modder-facing.
--- ============================================================
-Ess.Timer = Ess.Timer or {}
-Ess.Timer.__index = Ess.Timer
-
-function Ess.Timer.start()
-    local ok, stamp = pcall(Sys.RealTimeStamp)
-    return setmetatable({ stamp = ok and stamp or nil }, Ess.Timer)
-end
-
--- :elapsed() -> seconds since the last :elapsed() call (or since :start(), the first time), clamped to
--- 0.25s so a long pause/hitch can't blow up per-tick math downstream.
-function Ess.Timer:elapsed()
-    if not self.stamp then return 0 end
-    local ok, e = pcall(Sys.TimeStampGetElapsed, self.stamp)
-    if not ok or not e then e = 0 end
-    if e > 0.25 then e = 0.25 end
-    pcall(Sys.TimeStampMark, self.stamp)
-    return e
-end

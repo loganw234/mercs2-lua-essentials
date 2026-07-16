@@ -3,8 +3,8 @@
 -- the exact same recipe that made ForgeMenu rock-solid: edge-drained key input, a self-re-arming
 -- heartbeat that idles when nothing needs it, async-load warmup re-paints, everything pcall-wrapped.
 -- Rebuilt here on top of Ess's own already-tested primitives (Ess.Gfx for the raw widget, Ess.Loop for
--- the heartbeat, Ess.Input for key polling, Ess.Timer for wall-clock delta) instead of uilib's private
--- copies of the same mechanisms.
+-- the heartbeat, Ess.Input for key polling, Ess.Time.clock for the per-frame wall-clock delta) instead of
+-- uilib's private copies of the same mechanisms.
 --
 -- Not meant to be called by modders directly -- this is Ess.UI's own internals. See the individual
 -- widget files (43_ui_list.lua etc) for the public API.
@@ -211,9 +211,9 @@ end
 local uiTimer
 function Ess.UI._ensureTick()
     if Ess.Loop.isRunning("Ess.UI.heartbeat") then return end
-    if not uiTimer then uiTimer = Ess.Timer.start() end
+    if not uiTimer then uiTimer = Ess.Time.clock() end
     Ess.Loop.start("Ess.UI.heartbeat", TICK, function()
-        local dt = uiTimer:elapsed()
+        local dt = uiTimer:delta()
         local ok, err = pcall(service, dt)
         if not ok then Ess.Log("UI heartbeat tick error: " .. tostring(err)) end
         return needsTick()
