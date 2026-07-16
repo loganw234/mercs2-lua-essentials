@@ -1,7 +1,7 @@
 -- Ess/13_probe.lua -- Ess.Probe: nearby-object queries and safe "what is this guid" description.
 --
 -- API:
---   Ess.Probe.nearby(x, y, z, radius, kind, filter) -> { uGuid, ... }
+--   Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf) -> { uGuid, ... }
 --   Ess.Probe.getFaction(uGuid) -> sAbbrev | nil
 --   Ess.Probe.describeSafe(uGuid) -> sDescription
 
@@ -16,13 +16,23 @@ local function hasLabel(u, lbl)
     return ok and r and true or false
 end
 
--- Ess.Probe.nearby(x, y, z, radius, kind, filter) -> { uGuid, ... }
+-- Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf) -> { uGuid, ... }
 -- Collapses Pg.FastCollectHumans/GroundVehicles/Buildings/Flying/Tanks/Helicopters (11 separate "find
 -- nearby X" native names) into one dispatcher, deduped by guid string across whichever families `kind`
 -- selects.
---   kind:   "humans" | "vehicles" | "buildings" | nil/"any" (humans + ground vehicles + flying)
---   filter: optional Object.HasLabel string (e.g. "VZ") -- only objects carrying that label are kept
-function Ess.Probe.nearby(x, y, z, radius, kind, filter)
+--   kind:        "humans" | "vehicles" | "buildings" | nil/"any" (humans + ground vehicles + flying)
+--   filter:      optional Object.HasLabel string (e.g. "VZ") -- only objects carrying that label are kept
+--   includeSelf: default false. The native FastCollect* calls have no concept of "self" -- a query whose
+--                radius covers the caller's own position returns the local player's own character(s)
+--                exactly like any other nearby human, indistinguishable from a real result. A caller
+--                naming a function "nearby" means "find things near me," not "find me" -- so both local
+--                player characters are excluded by default; pass includeSelf=true for the rare case that
+--                genuinely wants them (e.g. counting total occupants of a zone). CONFIRMED real-world
+--                footgun: an ad hoc test query with a typo'd kind ("character", not a valid kind -- see
+--                below) silently fell through to the "any" default, returned only the player's own guid,
+--                and a destructive call on it killed the player -- see the
+--                ess-probe-nearby-self-inclusion-footgun memory/incident, 2026-07-16.
+function Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf)
     local fns
     if kind == "humans" then
         fns = { Pg.FastCollectHumans }
@@ -33,6 +43,11 @@ function Ess.Probe.nearby(x, y, z, radius, kind, filter)
     else
         fns = { Pg.FastCollectHumans, Pg.FastCollectGroundVehicles, Pg.FastCollectFlying }
     end
+    local self0, self1
+    if not includeSelf then
+        self0, self1 = Ess.Player.character(0), Ess.Player.character(1)
+    end
+    local function isSelf(u) return (self0 and u == self0) or (self1 and u == self1) end
     local seen, out = {}, {}
     for _, fn in ipairs(fns) do
         local ok, t = pcall(fn, x, y, z, radius)
@@ -41,7 +56,7 @@ function Ess.Probe.nearby(x, y, z, radius, kind, filter)
                 local key = u and tostring(u)
                 if key and not seen[key] then
                     seen[key] = true
-                    if not filter or hasLabel(u, filter) then
+                    if not isSelf(u) and (not filter or hasLabel(u, filter)) then
                         out[#out + 1] = u
                     end
                 end

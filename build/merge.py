@@ -73,7 +73,9 @@ MANIFEST = [
     "63_sandbox_raw.lua",
     "63_sandbox.lua",
     "63_sandbox_easy.lua",
-    "99_adopt.lua",
+    "80_contract.lua",
+    "81_contract_objectives.lua",
+    "82_contract_encounter.lua",
 ]
 
 

@@ -198,12 +198,35 @@ source read) — not attempted tonight, since verifying it needs a qualitatively
 (real controller-driven PDA widget interaction, no visual confirmation available) than the REPL-based
 pattern that carried the rest of tonight's work, and it wasn't part of the assigned priority list.
 
+**★★★ 2026-07-16 (later, interactive session) — the absorption pivot (see Design principle 1 / Non-goals
+above) landed for all three targeted libraries.** `Ess.UI` (uilib, commit `7903008`) and `Ess.Net` (ModNet,
+commit `51d852a`) done and committed earlier; `Ess.Contract` (ContractFramework) fully built and
+LIVE-VERIFIED this session — `src/80_contract.lua`/`81_contract_objectives.lua`/`82_contract_encounter.lua`.
+`99_adopt.lua` deleted (obsolete once all three are native). `src/13_probe.lua`'s `Ess.Probe.nearby` fixed
+to exclude the local player by default (`includeSelf` param) after a live incident where an ad hoc test
+query returned only the player's own guid and a destructive call on it killed the player — fixed at the
+source rather than just avoided in test code, since the same unguarded pattern existed inside the
+framework itself (`Ess.Raw.Triggers.arm`'s `onDestroy="nearest"`, `Ess.Contract`'s `collectInArea`).
+
+**Contract test coverage, this session:** all 15 objective handlers except `enter` (destroy/reach/hold/
+survive/defend/collect/escort/group/interact/verify/extract/race/protect/stay/chase — `enter` skipped, see
+the Group I row below), both trigger logic-gate kinds (`all`/`count`) through Contract's own instance
+namespacing, the Contract-specific `kind="objective"` trigger, the `onDestroy="nearest"` Raw.Triggers
+extension, all 11 `SUPPORT_EFFECTS` (say/vfx/music/custom/damage/artillery/reinforce/flyby/bombingrun/heli/
+vo), and the built-in `demo_convoy` contract's `fResolve`+`Register`+`Accept` wiring (destroy-quota tracking
+confirmed against real spawned targets; one of its 3 spawned cars fell out of the world through cramped
+interior-cell geometry — an environmental fluke, not a Contract bug). A genuine double-fire bug was found
+**in the ORIGINAL `ContractFramework.lua`** (not introduced by the port) and fixed in the port; re-verified
+live under a realistic gate-driven scenario, not just the original simple repro.
+
 ## Non-goals
 
-- Not a replacement for `ModNet`/`uilib`/`ContractFramework`/`LayerFw`. Where one of those already solves
-  a problem well (and is co-op-verified in the case of ModNet/uilib/ContractFramework), `Ess` **adopts**
-  it as a dependency/provider rather than reimplementing it. Rebuilding a working, live-tested system from
-  scratch for consistency alone is not worth the regression risk.
+- **SUPERSEDED 2026-07-16 for three of these four** (see Design principle 1 below) — kept here for
+  history. Originally: not a replacement for `ModNet`/`uilib`/`ContractFramework`/`LayerFw`; `Ess` would
+  adopt each as a dependency/provider rather than reimplementing it. Logan later directed a full native
+  absorption of `ModNet`/`uilib`/`ContractFramework` instead (their standalone files are retired from this
+  install once Ess's versions are confirmed working) — `LayerFw` is the one exception, still adopted
+  unchanged as the `layers` provider inside `Ess.Sandbox`.
 - Not a WAD/gfx authoring tool. `gfxforge`/`gfx_tool`/the movie-asset pipeline stay separate build-time
   tools; `Ess.Gfx` only wraps the **runtime** `FlashWidget` API a movie is driven through.
 - Not a replacement for `lua-bridge` itself. `Loader.*`/`Tcp.*`/the script-loader hooks are the substrate
@@ -211,11 +234,17 @@ pattern that carried the rest of tonight's work, and it wasn't part of the assig
 
 ## Design principles
 
-1. **Adopt, don't duplicate.** `ModNet` → `Ess.Net`, `uilib` → `Ess.UI`/`Ess.Menu`, `ContractFramework` →
-   `Ess.Contract`, `LayerFw` → the `layers` provider inside `Ess.Sandbox`. Each keeps its own file/repo and
-   its own global for backward compatibility; `Ess` just gives it a home in one coherent namespace tree and
-   (where safe) reaches inside to promote an already-correct internal helper to public API (e.g.
-   `ContractFramework`'s private `mark`/`markZone` becoming public `Ess.Mark`).
+1. **Absorb `ModNet`/`uilib`/`ContractFramework`; adopt `LayerFw`.** Originally this whole document
+   specified "adopt, don't duplicate" for all four (`ModNet`→alias, `uilib`→alias, `ContractFramework`→
+   alias, `LayerFw`→the `layers` provider). **Logan pivoted this 2026-07-16**: `Ess.Net`/`Ess.UI`/
+   `Ess.Contract` are now full native ports — the original `ModNet.lua`/`uilib.lua`/`ContractFramework.lua`
+   files are retired from this game install (kept untouched in their own repos in case they're needed
+   again), not loaded alongside `Ess` any more. `Ess.UI.Menu`'s builder/`ctx:` API is byte-for-byte
+   backward compatible with `uilib`'s own (the one hard requirement from Logan), so existing
+   menu-system scripts port over with no rewrite. `LayerFw` is unaffected by the pivot — still adopted
+   unchanged as the `layers` provider inside `Ess.Sandbox`, its own repo/global untouched. Where a
+   promotable internal helper existed (e.g. `ContractFramework`'s private `mark`/`markZone`), it's now
+   public `Ess.*` API as before, unaffected by the alias→port change.
 2. **Structural safety over documentation.** Where possible, make a footgun impossible to write rather
    than warning about it in a comment. Example: `Ess.Override.wrap` should accept only a shape that
    can't tail-call the original (see Known Bugs below) — not a helper that *could* be used wrong.
@@ -295,7 +324,7 @@ concrete API sketch. Source column names which survey/read it came from (`DD`=de
 | `Ess.Vehicle.driver(uVeh)` / `.riderOf(uChar)` | NEW | 7 overlapping getters: `GetDriver`/`GetRiders`/`GetFromRider`/`GetSeatFromRider`/`GetRiderFromSeat`/`GetFromSeat`/`GetSeatByType` (NS). | 2 canonical names cover the common cases; escape hatch to the raw namespace stays available for the rest. |
 | `Ess.Vehicle.enterBestSeat` / `.enterSeatExcluding(uChar, uVeh, excl)` | EXTRACT | `MrxUtil.EnterBestAvailableSeat` d/g/p/c order, and the "partner never takes the driver seat" pattern, both confirmed live (DD, destroyer-vehicle.md). | pcall-wrapped ports. |
 | `Ess.Vehicle.followGhost(template, x,y,z)` | EXTRACT | `Object.SetPosition` confirmed to silently not move a spawned human — respawn-and-verify is the only fix (DD, forgecam.md; also independently rediscovered in ForgeCam's ghost preview). | spawn → verify-drift-each-tick → respawn-if-drifted, generalized. |
-| `Ess.Probe.nearby(pos, radius, kind, filter)` | NEW | `Pg.FastCollectHumans`/`GroundVehicles`/`Buildings`/`Flying`/`Tanks`/`Helicopters` (+ several unconfirmed siblings) are 11 separate names for "find nearby X" (NS). Already independently reimplemented as `collectInArea` in `ContractFramework.lua` and `sweepArena`/`adoptStrays`'s per-faction sweep in `WaveDefense.lua`. | one dispatcher; ports `ContractFramework`'s dedupe-by-guid-string logic (the correct existing implementation). |
+| `Ess.Probe.nearby(pos, radius, kind, filter, includeSelf)` | NEW | `Pg.FastCollectHumans`/`GroundVehicles`/`Buildings`/`Flying`/`Tanks`/`Helicopters` (+ several unconfirmed siblings) are 11 separate names for "find nearby X" (NS). Already independently reimplemented as `collectInArea` in `ContractFramework.lua` and `sweepArena`/`adoptStrays`'s per-faction sweep in `WaveDefense.lua`. **Real bug found+fixed 2026-07-16:** none of the native FastCollect* calls exclude the local player's own character(s) -- a query whose radius covers the caller's own position returns the player indistinguishable from any other result, and a downstream destructive call on that result actually killed the player during live Contract testing. Fixed at the source: `nearby` now excludes both `Ess.Player.character(0)`/`(1)` by default (`includeSelf=true` opts back in). | one dispatcher; ports `ContractFramework`'s dedupe-by-guid-string logic (the correct existing implementation), plus the self-exclusion fix above. |
 | `Ess.Probe.getFaction(uGuid)` | EXTRACT | `MrxUtil.GetFaction` → `MrxFactionManager.GetFactionAbbrev` fallback chain, from `world-inspector.md`'s `DescribeTarget`. | direct port. |
 | `Ess.Probe.describeSafe(uGuid)` | EXTRACT | Generic "explain this guid" (name/loc/health/model/faction), pcall'd with real diagnostic text on failure instead of a blank crash (DD, world-inspector.md). | direct port. |
 
@@ -346,7 +375,7 @@ note above):
 | `Ess.Gfx.warmupRerender(rt, ticks)` | PROMOTE | `SetSwfFile` is async — a paint immediately after building drops (movie not loaded yet). `uilib.lua`'s `WARMUP=8`-tick re-paint-on-show is the correct fix, already built. | promote from uilib. |
 | `Ess.Gfx.menuNav(widget, keys)` | PROMOTE | Edge-triggered Up/Down/Enter → `SetSelected`, needed because a HUD widget gets no native input of its own. `uilib.lua`'s `navName`/list nav is the reference implementation. | promote the input-mapping half; `Ess.Menu` (below) is the full widget. |
 | `Ess.ScrollLog.new(name, x,y,w,h)` | EXTRACT | `MrxGuiTextBuffer` via the direct `HandleInstantiationEventForTextBuffer` call — never the documented `InstantiateTextBuffer`, which crashes on a real shipped engine bug (`oWidget` undefined in its own scope). This ~30-line workaround is duplicated near-verbatim between `CoopChatUI` and `WorldProbeLogUI` (DD). Also: display-duration × message-count is real queued wall-clock time — a 194-line dump at a 15s default once blocked a UI for ~50 minutes (DD, world-inspector.md) — the port should default to a short duration for bulk dumps. | one library instead of two hand-rolled copies, with the duration-scaling guard built in. |
-| `Ess.Menu` / `Ess.UI` | ADOPT | `uilib.lua`'s `UI.Menu`/`List`/`Panel`/`Bar`/`Toast`/`Confirm`/`Input`/`Chat`/`Board` is a mature, engine-verified 9-widget kit built on the exact `Ess.Loop`/`Ess.Input`/`Ess.Gfx` primitives above. | `Ess.UI = UI` (alias) once uilib itself is rebased onto the shared primitives — no reimplementation. |
+| `Ess.Menu` / `Ess.UI` | **ABSORBED** (was ADOPT) | `uilib.lua`'s `UI.Menu`/`List`/`Panel`/`Bar`/`Toast`/`Confirm`/`Input`/`Chat`/`Board` is a mature, engine-verified 9-widget kit. | **Done, commit `7903008`.** Full native port onto `Ess.Gfx`/`Ess.Loop`/`Ess.Input`/`Ess.Timer`/`Ess.Player.pose` (not a hand-copy of uilib's own private plumbing). `Ess.UI.Menu`'s builder/`ctx:` surface is byte-for-byte backward compatible with `uilib`'s own — live-tested against the real `ExampleMenu.lua` shape. `uilib.lua` itself retired from this game install. |
 
 **Tiered breakdown — UI:** `Ess.Gfx` above already *is* the `Ess.Raw` tier for widgets (raw FlashWidget
 primitives); the adopted `uilib`/`Ess.UI` is the Core tier — it's already fairly friendly, so most UI work
@@ -395,14 +424,14 @@ full nesting/`:switch`/`ctx:confirm` power stays one tier up, at Core.
 
 | Item | Status | Problem | Sketch |
 |---|---|---|---|
-| `Ess.Net` | ADOPT | `ModNet.lua` is a mature, co-op-verified library (`Shared`/`Set`/`Get`/`Track`, `On`/`Send`, `OnRaw`/`SendRaw`, `IsCoop`/`IsHost`/`IsAuthority`, the v1.2 ready-gate handshake) with real, hard-won fixes behind it (the MAGIC-marker collision fix, the ready-gate late-join fix). Not touching its internals. | `Ess.Net = ModNet` (alias) once ModNet itself optionally sits on `Ess.Loop`'s heartbeat instead of its own inline one, for consistency only — not because it's broken. |
+| `Ess.Net` | **ABSORBED** (was ADOPT) | `ModNet.lua` is a mature, co-op-verified library (`Shared`/`Set`/`Get`/`Track`, `On`/`Send`, `OnRaw`/`SendRaw`, `IsCoop`/`IsHost`/`IsAuthority`, the v1.2 ready-gate handshake) with real, hard-won fixes behind it (the MAGIC-marker collision fix, the ready-gate late-join fix). | **Done, commit `51d852a`.** The wire protocol itself (serialization/chunking/LWW sync/ready-gate) is a faithful byte-for-byte port of the confirmed-working code, deliberately not rewritten; the heartbeat now runs on `Ess.Loop.start`, and the `NetEventCallback` hijack goes through the generalized `Ess.Net.hijackCallback` instead of a second hand-rolled copy. `ModNet.lua` itself retired from this game install. Full peer-to-peer delivery remains untested (needs a second co-op machine) — an honest solo-testing limitation, not a skipped step. |
 | `Ess.Net.hijackCallback(moduleName, name, dispatch)` | NEW | `ModNet` solved *one specific* hijack (`MrxFactionManager.NetEventCallback`) correctly: capture-original-in-a-local, marker-tagged packets only, pcall the receive, never tail-call the original. That exact recipe is reusable for any other always-resident callback a future mod wants to safely extend, not just this one. | a generic "safely extend an existing engine callback without swallowing others' traffic" helper, modeled on `ModNet`'s own fix — not a `ModNet` replacement, a generalization of the *technique* `ModNet` proved. |
 
 ### Group I — Missions
 
 | Item | Status | Problem | Sketch |
 |---|---|---|---|
-| `Ess.Contract` | ADOPT | `ContractFramework.lua` is the whole ephemeral-mission engine — `Register`/`Accept`/`Abort`/`Status`, 15 objective types, the task lifecycle. Not rebuilding this. | `Ess.Contract = Contract` (alias). `Ess`'s own docs should steer newcomers here *instead of* the native `WifMissionData`/`dynamic_import` path — the native path's landmines (never wrap `dynamic_import`, contracts need `bContract=true` or `IsMissionAContract` silently lies, lifecycle callbacks fire with **zero** arguments) are exactly the class of problem `ContractFramework` exists to make irrelevant, not something `Ess` needs its own helpers for. |
+| `Ess.Contract` | **ABSORBED** (was ADOPT) | `ContractFramework.lua` is the whole ephemeral-mission engine — `Register`/`Accept`/`Abort`/`Status`, 15 objective types, the task lifecycle. `Ess`'s own docs steer newcomers here *instead of* the native `WifMissionData`/`dynamic_import` path — the native path's landmines (never wrap `dynamic_import`, contracts need `bContract=true` or `IsMissionAContract` silently lies, lifecycle callbacks fire with **zero** arguments) are exactly the class of problem `ContractFramework` exists to make irrelevant. | **Done, live-tested 2026-07-16, ready to commit.** Full native port (`src/80-82_contract*.lua`) — the support/relations/AI-orders/triggers subsystem is now a thin consumer of `Ess.AIOrders`/`Ess.Relations`/`Ess.Triggers`/`Ess.Sandbox` (already built as Group G) instead of a third hand-rolled copy; `Contract.UI.Panel`/`.Bar` are now REAL (aliased to `Ess.UI`), completing something `ContractFramework.lua` itself only ever stubbed. All 15 objective handlers, both logic-gate kinds, `kind="objective"` triggers, and 11 support effects live-verified; only `enter` (requires the player to physically board a vehicle) deliberately skipped, given `Ess.Vehicle`'s own documented bridge-stall risk spawning+entering a vehicle from this exact PMC HQ interior cell. `ContractFramework.lua` itself retired from this game install. |
 
 ### Group J — Meta
 

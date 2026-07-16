@@ -9,14 +9,19 @@
 --   "once" | {once=seconds}                    fires once after a delay (default 3s)
 --   "recurring" | {recurring=iv, limit=, delay=}  fires every iv seconds, optionally capped at `limit` times
 --   {proximity=r, at={x,y,z}}                  fires when the local player gets within r of a point
---   {onDestroy=uGuidOrName}                    fires when a specific object dies
+--   {onDestroy=uGuidOrName}                    fires when a specific NAMED object/placement dies
+--   {onDestroy="nearest"} | {onDestroy={at=,radius=,kind=}}   polls for the nearest matching object in
+--                                               an area, then watches THAT one die -- for a target that
+--                                               may not exist yet when this arms (e.g. a spawned
+--                                               objective target); re-polls every 1s until one appears
 --   {onHealthBelow={target=uGuid, pct=50}}     fires when target drops below pct% of its health AT ARM TIME
 --   {onCleared={at={x,y,z}, radius=, kind=, faction=}}   fires when a populated area becomes empty
 --
 -- NOT ported: ContractFramework's `onObjComplete` (fires on a top-level CONTRACT objective index) -- that
--- concept only exists inside a running Contract instance, there's nothing standalone to generalize it to.
--- If you need that specific behavior, arm your own {once=...} poll against whatever tracks your objective
--- state, or use Ess.Triggers.gate (62_triggers.lua) to compose from other triggers instead.
+-- concept only exists inside a running Contract instance. Ess.Contract (80_contract.lua onward) handles
+-- it locally instead, since it's the one place that concept actually applies -- not something to
+-- generalize into this standalone file. Compose from other triggers via Ess.Triggers.gate (62_triggers.lua)
+-- for anything else that needs cross-trigger logic.
 --
 -- `tracker`, if given (an Ess.Track), gets every scheduled Event.Create handle registered for cleanup.
 -- Returns cancel() -- call it to stop this trigger from ever firing, even if its condition is later met.
@@ -88,19 +93,41 @@ function Ess.Raw.Triggers.arm(spec, onFire, tracker)
     end
 
     if spec.onDestroy then
-        local target, g = spec.onDestroy, nil
-        if type(target) == "string" then
-            local ok, gg = pcall(Pg.GetGuidByName, target)
-            if ok then g = gg end
-        else
-            g = target
+        local od = spec.onDestroy
+        if type(od) == "string" and od ~= "nearest" then          -- watch a named placement
+            local ok, g = pcall(Pg.GetGuidByName, od)
+            if ok and g then
+                local h = Event.Create(Event.ObjectDeath, { g }, fire)
+                if tracker then tracker:event(h) end
+            else
+                Ess.Log("Triggers.arm: onDestroy target not found: " .. tostring(od))
+            end
+            return cancel
         end
-        if g then
-            local h = Event.Create(Event.ObjectDeath, { g }, fire)
-            if tracker then tracker:event(h) end
-        else
-            Ess.Log("Triggers.arm: onDestroy target not found: " .. tostring(target))
+        -- "nearest" (the literal string, or any table with at=/radius=/kind=): poll the area for the
+        -- nearest object, then watch THAT one die -- for a target that may not exist yet when this arms
+        -- (e.g. a spawned objective target). Re-polls every 1s until something's actually there.
+        local zx, zy, zz = xyz((type(od) == "table" and od.at) or spec.at)
+        local rr = (type(od) == "table" and od.radius) or spec.radius or 45
+        local kind = type(od) == "table" and od.kind or nil
+        local function findArm()
+            if not active or not zx then return end
+            local best, bu
+            for _, u in ipairs(Ess.Probe.nearby(zx, zy, zz, rr, kind)) do
+                local ok, ux, _, uz = pcall(Object.GetPosition, u)
+                if ok and ux then
+                    local dx, dz = ux - zx, uz - zz; local dd = dx * dx + dz * dz
+                    if not best or dd < best then best, bu = dd, u end
+                end
+            end
+            if bu then
+                local h = Event.Create(Event.ObjectDeath, { bu }, fire)
+                if tracker then tracker:event(h) end
+            else
+                schedule(1, findArm)
+            end
         end
+        findArm()
         return cancel
     end
 

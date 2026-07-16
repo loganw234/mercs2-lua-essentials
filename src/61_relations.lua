@@ -10,12 +10,17 @@
 --   Ess.Relations.restore(id)
 --   Ess.Relations.isActive(id) -> bool
 
+import("MrxFactionManager")
+
 local Ess = _G.Ess
 Ess.Relations = Ess.Relations or {}
 Ess.Relations._active = Ess.Relations._active or {}
 
 -- set values, matching both ContractFramework.lua and WaveDefense.lua's confirmed conventions.
 local REL_VALUE = { friend = 100, ally = 100, allied = 100, neutral = 0, enemy = -100, hostile = -100 }
+-- faction-name -> MrxFactionManager abbreviation, for SetAttitudeMutable below (ContractFramework.lua's
+-- own mapping, confirmed real).
+local FACTION_ABBREV = { Allied = "All", China = "Chi", Guerilla = "Gur", OC = "Oil", Pirate = "Pir", VZ = "VZ", PMC = "Pmc" }
 
 local function factionGuid(name)
     local ok, g = pcall(Pg.GetGuidByName, name)
@@ -39,6 +44,11 @@ function Ess.Relations.apply(id, pairsList)
         local val = REL_VALUE[tostring(setVal):lower()] or tonumber(setVal) or 0
         local ga, gb = factionGuid(a), factionGuid(b)
         if ga and gb then
+            -- CONFIRMED behavior from ContractFramework.lua's own _applyRelations: when a relation
+            -- involves PMC specifically, make the OTHER faction's attitude "official" so the HUD reflects
+            -- it correctly (SetAttitudeMutable), not just the raw Ai.SetRelation numeric stance below.
+            if b == "PMC" and FACTION_ABBREV[a] then pcall(MrxFactionManager.SetAttitudeMutable, FACTION_ABBREV[a]) end
+            if a == "PMC" and FACTION_ABBREV[b] then pcall(MrxFactionManager.SetAttitudeMutable, FACTION_ABBREV[b]) end
             snaps[#snaps + 1] = { ga = ga, gb = gb, snap = Ess.Raw.Relations.snapshot(ga, gb) }
             snaps[#snaps + 1] = { ga = gb, gb = ga, snap = Ess.Raw.Relations.snapshot(gb, ga) }
             Ess.Raw.Relations.set(ga, gb, val)
