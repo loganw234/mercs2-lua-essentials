@@ -330,6 +330,14 @@ Engine Namespaces section against what Ess actually covers:**
   a contract author gets "explosion + camera shake" or a narration hint the same way they already get
   `say`/`vfx`/`damage`. Live-tested through a real contract: both fired exactly once via their own
   triggers, error-free.
+- **`Ess.Easy.Contract`** (`src/83_contract_easy.lua`, NEW file) — closes the very last three-tier gap in
+  the framework: `Ess.Contract` was the one Core-tier namespace with no `Easy` layer at all, meaning a
+  beginner had to learn `Register`/`def.id`/`Accept` just to get a first "kill these guys" working.
+  `.destroy(title, spawns, opts)` / `.reach(title, at, radius, opts)` register+accept a single-objective
+  contract in one call, with an internal counter auto-generating a unique id (`"easy1"`, `"easy2"`, ...).
+  Live-tested both end to end: `.reach` at the player's own position instant-completed
+  (`id="easy1" status=complete`); `.destroy` correctly incremented to `id="easy2"`, spawned and tracked a
+  real target, and completed on kill.
 
 ## Non-goals
 

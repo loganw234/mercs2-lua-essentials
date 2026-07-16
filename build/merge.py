@@ -80,6 +80,7 @@ MANIFEST = [
     "80_contract.lua",
     "81_contract_objectives.lua",
     "82_contract_encounter.lua",
+    "83_contract_easy.lua",
     "95_ui_easy.lua",
     "96_console.lua",
 ]

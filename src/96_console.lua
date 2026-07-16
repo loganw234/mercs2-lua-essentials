@@ -94,6 +94,11 @@ local REGISTRY = {
     { ns = "Ess.Vehicle", usage = "Ess.Vehicle.exit(uVeh, uChar)",
       desc = "Gets a character back out of a vehicle." },
 
+    { ns = "Ess.Easy (Contract)", usage = "Ess.Easy.Contract.destroy(title, spawns, opts)",
+      desc = "Registers and accepts a one-objective \"kill these\" contract in one call." },
+    { ns = "Ess.Easy (Contract)", usage = "Ess.Easy.Contract.reach(title, at, radius, opts)",
+      desc = "Registers and accepts a one-objective \"go here\" contract in one call." },
+
     { ns = "Ess.Hud", usage = "Ess.Hud.hint(sMsg, sId)",
       desc = "Shows the native tutorial-style hint popup (icon+sound) with your own text." },
     { ns = "Ess.Hud", usage = "Ess.Hud.banner(sMsg)",
