@@ -83,6 +83,8 @@ MANIFEST = [
     "81_contract_objectives.lua",
     "82_contract_encounter.lua",
     "83_contract_easy.lua",
+    "92_easy_spawn.lua",
+    "93_easy_unlocks.lua",
     "94_easy_world.lua",
     "95_ui_easy.lua",
     "96_console.lua",
