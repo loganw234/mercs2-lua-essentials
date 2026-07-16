@@ -4,6 +4,7 @@
 -- API:
 --   Ess.Track.new() -> tracker
 --     tracker:add(closeFn) / :event(handle) / :guid(uGuid) / :marker(handle) / :radar(sName) / :pda(sName)
+--     tracker:qualityRef(uGuid, nQuality) / :disposer(uGuid, sCategory) / :contextAction(uGuid, sLabel, ...)
 --     tracker:closeAll()
 --   Ess.Event.on(eventType, args, cb, tracker) -> handle
 --   Ess.Event.off(handle)
@@ -61,6 +62,38 @@ end
 function Ess.Track:pda(sName)
     if sName then self:add(function() pcall(function() Pda.Map:RemoveBlip({ sName = sName }) end) end) end
     return sName
+end
+
+-- :qualityRef(uGuid, nQuality) -> ref -- tracks Object.AddQualityRef for RemoveQualityRef on teardown.
+-- Named in this file's own header comment as one of the leak-prone pairs Ess.Track exists to cover, but
+-- (CONFIRMED real gap found auditing this file) never actually implemented until now.
+function Ess.Track:qualityRef(uGuid, nQuality)
+    local ok, ref = pcall(Object.AddQualityRef, uGuid, nQuality)
+    if ok and ref then self:add(function() pcall(Object.RemoveQualityRef, ref) end) end
+    return ok and ref or nil
+end
+
+-- :disposer(uGuid, sCategory) -> uGuid -- tracks Object.AddToDisposer for RemoveFromDisposer on teardown.
+-- Unlike qualityRef/marker/event, RemoveFromDisposer takes the SAME uGuid AddToDisposer was called with,
+-- not a separately-returned handle -- confirmed from wiki/namespaces/object.md's call-site evidence.
+function Ess.Track:disposer(uGuid, sCategory)
+    if uGuid then
+        local ok = pcall(Object.AddToDisposer, uGuid, sCategory)
+        if ok then self:add(function() pcall(Object.RemoveFromDisposer, uGuid) end) end
+    end
+    return uGuid
+end
+
+-- :contextAction(uGuid, sLabelOrKey, ...) -> uGuid -- tracks Pg.AddContextAction for RemoveContextAction
+-- on teardown. Same shape as disposer: RemoveContextAction takes the original uGuid, not a returned
+-- handle. `...` passes through whatever trailing args AddContextAction wants (confirmed highly variable
+-- across real call sites, 2-8 args -- only the leading uGuid+label pair is a fixed schema).
+function Ess.Track:contextAction(uGuid, sLabelOrKey, ...)
+    if uGuid then
+        local ok = pcall(Pg.AddContextAction, uGuid, sLabelOrKey, ...)
+        if ok then self:add(function() pcall(Pg.RemoveContextAction, uGuid) end) end
+    end
+    return uGuid
 end
 
 -- :closeAll() -- runs every registered teardown in reverse-registration order, then clears the tracker.

@@ -390,6 +390,21 @@ Engine Namespaces section against what Ess actually covers:**
   (hardpoints nil for ~0.3s post-spawn), just discovered independently for this different native system.
   Live-tested correctly after a 1s settle: `before=-100` (real initial hostile value) → `setFeeling(100)` →
   `after=100`.
+- **`Ess.Track` gained 3 methods its own header comment already promised but never actually implemented**
+  (`src/30_track.lua`) — a real gap found by re-reading the file's own design-intent comment against its
+  actual code: `:qualityRef(uGuid, nQuality)` (`Object.AddQualityRef`/`RemoveQualityRef`), `:disposer(uGuid,
+  sCategory)` (`Object.AddToDisposer`/`RemoveFromDisposer` — confirmed `RemoveFromDisposer` takes the
+  SAME uGuid, not a separate handle, unlike `qualityRef`/`marker`/`event`), and `:contextAction(uGuid,
+  sLabelOrKey, ...)` (`Pg.AddContextAction`/`RemoveContextAction`, same same-guid pattern). Live-tested the
+  full setup+`closeAll()` lifecycle for all three on a spawned dummy in one pass, zero errors —
+  `qualityRef` confirmed to return a genuinely distinct handle (not the input guid), `disposer`/
+  `contextAction` confirmed to correctly return the original guid.
+- **`Ess.Object.distance`/`.heal`** (`src/11_object.lua`) — `distance` collapses `Object.GetDistanceFrom`'s
+  two confirmed forms (object-to-object, object-to-coordinates) into one call that dispatches on whether
+  the 2nd argument is a number, matching Ess's own "one canonical name per concept" principle. `heal`
+  wraps the confirmed "set to `GetMaxHealth`" idiom. Live-tested: both distance forms returned the exact
+  same value (`10`, matching a real 10-unit spawn offset) for the same pair; heal took a damaged target
+  from `10` to `100` exactly.
 
 ## Non-goals
 

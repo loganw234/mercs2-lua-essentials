@@ -4,6 +4,9 @@
 --   Ess.Object.vehicleOf(uChar) -> uVehicleGuid | nil
 --   Ess.Object.setInvincible(uGuid, bOn, sReason)
 --   Ess.Object.pollVehicleChange(uChar, onChange, interval) -> stop()
+--   Ess.Object.distance(uGuidA, uGuidBOrX, yOrIgnoreY, z, bIgnoreY) -> n | nil   collapses
+--                                        Object.GetDistanceFrom's two confirmed forms into one call
+--   Ess.Object.heal(uGuid)              the confirmed "set to GetMaxHealth" heal-to-full one-liner
 
 local Ess = _G.Ess
 Ess.Object = Ess.Object or {}
@@ -60,4 +63,25 @@ function Ess.Object.pollVehicleChange(uChar, onChange, interval)
         return true
     end)
     return function() stopped = true end
+end
+
+-- Ess.Object.distance(uGuidA, uGuidBOrX, yOrIgnoreY, z, bIgnoreY) -> n | nil
+-- CONFIRMED (wiki/namespaces/object.md): Object.GetDistanceFrom has two real forms -- object-to-object
+-- (uGuidA, uGuidB, bIgnoreY) and object-to-coordinates (uGuidA, x, y, z, bIgnoreY). Dispatches on whether
+-- the 2nd argument is a number (coordinates form) or not (object form), matching Ess's own "one canonical
+-- name per concept" principle -- one call instead of remembering which shape to use.
+function Ess.Object.distance(uGuidA, uGuidBOrX, yOrIgnoreY, z, bIgnoreY)
+    if type(uGuidBOrX) == "number" then
+        local ok, n = pcall(Object.GetDistanceFrom, uGuidA, uGuidBOrX, yOrIgnoreY, z, bIgnoreY)
+        return (ok and n) or nil
+    end
+    local ok, n = pcall(Object.GetDistanceFrom, uGuidA, uGuidBOrX, yOrIgnoreY)
+    return (ok and n) or nil
+end
+
+-- Ess.Object.heal(uGuid) -- CONFIRMED "heal to full" idiom seen in real scripts:
+-- Object.SetHealth(uGuid, Object.GetMaxHealth(uGuid)).
+function Ess.Object.heal(uGuid)
+    local ok, maxHp = pcall(Object.GetMaxHealth, uGuid)
+    if ok and maxHp then pcall(Object.SetHealth, uGuid, maxHp) end
 end

@@ -80,6 +80,14 @@ local REGISTRY = {
     { ns = "Ess.Raw.Mark", usage = "Ess.Raw.Mark.pulse(uGuid, rgb)",
       desc = "Flashes an object's existing marker in a color -- draw attention to it." },
 
+    { ns = "Ess.Track", usage = "Ess.Track.new()",
+      desc = "A cleanup tracker: t:event(h)/:guid(u)/:marker(h)/:qualityRef(u,n)/:disposer(u,cat), then t:closeAll()." },
+
+    { ns = "Ess.Object", usage = "Ess.Object.distance(uGuidA, uGuidBOrX, y, z)",
+      desc = "Distance to another object OR to raw x,y,z coordinates -- one call either way." },
+    { ns = "Ess.Object", usage = "Ess.Object.heal(uGuid)",
+      desc = "Heals an object to its max health." },
+
     { ns = "Ess.Sound", usage = "Ess.Sound.cue(uGuidOrNil, sCueName)",
       desc = "Plays a sound effect; nil guid = a plain UI/HUD one-shot with no world position." },
     { ns = "Ess.Sound", usage = "Ess.Sound.ambience(sStreamName)",
