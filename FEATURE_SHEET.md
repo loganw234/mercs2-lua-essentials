@@ -355,6 +355,11 @@ Engine Namespaces section against what Ess actually covers:**
   not `Human`/`Weapon`, but kept in this file anyway — same "character ammo concern" grouping already
   used for the `Weapon` namespace's functions here. Live-tested error-free; left the player's ammo state
   clean afterward (disabled + refilled to max).
+- **`Ess.Player.removeBoundaries()`** (`src/10_player.lua`) — a small, already-confirmed pattern from this
+  project's own earlier work (`map-boundary-unlock` project memory): `Player.RemoveAllBoundary` for every
+  connected player at once (co-op safe by construction, iterates `Player.GetAllPlayers()`, no `i` argument
+  needed). Only clears what's active right now, doesn't disable the boundary system itself. Live-tested:
+  `cleared=1` in single-player, no errors.
 
 ## Non-goals
 

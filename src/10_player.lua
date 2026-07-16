@@ -9,6 +9,7 @@
 --   Ess.Player.pose(i)      -> x, y, z, yaw, uChar, uPlayerSlot
 --   Ess.Player.targetUnderReticle(i) -> uGuid|nil, x, y, z    "what am I aiming at" -- the flagship reason
 --                                        the wiki's whole Engine Namespaces section exists at all
+--   Ess.Player.removeBoundaries() -> nCleared    lifts every active out-of-bounds volume, all players
 
 import("MrxPmc")
 
@@ -106,4 +107,20 @@ function Ess.Player.targetUnderReticle(i)
     local ok, x, y, z, g = pcall(Player.GetTargetUnderReticle, slot)
     if not ok then return nil end
     return g, x, y, z
+end
+
+-- Ess.Player.removeBoundaries() -- CONFIRMED (wiki/snippets.md): clears every out-of-bounds volume
+-- currently active, for every connected player at once (co-op safe by construction -- iterates
+-- Player.GetAllPlayers(), not a single index, so this takes no `i` argument). Only clears what's active
+-- RIGHT NOW -- doesn't disable the boundary system itself, so the game's own scripts can still add a new
+-- one later (e.g. on a mission/area transition). Runtime-only, matching Ess.Object.setInvincible-style
+-- "re-added each load" boundary volumes documented elsewhere in this project.
+function Ess.Player.removeBoundaries()
+    local ok, players = pcall(Player.GetAllPlayers)
+    if not ok or type(players) ~= "table" then return 0 end
+    local n = 0
+    for _, p in ipairs(players) do
+        if pcall(Player.RemoveAllBoundary, p) then n = n + 1 end
+    end
+    return n
 end
