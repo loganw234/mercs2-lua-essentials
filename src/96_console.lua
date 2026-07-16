@@ -40,6 +40,13 @@ local REGISTRY = {
     { ns = "Ess.Raw.AIOrders", usage = "Ess.Raw.AIOrders.enable(g, bOn)",
       desc = "Freezes/unfreezes AI control of a subject -- hold it still for a scripted moment." },
 
+    { ns = "Ess.Easy.Impulse", usage = "Ess.Easy.Impulse.speedBoost(uGuid, strength)",
+      desc = "A forward speed boost (the Spy Hunter effect); defaults to the vehicle you're driving. Mass-scaled." },
+    { ns = "Ess.Easy.Impulse", usage = "Ess.Easy.Impulse.launch(uGuid, strength)",
+      desc = "Pop something straight up (a hop or a big launch)." },
+    { ns = "Ess.Easy.Impulse", usage = "Ess.Easy.Impulse.knockback(uGuid, fromGuid, strength)",
+      desc = "Shove a target away from a source -- the 'blast sent them flying' feel." },
+
     { ns = "Ess.Easy.Cinematic", usage = "Ess.Easy.Cinematic.play(steps, onDone)",
       desc = "Play a cutscene: an ordered list of camera/spawn/say/fly/fade steps. Skippable (ESC)." },
     { ns = "Ess.Easy.Cinematic", usage = "Ess.Easy.Cinematic.shot(at, lookAt, seconds)",

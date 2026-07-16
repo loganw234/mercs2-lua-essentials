@@ -245,7 +245,8 @@ function Ess.Object.disablePhysics(uGuid) pcall(Object.DisablePhysics, uGuid) en
 -- Ess.Object.impulse(uGuid, x, y, z, bLocal) -- Object.ApplyImpulse, the confirmed "launch/knock something
 -- around" primitive (real call sites scale the impulse by the object's mass, e.g.
 -- Object.ApplyImpulse(u, 0, 10000, 6 * mass, true) -- so heavier things need a bigger push). bLocal defaults
--- true (impulse in the object's own space) to match the confirmed call sites.
+-- true (impulse in the object's own space) to match the confirmed call sites. This is the bare call; for the
+-- mass-scaling + directional + speedBoost/launch/knockback helpers see the Ess.Impulse system (16_impulse.lua).
 function Ess.Object.impulse(uGuid, x, y, z, bLocal)
     if bLocal == nil then bLocal = true end
     pcall(Object.ApplyImpulse, uGuid, x or 0, y or 0, z or 0, bLocal and true or false)

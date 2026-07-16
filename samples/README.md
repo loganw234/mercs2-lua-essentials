@@ -25,6 +25,7 @@ handler.
 | `do_it_later` | run something after a delay, and on a repeating timer | Triggers, Loop, Time |
 | `slow_motion` | a slow-motion finisher beat | Time |
 | `attach_effects` | particle FX at a point / attached to an object | Easy.Spawn |
+| `speed_boost` | launch / boost / knockback with mass-scaled impulses | Easy.Impulse |
 | `notify_the_player` | toast / banner / objective line / radio subtitle | Hud, UI |
 | `persistent_vars` | remember a value across save/reload | SaveVar |
 | `give_weapons` | give the player a weapon + infinite ammo | Human |

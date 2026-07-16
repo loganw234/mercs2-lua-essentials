@@ -37,6 +37,7 @@ MANIFEST = [
     "12_vehicle.lua",
     "13_probe.lua",
     "14_human.lua",
+    "16_impulse.lua",
     "20_loop.lua",
     "21_input.lua",
     "22_state.lua",
