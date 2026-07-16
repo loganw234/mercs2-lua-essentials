@@ -14,7 +14,7 @@
 -- triggers' fires={} and support/order trigger={ref=id} may target support ids OR waypoint ids.
 -- effects: artillery(ammo) / flyby(=airstrike, vehicle) / bombingrun(vehicle+ammo) / heli /
 --   reinforce(deliver=copter|paradrop) / say(text) / music(cue) / vfx(particle) / damage(target,pct|kill) /
---   vo(lines) / custom
+--   vo(lines) / shake(preset,amplitude,duration,player) / hint(text,id) / custom
 -- trigger conditions: "immediate" | "once" | "recurring" | {proximity=r} | {onDestroy="nearest"|name}
 --   | {onHealthBelow={target=,pct=}} | {onObjComplete=N} | {onCleared={faction=,radius=}} | {ref=id}
 --   LOGIC GATES (as def.triggers entries): kind="all"/"count" with inputs={trigIds}, need=N (count).
@@ -142,6 +142,12 @@ SUPPORT_EFFECTS.vo = function(inst, task, ev)              -- play a voice-over 
     if type(lines) ~= "table" or #lines == 0 then return end
     local seq = {}; for i, ln in ipairs(lines) do seq[#seq + 1] = ln; if i < #lines then seq[#seq + 1] = ev.gap or 1 end end
     pcall(MrxVoSequence.Start, seq)
+end
+SUPPORT_EFFECTS.shake = function(inst, task, ev)           -- camera shake feedback (explosions, impacts)
+    Ess.Camera.shake(ev.player or 0, ev.preset or "ShakeCameraMedium", Ess.Player.character(ev.player or 0), ev.amplitude or 6, ev.duration or 5)
+end
+SUPPORT_EFFECTS.hint = function(inst, task, ev)            -- native tutorial-style HUD hint popup (icon+sound)
+    Ess.Hud.hint(ev.text or ev.msg, ev.id)
 end
 
 -- ---- normalize a def.triggers entry's `kind` field into an Ess.Raw.Triggers.arm-compatible spec

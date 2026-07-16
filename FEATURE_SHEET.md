@@ -325,6 +325,11 @@ Engine Namespaces section against what Ess actually covers:**
   actually demonstrate. No blank-template guard needed the way `Pg.Spawn` needs one — `GetGuidByName` on a
   bad name just returns `nil`, it doesn't hard-crash the engine. Live-tested both the success path (2→3
   weapons) and the graceful bad-template-name failure path.
+- **`Ess.Contract` now consumes the two new namespaces above**: `shake` and `hint` support effects
+  (`src/82_contract_encounter.lua`'s `SUPPORT_EFFECTS`) wrap `Ess.Camera.shake`/`Ess.Hud.hint` directly —
+  a contract author gets "explosion + camera shake" or a narration hint the same way they already get
+  `say`/`vfx`/`damage`. Live-tested through a real contract: both fired exactly once via their own
+  triggers, error-free.
 
 ## Non-goals
 
