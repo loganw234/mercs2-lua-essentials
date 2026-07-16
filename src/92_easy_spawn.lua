@@ -41,3 +41,29 @@ function Ess.Easy.Spawn.airstrike(sRound)
     if not px then return end
     pcall(Airstrike.SpawnOrdnance, sRound or "Artillery Shell", px, py + 250, pz, 0, -100, 0, "impact", 1)
 end
+
+-- ============================================================
+-- Particle / FX -- spawn an effect three ways: at a LOCATION, ON an object (its current position), or
+-- BOUND to a bone on an object (follows it). CONFIRMED FX/particle templates (pg-spawn-calls):
+--   "fx_Explosion_Huge", "global_particle_explosion_c4", "global_particle_env_smokeplume_distance_tall",
+--   plus the whole "Explosion (Grenade/C4/MOAB/...)" family. One-shot FX self-destruct; ambient ones (a
+--   smoke plume) persist until you Object.Remove them.
+-- YOU supply the bone name in the bone form -- only you know your target model's bone names (a character's
+-- real bones work; vehicle collision-string hardpoints do NOT bind, see the camera notes).
+-- ============================================================
+
+-- Ess.Easy.Spawn.fx(sTemplate, x, y, z) -> uGuid | nil -- an effect at a world location.
+function Ess.Easy.Spawn.fx(sTemplate, x, y, z)
+    return Ess.Object.spawn(sTemplate, x, y, z)
+end
+
+-- Ess.Easy.Spawn.fxOn(sTemplate, uGuid, sBone) -> handle | nil -- an effect on an object. With sBone it's
+-- GLUED to that bone and follows the object (via the confirmed Ess.Bones.attachFX recipe); without a bone
+-- it's a one-shot spawned at the object's current position (won't follow). Remove a bone-bound one with
+-- Ess.Bones.detachFX(uGuid, handle).
+function Ess.Easy.Spawn.fxOn(sTemplate, uGuid, sBone)
+    if sBone then return Ess.Bones.attachFX(uGuid, sBone, sTemplate) end
+    local x, y, z = Ess.Object.pos(uGuid)
+    if not x then return nil end
+    return Ess.Object.spawn(sTemplate, x, y, z)
+end

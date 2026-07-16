@@ -45,6 +45,18 @@ function Ess.Easy.Player.freeSupport(bOn)
     pcall(MrxSupportData.SetIgnoreRequirements, bOn and true or false)
 end
 
+-- Ess.Easy.Player.skin(sCode, i) -- change the player's whole-figure costume/skin. CONFIRMED
+-- (npc-skin-swap project / WardrobeUnlocker): Player.SetOutfit(char, sModelCode) swaps the entire figure
+-- (individual body PARTS don't work -- whole "*_hum_*" model only). Confirmed codes include "pmc_hum_fiona",
+-- "pmc_hum_eva", "pmc_hum_diablo", "vz_hum_solano", "al_hum_boss", "ch_hum_boss", "gr_hum_boss",
+-- "civ_hum_beachfemale_a", "police_hum_officer_b" (plus ~30 more in sample-scripts-onload). A reload
+-- restores your normal look. NOTE: a skin swap re-inits the model, so its bones aren't ready for ~0.3s --
+-- wait a beat before attaching bone FX (Ess.Easy.Spawn.fxOn) to a JUST-skinned character.
+function Ess.Easy.Player.skin(sCode, i)
+    local char = Ess.Player.character(i)
+    if char and type(sCode) == "string" and sCode ~= "" then pcall(Player.SetOutfit, char, sCode) end
+end
+
 -- Ess.Easy.Fun.fanfare(bWin) -- play the mission-success (or, with false, mission-fail) music sting.
 -- CONFIRMED (MrxMusic.PlayFanfare, mrxtaskcontract.lua).
 function Ess.Easy.Fun.fanfare(bWin)
