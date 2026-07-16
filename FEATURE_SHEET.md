@@ -317,6 +317,14 @@ Engine Namespaces section against what Ess actually covers:**
   flagged in this file's header), taking a player-slot INDEX directly rather than a camera guid. Plus
   `Ess.Easy.Camera.shake(i)` (zero-config, no preset/amplitude to think about). Live-tested: one-shot
   shake, start+stop of the ongoing shake variant, and a full FOV blend-then-restore cycle, all error-free.
+- **`Ess.Easy.Human.giveWeapon(uChar, sTemplateName)`** (`src/14_human.lua`) — a genuine discovery this
+  session, not just a reference-doc port: `Pg.GetGuidByName(sTemplateName)` resolves a weapon TEMPLATE
+  name to a guid distinct from any weapon the character already carries, and `Human.Inventory.EquipWeapon`
+  on THAT guid genuinely adds a new weapon — confirmed via an exact before/after `GetAllWeapons` count
+  change (2→3), which the confirmed real call sites (always re-equipping an already-held weapon) never
+  actually demonstrate. No blank-template guard needed the way `Pg.Spawn` needs one — `GetGuidByName` on a
+  bad name just returns `nil`, it doesn't hard-crash the engine. Live-tested both the success path (2→3
+  weapons) and the graceful bad-template-name failure path.
 
 ## Non-goals
 

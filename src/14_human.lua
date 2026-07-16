@@ -21,6 +21,7 @@
 --   Ess.Human.maxAmmo(uWeapon) -> n                Weapon.GetMaxReserveAmmo
 --   Ess.Human.refillAmmo(uWeapon)                  the confirmed "set to GetMaxReserveAmmo" one-liner,
 --                                                   independently duplicated across pmccon001.lua/vzacon001.lua
+--   Ess.Easy.Human.giveWeapon(uChar, sTemplateName) -> ok    spawn-free "just give them a gun by name"
 
 local Ess = _G.Ess
 Ess.Human = Ess.Human or {}
@@ -88,4 +89,24 @@ end
 -- Weapon.SetReserveAmmo(w, Weapon.GetMaxReserveAmmo(w)).
 function Ess.Human.refillAmmo(uWeapon)
     Ess.Human.setAmmo(uWeapon, Ess.Human.maxAmmo(uWeapon))
+end
+
+-- Ess.Easy.Human.giveWeapon(uChar, sTemplateName) -> ok
+-- LIVE-CONFIRMED this session: Pg.GetGuidByName(sTemplateName) resolves a weapon TEMPLATE name (e.g.
+-- "Grenade Launcher") to a real guid distinct from any weapon the character already carries, and
+-- Human.Inventory.EquipWeapon on THAT guid genuinely adds a new weapon (verified via an exact
+-- before/after GetAllWeapons count change, 2 -> 3) -- not just re-equipping something already held, which
+-- is all the confirmed real call sites (mrxshootinggallery.lua) happen to show. No blank-template guard
+-- needed here the way Pg.Spawn needs one -- GetGuidByName on an empty/bad name just returns nil/false,
+-- it doesn't hard-crash the engine the way an empty Pg.Spawn does.
+Ess.Easy = Ess.Easy or {}
+Ess.Easy.Human = Ess.Easy.Human or {}
+function Ess.Easy.Human.giveWeapon(uChar, sTemplateName)
+    if type(sTemplateName) ~= "string" or sTemplateName == "" then return false end
+    local ok, uWeapon = pcall(Pg.GetGuidByName, sTemplateName)
+    if not ok or not uWeapon then
+        Ess.Log("Easy.Human.giveWeapon: no weapon template named '" .. tostring(sTemplateName) .. "'")
+        return false
+    end
+    return Ess.Human.equipWeapon(uChar, uWeapon)
 end

@@ -88,6 +88,8 @@ local REGISTRY = {
       desc = "Tops up a weapon's reserve ammo to its max." },
     { ns = "Ess.Human", usage = "Ess.Human.knockdown(uChar, nDuration)",
       desc = "Knocks a character down for nDuration seconds." },
+    { ns = "Ess.Easy (Human)", usage = "Ess.Easy.Human.giveWeapon(uChar, sTemplateName)",
+      desc = "Gives a character a weapon by template name, e.g. \"Grenade Launcher\" -- no spawning needed." },
 
     { ns = "Ess.Vehicle", usage = "Ess.Vehicle.exit(uVeh, uChar)",
       desc = "Gets a character back out of a vehicle." },
