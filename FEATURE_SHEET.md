@@ -526,6 +526,26 @@ Engine Namespaces section against what Ess actually covers:**
   expected trace: unknown-provider warning, empty applied list, clean finish); a real provider (`relations`)
   still correctly returns `true` and applies/restores normally; the save-gate correctly ungated
   (`_gated=false nActive=0`) after both test sandboxes finished.
+- **Two more findings from continuing the deep-read pass onto `Ess.Triggers`** (`62_triggers.lua`), the
+  generalized trigger/gate system several other pieces (`Ess.Contract`, and any future direct consumer)
+  build on: (1) `_known`/`_fired` are module-level SHARED FLAT tables, not namespaced per caller — the
+  exact same shape of problem `Ess.SaveVar.ns(prefix)` exists elsewhere in this framework to solve. Two
+  independent systems both calling `armNamed("start", ...)` would silently collide (one's fire satisfies
+  the other's gate too). `Ess.Contract` already avoids this by prefixing every id with a per-instance `ns`
+  string before it reaches these tables — that convention just wasn't documented for anyone calling
+  `Ess.Triggers` directly. Added an explicit warning + the fix pattern to the file header rather than a
+  riskier structural change this late in an unsupervised stretch. (2) `Ess.Triggers.gate({}, ...)` — an
+  empty `inputs` list — silently polls forever and never fires or stops on its own (the deliberate
+  `need > 0` guard that stops an empty gate from auto-firing immediately has the side effect of also never
+  satisfying it), leaking an unbounded `Event.TimerRelative` loop unless a `tracker` cleans it up, with
+  zero warning despite this exact file's own stated "fail loud instead of a gate that quietly never fires"
+  design philosophy. Fixed to log the same class of loud warning already given to an individual unknown
+  id. **`Ess.UI.Menu` — the one piece of the framework with a strict backward-compatibility requirement —
+  was also given the same deep-read treatment and checked out completely clean**, a careful trace through
+  its single-slot enforcement, re-render logic, and cross-OnKey-re-run state persistence found nothing.
+  Live-tested both `Ess.Triggers` fixes together: an empty-inputs gate logged the warning exactly once (not
+  spammed per-poll) and its `onFire` callback never ran; a real 1-of-1 `armNamed`+`gate` pair still fired
+  correctly after its condition was met, confirming no regression.
 
 ## Non-goals
 

@@ -4,6 +4,13 @@
 --   Ess.Triggers.arm(spec, onFire, tracker) -> cancel()             same as Ess.Raw.Triggers.arm
 --   Ess.Triggers.armNamed(id, spec, onFire, tracker) -> cancel()    like arm(), but registers `id` for gate()
 --   Ess.Triggers.gate(inputs, need, onFire, tracker) -> cancel()    fires once `need` of `inputs` have fired
+--
+-- ⚠ `id` lives in a SHARED FLAT namespace (`_known`/`_fired` below are module-level, not per-caller) --
+-- the exact same shape of problem `Ess.SaveVar.ns(prefix)` exists to solve elsewhere in this framework.
+-- Two independent systems both calling `armNamed("start", ...)` WILL silently collide: one's trigger
+-- firing satisfies the other's gate too. `Ess.Contract` avoids this by prefixing every id with a
+-- per-instance `ns` string before it ever reaches these tables (see 82_contract_encounter.lua) -- do the
+-- same in your own code (e.g. `armNamed(myModName .. ":start", ...)`) if you're calling this directly.
 
 local Ess = _G.Ess
 Ess.Triggers = Ess.Triggers or {}
@@ -38,6 +45,14 @@ end
 function Ess.Triggers.gate(inputs, need, onFire, tracker)
     inputs = inputs or {}
     need = need or #inputs
+    if #inputs == 0 then
+        -- CONFIRMED real gap found on a deep re-read: `need > 0` below (deliberately, to stop an empty
+        -- gate from firing immediately) means an empty `inputs` table just polls forever and NEVER fires
+        -- OR stops on its own -- an unbounded leak without a tracker. Same "fail loud" treatment as an
+        -- unknown id, since this was previously silent.
+        Ess.Log("Triggers.gate: called with an empty inputs list -- this gate will poll forever and " ..
+            "never fire; pass a tracker so it at least gets cleaned up, or fix the inputs list")
+    end
     for _, id in ipairs(inputs) do
         if not Ess.Triggers._known[id] then
             Ess.Log("Triggers.gate: input '" .. tostring(id) .. "' was never armed via armNamed -- " ..
