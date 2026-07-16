@@ -172,12 +172,31 @@ deployed alongside Ess — found by re-reading my own new code against the adopt
 (ModNet isn't deployed in this install, so the path was never actually exercised tonight). Fixed to
 preserve `hijackCallback` across the adopt; re-verified working after the fix.
 
+**★ 2026-07-16 (overnight session) — `Ess.ScrollLog` built and verified** (`src/41_scrolllog.lua`,
+Group E) — the confirmed bug-free `HandleInstantiationEventForTextBuffer(oWidget, tEvent)` construction
+path around a real shipped-engine bug in the documented `InstantiateTextBuffer` constructor (references a
+global `oWidget` that doesn't exist anywhere in its own scope). `duration` defaults to a deliberately
+short 1s (not the native call's own longer defaults) specifically so the confirmed real ~50-minute-lockout
+bug (194 dumped lines at a blindly-copied 15s-per-message default, queued sequentially) can't repeat by
+omission. **Caught and fixed a real bug live:** the first build attempt returned `nil` — `MrxGui`/
+`MrxGuiTextBuffer` are resident modules needing their own file-scoped `import()`, which the initial port
+omitted (missed while transcribing the confirmed source pattern); `loadcheck.py`'s stubbed environment
+couldn't catch this class of bug at all (it loaded "clean" both before and after the fix) — only the live
+engine test caught and proved the fix. After the fix: `new()` built successfully, reuse-by-same-name
+returned the identical instance (not a duplicate overlapping widget), `add()` correctly auto-showed the
+box, `setVisible(false)` correctly hid it, a 3-message bulk add at the safe default duration plus
+`clearAll()` ran error-free.
+
 **Not built, and explicitly out of scope for this session:** refactoring `ContractFramework.lua`/
 `WaveDefense.lua` themselves to actually CONSUME the new `Ess.*` code (a deliberate scope boundary — that's
 a more invasive cross-repo change to an already-working, co-op-tested system, and belongs in a reviewed
-follow-up, not an unsupervised session); `Ess.ScrollLog` (Group E, the `MrxGuiTextBuffer` workaround) and
-the full `Ess.UI`/`Ess.Easy.UI` alias/preset layer (blocked on `uilib` actually being deployed alongside
-`Ess` to test against, which it isn't in this install) remain unbuilt.
+follow-up, not an unsupervised session); the full `Ess.UI`/`Ess.Easy.UI` alias/preset layer (blocked on
+`uilib` actually being deployed alongside `Ess` to test against, which it isn't in this install — the
+alias mechanism itself is already correctly wired in `99_adopt.lua`); `Ess.Input.hijackController`
+remains the one PRE-EXISTING honest gap from before tonight (synthesized from a summary, not a direct
+source read) — not attempted tonight, since verifying it needs a qualitatively different kind of test
+(real controller-driven PDA widget interaction, no visual confirmation available) than the REPL-based
+pattern that carried the rest of tonight's work, and it wasn't part of the assigned priority list.
 
 ## Non-goals
 

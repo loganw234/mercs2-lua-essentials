@@ -43,6 +43,7 @@ MANIFEST = [
     "31_mark.lua",
     "31_mark_easy.lua",
     "40_gfx.lua",
+    "41_scrolllog.lua",
     "50_bones.lua",
     "51_camera.lua",
     "52_points.lua",
