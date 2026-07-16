@@ -29,12 +29,16 @@ handler.
 | `persistent_vars` | remember a value across save/reload | SaveVar |
 | `give_weapons` | give the player a weapon + infinite ammo | Human |
 | `an_arena` | run a save-safe ephemeral "arena" / minigame mode | Sandbox |
+| `world_tweaks` | clear heat / lift the map walls / recolour the sky | Easy.World |
+| `player_powers` | grappling hook / fast travel / free support unlocks | Easy.Player |
+| `for_fun` | swap your look + play a fanfare | Easy.Player, Easy.Fun |
 | `a_simple_mission` | author a whole 2-objective mission with a reward | Contract |
 
 ## Interactive demos (`samples/OnKey/`)
 
 | Demo | Key | Shows |
 |---|---|---|
+| `CustomMenu` | F4 | **make your own menu of cool stuff** — a beginner template: Ess.UI.Menu wired to the Ess.Easy.* one-liners (spawn / effects / unlocks / world tweaks). Copy it and swap in your own entries. |
 | `CoopChat` | F2 | co-op text chat — per-player username over the wire, auto-fade (Net + UI.Chat) |
 | `CinematicDemo` | F9 | a 12-step showcase cutscene — camera / spawn / fly-in / orbit / narration (Cinematic) |
 
