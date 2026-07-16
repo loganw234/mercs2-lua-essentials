@@ -15,8 +15,9 @@
 --   -- CINEMATIC (steals mouse control until released):
 --   Ess.Camera.beginCinematic(i, blend) / .placeCamera(x,y,z,i) / .lookAtObject(uGuid, bone, i) /
 --     .lookAtPoint(x,y,z,i) / .hold(i) / .endCinematic(i) / .panicRevert()
---   Ess.Easy.Camera.watch(uGuid, opts) -> stop()   take over the camera and watch a target (e.g. a heli
---                                        you spawned) fly in; opts.chase trails it, else a static locked shot
+--   Ess.Easy.Camera.watch(uGuid, opts) -> stop()   watch a target (e.g. a heli you spawned) fly in;
+--                                        default = static locked shot, opts.chase = follow from opts.angle
+--   Ess.Easy.Camera.orbit(uGuid, opts) -> stop()    smoothly orbit a target (radius/height/speed/startAngle)
 --
 -- NOTE this is the Camera.* namespace (chase-cam/look-at/position/shake), not Graphics.Camera (LOD/FOV/
 -- near-far) -- confirmed cross-namespace footgun (they share only a name), keep them separate. `fov`/
@@ -228,10 +229,11 @@ function Ess.Camera.hold(i)
     if c then pcall(Camera.Hold, c, true, false) end
 end
 
--- Ess.Camera.endCinematic(i) -- release control back to the player and stop any Easy.Camera.watch chase loop.
+-- Ess.Camera.endCinematic(i) -- release control back to the player and stop any watch/orbit follow loop.
 function Ess.Camera.endCinematic(i)
     local idx = i or 0
     Ess.Loop.stop("Ess.Camera.watch:" .. idx)
+    Ess.Loop.stop("Ess.Camera.orbit:" .. idx)
     local st = Ess.Camera._cine[idx]
     if not st then return end
     pcall(Camera.Hold, st.c, false, false)
@@ -261,58 +263,54 @@ local function pointAlongPath(path, frac)
     return ax + (bx - ax) * lf, ay + (by - ay) * lf, az + (bz - az) * lf
 end
 
+-- THE CAMERA-SMOOTHNESS RULE (confirmed live 2026-07-17 against Logan's own OrbitCam/CinCam scripts): a
+-- MOVING camera must enter cinematic mode with Camera.Blend(c, 0) -- an INSTANT blend. With the default 1s
+-- blend, every per-tick Camera.SetPosition restarts a 1-second interpolation and the camera rubber-bands
+-- (that was the "jitter"). With Blend 0, per-tick coordinate SetPosition + a re-issued SetLookAt each tick
+-- is perfectly smooth. (The object-attach camera forms are a dead end -- they don't bind; don't chase them.)
+--
+-- REMAINING quirk (accepted, not fixable here): chase/orbit read the TARGET's position each tick, so a
+-- FAST-moving target (a heli at speed, a crate still falling) quantizes and the follow jitters slightly;
+-- it smooths out as the target slows. Best practice: for a high-velocity subject use a STATIC watch point
+-- (the default `watch` locked-off shot, which only PANS -- native and jitter-free), and save chase/orbit
+-- for slower or stationary subjects.
+
 -- Ess.Easy.Camera.watch(uGuid, opts) -> stop() -- take over the camera for a cinematic shot of a target
--- (e.g. a helicopter you spawned). Call the returned stop() (or Ess.Camera.endCinematic) to hand control
--- back. Default is a LOCKED-OFF TRACKING SHOT and it's the smooth one: the camera is placed ONCE at a fixed
--- vantage (coordinate form) and Camera.SetLookAt does the rest NATIVELY -- it pans to keep the target framed
--- as it moves, with zero per-tick position updates (per-tick SetPosition was the jitter source, confirmed
--- live 2026-07-17).
+-- (e.g. a helicopter you spawned). Call the returned stop() (or Ess.Camera.endCinematic) to hand control back.
+--   default  : a LOCKED-OFF tracking shot -- camera placed ONCE at a fixed vantage, native SetLookAt panning
+--              to keep the target framed as it moves (nice 1s ease-in). Zero per-tick position updates.
+--   chase    : opts.chase=true -- camera FOLLOWS the target from a fixed ANGLE around it (Blend 0, per-tick).
+--              Give opts.angle to pick the viewpoint; a FIXED angle avoids the velocity-heading noise that
+--              makes an auto-trailing cam jitter, so the user dials in a clean shot.
 --
--- ⚠ Tracking a MOVING VEHICLE: point the look at whoever is RIDING it, not the vehicle -- Camera.SetLookAt's
--- object-track is confirmed working on CHARACTER bones (the pilot's "Bone_Chest"), while the object-attach
--- forms don't work on vehicle hardpoints at all. So watch a heli via: opts = { look = pilotGuid,
--- bone = "Bone_Chest" } (get the pilot with Ess.Vehicle.driver(heli)).
+-- ⚠ Tracking a MOVING VEHICLE: point the look at whoever is RIDING it -- SetLookAt's object-track works on
+-- CHARACTER bones (the pilot's "Bone_Chest"), not vehicle hardpoints. So: opts={ look=pilotGuid,
+-- bone="Bone_Chest" } (pilot = Ess.Vehicle.driver(heli)).
 --
--- opts: at={x,y,z} (fixed vantage; default: a bit above your current spot), height (vantage height above you
---       when no `at`, default 6), look (guid to track; default uGuid), bone (bone on `look` to track),
---       chase (bool -> a SOFTER moving follow-cam that lerps position per tick; less smooth than the
---       locked-off shot, but the camera moves with the target -- use when a static vantage won't frame it),
---       dist (chase trail, 18), height (chase, 8), smooth (chase lerp 0..1, 0.12), i.
+-- opts: at={x,y,z} (static vantage; default just above you), height (static vantage height, 6), look (guid
+--       to track; default uGuid), bone (bone on `look`), chase (bool), angle (chase viewpoint degrees, 200),
+--       dist (chase distance, 16), chaseHeight (chase height above target, 6), i.
 function Ess.Easy.Camera.watch(uGuid, opts)
     opts = opts or {}
     local i = opts.i
-    if not Ess.Camera.beginCinematic(i, opts.blend) then return function() end end
     local look = opts.look or uGuid
 
     if opts.chase then
-        -- softer MOVING follow-cam: per-tick lerped trail. Not as smooth as the locked-off shot (there is
-        -- no working native way to ride a vehicle), but the camera moves with the target.
-        local smooth = opts.smooth or 0.12
-        local dist, height = opts.dist or 18, opts.chaseHeight or 8
+        if not Ess.Camera.beginCinematic(i, 0) then return function() end end   -- Blend 0 for a moving cam
+        local dist, height = opts.dist or 16, opts.chaseHeight or 6
+        local ar = math.rad(opts.angle or 200)                                 -- FIXED viewpoint angle
+        local ox, oz = math.sin(ar) * dist, math.cos(ar) * dist
         local id = "Ess.Camera.watch:" .. (i or 0)
-        local cx, cy, cz = Ess.Player.pose(i or 0)
-        if not cx then cx, cy, cz = 0, 0, 0 end
-        local lastTx, lastTz
-        Ess.Loop.start(id, 0.03, function()
+        Ess.Loop.start(id, 0.033, function()
             local ok, tx, ty, tz = pcall(Object.GetPosition, uGuid)
-            if not ok or not tx then return true end
-            local hx, hz = 0, -1
-            if lastTx then
-                local dx, dz = tx - lastTx, tz - lastTz
-                local l = math.sqrt(dx * dx + dz * dz)
-                if l > 0.05 then hx, hz = dx / l, dz / l end
+            if ok and tx then
+                Ess.Camera.placeCamera(tx + ox, ty + height, tz + oz, i)       -- fixed offset -> no heading noise
+                Ess.Camera.lookAtObject(look, opts.bone, i)                    -- re-issue each tick
             end
-            lastTx, lastTz = tx, tz
-            local ix, iy, iz = tx - hx * dist, ty + height, tz - hz * dist
-            cx = cx + (ix - cx) * smooth
-            cy = cy + (iy - cy) * smooth
-            cz = cz + (iz - cz) * smooth
-            Ess.Camera.placeCamera(cx, cy, cz, i)
-            Ess.Camera.lookAtObject(look, opts.bone, i)
             return true
         end)
     else
-        -- LOCKED-OFF tracking shot (the smooth default): fixed vantage set ONCE + native look-track.
+        if not Ess.Camera.beginCinematic(i, opts.blend or 1) then return function() end end
         local vx, vy, vz = xyzOf(opts.at)
         if not vx then
             local px, py, pz = Ess.Player.pose(i or 0)
@@ -322,5 +320,32 @@ function Ess.Easy.Camera.watch(uGuid, opts)
         Ess.Camera.lookAtObject(look, opts.bone, i)
         Ess.Camera.hold(i)
     end
+    return function() Ess.Camera.endCinematic(i) end
+end
+
+-- Ess.Easy.Camera.orbit(uGuid, opts) -> stop() -- take over the camera and smoothly ORBIT a target (or the
+-- player if you pass their character). Generalized from Logan's OrbitCam: Blend 0 + per-tick coordinate
+-- SetPosition around a circle + a re-issued SetLookAt every tick. Great for showing off a spawned thing.
+--   opts: radius (12), height (above the target, 4), speed (degrees/sec, 40), startAngle (deg, 0),
+--         look (guid to look at; default uGuid), bone (bone on `look`), i.
+function Ess.Easy.Camera.orbit(uGuid, opts)
+    opts = opts or {}
+    local i = opts.i
+    local look = opts.look or uGuid
+    if not Ess.Camera.beginCinematic(i, 0) then return function() end end       -- Blend 0 for a moving cam
+    local radius, height = opts.radius or 12, opts.height or 4
+    local speed = math.rad(opts.speed or 40)
+    local start = math.rad(opts.startAngle or 0)
+    local id = "Ess.Camera.orbit:" .. (i or 0)
+    local t0 = Ess.Time.stamp()
+    Ess.Loop.start(id, 0.033, function()
+        local ok, tx, ty, tz = pcall(Object.GetPosition, uGuid)
+        if ok and tx then
+            local a = start + Ess.Time.elapsed(t0) * speed
+            Ess.Camera.placeCamera(tx + math.sin(a) * radius, ty + height, tz + math.cos(a) * radius, i)
+            Ess.Camera.lookAtObject(look, opts.bone, i)
+        end
+        return true
+    end)
     return function() Ess.Camera.endCinematic(i) end
 end
