@@ -99,8 +99,56 @@ produce surprising results (observed `tostring(1, nil, nil, nil)` -> `"nil"`, `t
 a function-address string) — capture into a single named local first (`local r = f(); tostring(r)`),
 never `tostring(multiReturnCall())` directly, when testing anything through `lua_repl.py`.
 
-**Not yet built:** Group G (the tiered encounter toolkit — Sandbox/Triggers/AIOrders/Relations/Mark),
-requiring a full re-read of `ContractFramework.lua`/`WaveDefense.lua` first per the build plan.
+**★ 2026-07-16 (overnight session) — Group G built and behaviorally verified: the full tiered encounter
+toolkit.** Per the required full re-read (not a prior summary) of both `ContractFramework.lua` (1265
+lines) and `WaveDefense.lua` (1601 lines) in `mercs2-lua-mods`, done this session end to end. All 12 files
+(Raw/Core/Easy × 4 namespaces) built, added to `build/merge.py`'s MANIFEST, and live-tested — as NEW
+standalone code only, `ContractFramework.lua`/`WaveDefense.lua` themselves untouched, per the explicit
+scope boundary:
+
+- **`Ess.Relations`** (`src/61_relations_raw/61_relations/61_relations_easy.lua`) — unifies
+  `ContractFramework`'s trigger-aware `def.relations` and `WaveDefense`'s snapshot-based `setupRelations`/
+  `restoreRelations` into one implementation, fixing Known Bug #3 at the source (a failed original
+  `Ai.GetRelation` read is now tracked as `{ok=false}` and logged, not silently collapsed into a skipped
+  restore by `o1ok and o1`). Live-tested: `apply`/`restore` round-tripped VZ<->Guerilla exactly
+  (100 -> -100 -> 100).
+- **`Ess.Triggers`** (`src/62_triggers_raw/62_triggers/62_triggers_easy.lua`) — extracts `armTrigger`'s
+  full condition vocabulary (immediate/once/recurring/proximity/onDestroy/onHealthBelow/onCleared; NOT
+  ported: `onObjComplete`, which only means something inside a running Contract instance) plus a validated
+  `gate(inputs, need, onFire)`. **Fixes the real gap found reading the source this session (Known Bug #2):**
+  a gate's `inputs` can silently reference an id that was never a *named* trigger (e.g. a support/waypoint
+  id), which then can never satisfy it — `Ess.Triggers.gate` now validates every input against the
+  `armNamed` registry at creation time and logs loudly instead of hanging silently forever. Live-tested:
+  `once`/`proximity` fired correctly, a 2-input gate fired only once both named triggers fired, and the
+  exact validation warning fired for a deliberately-unregistered input id.
+- **`Ess.AIOrders`** (`src/60_aiorders_raw/60_aiorders/60_aiorders_easy.lua`) — extracts the full
+  `AI_BEHAVIORS` table (move/face/hold/defend/attack/patrol/follow/flee/enter/deploy/animate) + the
+  `aiActor`/`aiPri` helpers into a standalone `command(guids, behavior, opts, tracker)`, with a standalone
+  group registry (`setGroup`/`group`) replacing `inst.groups`. Live-tested on a real spawned `VZ Soldier`:
+  `hold`/`face`/`move`/`attack`/`animate` all issued cleanly with zero errors and no bridge stall (the
+  vehicle-related `enter`/`deploy` behaviors, and `patrol`/`follow`/`flee`, were built but NOT live-tested
+  this session — deliberately, out of caution after the earlier vehicle-enter stall incident, not because
+  of any known issue with them specifically).
+- **`Ess.Sandbox`** (`src/63_sandbox_raw/63_sandbox/63_sandbox_easy.lua`) — the biggest unifying idea in
+  the whole design: one `begin(id, providerNames, opts)`/`finish(id)` pair, with `Pg.SaveGame` gated for
+  the whole duration (built on `Ess.Override.wrap` — the first real production use of it), over four
+  built-in providers: `relations` (thin wrapper over `Ess.Relations`), `economy` (cash isolation, ported
+  from `WaveDefense`'s `W.savedCash`/`restoreEconomy`), `supports` (HUD support-menu isolation, ported from
+  `isolateSupports`/`restoreSupports`), `layers` (adopts `LayerFw` if deployed, existence-checked exactly
+  like the `99_adopt.lua` aliases — confirmed API read directly from `LayerFw.lua`: `L.begin(sId)`/
+  `L.finish(fCb)`). Live-tested: `economy`+`relations` together isolated cash to an exact `5000` and set a
+  relation, then `finish` restored BOTH to their exact original values (`73400` cash, `100` relation); the
+  save-gate boolean itself confirmed to transition `false->true->false` correctly across a real begin/
+  finish cycle, including a real `Ess.Override.wrap` install onto `Pg.SaveGame`. `supports` and `layers`
+  were NOT live-tested (supports needs a specific HUD widget state; layers needs `LayerFw` deployed
+  alongside `Ess` in this install, which it isn't) — both are defensively existence-checked, matching the
+  `99_adopt.lua` precedent, not fabricated confidence.
+
+**Not built, and explicitly out of scope for this session:** `Ess.Mark`'s own tiered files (a smaller,
+separately-specified piece not part of the four Group G namespaces above); refactoring
+`ContractFramework.lua`/`WaveDefense.lua` themselves to actually CONSUME the new `Ess.*` code (a deliberate
+scope boundary — that's a more invasive cross-repo change to an already-working, co-op-tested system, and
+belongs in a reviewed follow-up, not an unsupervised session).
 
 ## Non-goals
 

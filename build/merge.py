@@ -45,6 +45,18 @@ MANIFEST = [
     "52_points.lua",
     "53_rng.lua",
     "90_override.lua",
+    "60_aiorders_raw.lua",
+    "60_aiorders.lua",
+    "60_aiorders_easy.lua",
+    "61_relations_raw.lua",
+    "61_relations.lua",
+    "61_relations_easy.lua",
+    "62_triggers_raw.lua",
+    "62_triggers.lua",
+    "62_triggers_easy.lua",
+    "63_sandbox_raw.lua",
+    "63_sandbox.lua",
+    "63_sandbox_easy.lua",
     "99_adopt.lua",
 ]
 
