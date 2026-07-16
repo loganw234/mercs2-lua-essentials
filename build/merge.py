@@ -60,6 +60,7 @@ MANIFEST = [
     "55_ui_board.lua",
     "90_override.lua",
     "70_net.lua",
+    "71_net_wire.lua",
     "60_aiorders_raw.lua",
     "60_aiorders.lua",
     "60_aiorders_easy.lua",

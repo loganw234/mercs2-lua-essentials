@@ -1,41 +1,19 @@
--- Ess/99_adopt.lua -- Ess.Net / Ess.UI / Ess.Contract: thin, existence-checked aliases onto ModNet/uilib/
--- ContractFramework, when (and only when) they're actually deployed alongside Ess in the same game
--- install. "Adopt, don't duplicate" -- these are mature, independently engine/co-op-verified frameworks
--- with their own repos; Ess deliberately does NOT reimplement any of them, only offers a shorter, more
--- consistent name to reach them by once they're present.
+-- Ess/99_adopt.lua -- Ess.Contract: thin, existence-checked alias onto ContractFramework, when (and
+-- only when) it's actually deployed alongside Ess in the same game install.
 --
--- NEVER a hard dependency: this file must load and Ess must work completely fine whether or not any of
--- these three globals exist yet. Confirmed real global names, read directly from each framework's own
--- source (not assumed): ModNet.lua declares `_G.ModNet`, uilib.lua declares `_G.UI`,
--- 1_ContractFramework.lua declares `_G.Contract` -- all via the standard `_G.X = _G.X or {}` reload-safe
--- idiom, so aliasing them here (running from Ess's OnLoad, whichever numeric priority order these load
--- in) is safe regardless of which one happens to load first.
+-- HISTORY: this file used to also alias Ess.Net -> ModNet and Ess.UI -> uilib. Both are now natively
+-- absorbed into Ess itself (70_net.lua/71_net_wire.lua and 42_ui_engine.lua through 55_ui_board.lua) --
+-- Ess.Net/Ess.UI are ALWAYS present with real functionality now, never "unavailable," so aliasing them
+-- here would be actively wrong (and did log a misleading "unavailable" message for a night before this
+-- was caught -- confirmed live, fixed here). Ess.Contract is the one piece not yet absorbed; this file
+-- shrinks to just that, and should be deleted entirely once Ess.Contract absorbs ContractFramework.lua
+-- too (see FEATURE_SHEET.md's port status).
 --
--- OUT OF SCOPE for this file (and for Ess generally, for now): rebasing uilib.lua's own internals onto
--- Ess.Loop/Ess.Input/Ess.Gfx so it stops hand-rolling its own copies of those primitives -- that's a
--- cross-repo change to an already-working, independently-verified framework, and belongs in a reviewed
--- change to uilib's own repo, not something this file does unsupervised. This file only ever ADDS a
--- read-only alias field to Ess; it never touches ModNet/UI/Contract's own tables or files.
+-- NEVER a hard dependency: this file must load and Ess must work completely fine whether or not
+-- ContractFramework is deployed. Confirmed real global name, read directly from its own source:
+-- 1_ContractFramework.lua declares `_G.Contract` via the standard `_G.X = _G.X or {}` reload-safe idiom.
 
 local Ess = _G.Ess
-
--- Ess.Net is special: 70_net.lua already put a standalone Ess.Net.hijackCallback on it before this file
--- runs. A plain `Ess.Net = _G.ModNet` here would silently REPLACE that whole table with ModNet's own,
--- losing hijackCallback the moment ModNet is actually deployed alongside Ess -- exactly the kind of
--- ordering bug this project's own testing practice exists to catch. Preserve it across the adopt instead.
-if _G.ModNet then
-    local hijackCallback = Ess.Net and Ess.Net.hijackCallback
-    Ess.Net = _G.ModNet
-    if hijackCallback and not Ess.Net.hijackCallback then Ess.Net.hijackCallback = hijackCallback end
-else
-    Ess.Log("adopt: ModNet not present in this install -- Ess.Net unavailable")
-end
-
-if _G.UI then
-    Ess.UI = _G.UI
-else
-    Ess.Log("adopt: uilib (_G.UI) not present in this install -- Ess.UI unavailable")
-end
 
 if _G.Contract then
     Ess.Contract = _G.Contract
