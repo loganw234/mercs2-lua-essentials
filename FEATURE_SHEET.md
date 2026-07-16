@@ -264,6 +264,34 @@ hyperfocusing"): five more pieces built and live-verified in one pass.
   relations together) restored cash to the exact same `73400` value the overnight session's own test saw
   months earlier on this same save — a strong cross-session correctness signal, not just "didn't crash."
 
+**★★★ 2026-07-16/17 (unsupervised autonomous session, Logan's `/goal`) — two brand-new namespaces, not in
+the original plan, closing genuine "nothing wraps this at all yet" gaps found by surveying the wiki's
+Engine Namespaces section against what Ess actually covers:**
+- **`Ess.Sound`** (`src/56_sound.lua`) — the raw one-shot sound-effect/ambience layer (`Sound.CueSound`/
+  `StopSound`/`CueAmbience`/`StopAmbience`/`SetMasterVolume`), distinct from `Ess.Contract`'s `music`
+  support effect (which wraps the higher-level `MrxMusic` state machine) — genuinely nothing in the
+  framework played a plain sound effect before this. Plus `Ess.Easy.Sound.play(cue)`. Live-tested: `cue`/
+  `stop`/`volume` all ran error-free against a real confirmed cue name (`"sfx_survival_lp"`).
+- **`Ess.Human`** (`src/14_human.lua`) — weapon/inventory control and action playback for a character guid
+  (`Human.Inventory.EquipWeapon`/`DropWeapon`/`GetAllWeapons`/`GetPrimaryWeapon`/`GetSecondaryWeapon`/
+  `SetAllWeapons`/`ReloadAll`, `Human.DoAction`, `DisableWeapons`/`EnableWeapons`, `Knockdown`), plus the
+  small `Weapon` namespace's ammo functions folded in (`GetReserveAmmo`/`SetReserveAmmo`/
+  `GetMaxReserveAmmo`, and `refillAmmo` — the confirmed "set to max" one-liner duplicated across
+  `pmccon001.lua`/`vzacon001.lua`). Deliberately does NOT expose the top-level `Human.EquipWeapon` (zero
+  real call sites anywhere in the corpus) — only `Human.Inventory.EquipWeapon`, the confirmed-working form.
+  Live-tested thoroughly: `doAction`/`disableWeapons`/`enableWeapons`/`knockdown` on a spawned dummy;
+  `primaryWeapon`/`secondaryWeapon`/`allWeapons` against the player's real 4-weapon loadout; the full
+  ammo round-trip with exact numbers confirmed (`before=2 max=6 setAmmo(1)→1 refillAmmo()→6`);
+  `dropWeapon` confirmed via an exact before/after weapon-count change (2→1) on the dummy; `setAllWeapons`
+  ran error-free. `equipWeapon` itself ran error-free matching the confirmed reference exactly, but which
+  weapon ends up actively HELD couldn't be verified remotely — `GetPrimaryWeapon`/`GetSecondaryWeapon`
+  query fixed inventory slots, not current hold state, and no confirmed getter exists for that; an honest
+  limit, not a skipped step.
+- **`Ess.Player.targetUnderReticle(i)`** (`src/10_player.lua`) — wraps `Player.GetTargetUnderReticle`, the
+  literal flagship discovery that motivated the wiki's whole "Engine Namespaces" section (a function no
+  amount of plausible-name-guessing ever turned up, only live `pairs()` enumeration did). Live-tested:
+  returned a real guid and real world coordinates aimed at whatever the camera was pointed at.
+
 ## Non-goals
 
 - **SUPERSEDED 2026-07-16, all four** (see Design principle 1 below) — kept here for history. Originally:

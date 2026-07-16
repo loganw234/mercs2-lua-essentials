@@ -7,6 +7,8 @@
 --   Ess.Player.giveCash(n)                          routes through MrxPmc.AddCashQty (HUD-updating)
 --   Ess.Player.giveFuel(n)                          routes through MrxPmc.AddFuelQty (HUD-updating)
 --   Ess.Player.pose(i)      -> x, y, z, yaw, uChar, uPlayerSlot
+--   Ess.Player.targetUnderReticle(i) -> uGuid|nil, x, y, z    "what am I aiming at" -- the flagship reason
+--                                        the wiki's whole Engine Namespaces section exists at all
 
 import("MrxPmc")
 
@@ -91,4 +93,17 @@ function Ess.Player.pose(i)
     local oky, yv = pcall(Object.GetYaw, char)
     if oky and yv then yaw = yv end
     return px, py, pz, yaw, char, player
+end
+
+-- Ess.Player.targetUnderReticle(i) -> uGuid | nil, x, y, z
+-- CONFIRMED shape (wiki/namespaces/player.md): `nX, nY, nZ, uGuid = Player.GetTargetUnderReticle(uPlayerGuid)`
+-- -- the coordinates come back FIRST, the guid last (and nil if nothing's under the reticle). Ess.Player's
+-- own convention elsewhere puts the guid first as the primary return value, so this reorders on the way
+-- out rather than exposing the native's own coordinates-then-guid order.
+function Ess.Player.targetUnderReticle(i)
+    local slot = Ess.Player.slot(i)
+    if not slot then return nil end
+    local ok, x, y, z, g = pcall(Player.GetTargetUnderReticle, slot)
+    if not ok then return nil end
+    return g, x, y, z
 end
