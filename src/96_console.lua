@@ -89,6 +89,14 @@ local REGISTRY = {
     { ns = "Ess.Human", usage = "Ess.Human.knockdown(uChar, nDuration)",
       desc = "Knocks a character down for nDuration seconds." },
 
+    { ns = "Ess.Vehicle", usage = "Ess.Vehicle.exit(uVeh, uChar)",
+      desc = "Gets a character back out of a vehicle." },
+
+    { ns = "Ess.Hud", usage = "Ess.Hud.hint(sMsg, sId)",
+      desc = "Shows the native tutorial-style hint popup (icon+sound) with your own text." },
+    { ns = "Ess.Hud", usage = "Ess.Hud.banner(sMsg)",
+      desc = "A clean, icon-free, centered text banner across the middle of the screen." },
+
     { ns = "Ess", usage = "Ess.Log(msg)",
       desc = "Prints a line to the Lua bridge log (lua_loader_printf.log)." },
     { ns = "Ess.TextConsole", usage = "Ess.TextConsole.open{ onSubmit = fn }",

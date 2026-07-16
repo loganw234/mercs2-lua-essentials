@@ -60,6 +60,7 @@ MANIFEST = [
     "54_ui_chat.lua",
     "55_ui_board.lua",
     "56_sound.lua",
+    "57_hud.lua",
     "90_override.lua",
     "70_net.lua",
     "71_net_wire.lua",

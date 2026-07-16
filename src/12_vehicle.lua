@@ -6,6 +6,7 @@
 --   Ess.Vehicle.seatOf(uChar) -> sSeat | nil
 --   Ess.Vehicle.enterBestSeat(uChar, uVeh) -> ok
 --   Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats) -> ok, sSeatTypeUsed
+--   Ess.Vehicle.exit(uVeh, uChar) -> ok
 --   Ess.Vehicle.followGhost(template, x, y, z) -> ghost | nil         ghost.guid, ghost:update(x,y,z), ghost:remove()
 
 import("MrxUtil")
@@ -77,6 +78,18 @@ function Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats)
         end
     end
     return false, nil
+end
+
+-- Ess.Vehicle.exit(uVeh, uChar) -> ok
+-- The obvious missing complement to enterBestSeat/enterSeatExcluding -- getting a character back OUT of a
+-- vehicle. CONFIRMED signature+usage (destroyer-vehicle.md's DestroyerTool.lua, a real live-confirmed-
+-- working script): `Vehicle.Exit(uVehicle, uCharacter, bImmediate)`, called as
+-- `Vehicle.Exit(State.uBoat, uChar, true)`. Passes the same trailing `true` the confirmed reference uses;
+-- its exact semantics (beyond "make this happen right now" by naming convention) aren't pinned down by
+-- call-site evidence alone.
+function Ess.Vehicle.exit(uVeh, uChar)
+    local ok, result = pcall(Vehicle.Exit, uVeh, uChar, true)
+    return ok and result and true or false
 end
 
 -- Ess.Vehicle.followGhost(template, x, y, z) -> ghost | nil

@@ -291,6 +291,23 @@ Engine Namespaces section against what Ess actually covers:**
   literal flagship discovery that motivated the wiki's whole "Engine Namespaces" section (a function no
   amount of plausible-name-guessing ever turned up, only live `pairs()` enumeration did). Live-tested:
   returned a real guid and real world coordinates aimed at whatever the camera was pointed at.
+- **`Ess.Vehicle.exit(uVeh, uChar)`** (`src/12_vehicle.lua`) — the obvious gap that had gone unnoticed:
+  `enterBestSeat`/`enterSeatExcluding` existed with no matching way to get OUT of a vehicle. Wraps the
+  confirmed `Vehicle.Exit(uVehicle, uCharacter, bImmediate)`, same call shape as `destroyer-vehicle.md`'s
+  live-confirmed `DestroyerTool.lua`. Live-tested the not-in-a-vehicle path (returns `false`, no crash);
+  the full enter+exit round trip stays deferred for the same interior-cell bridge-stall risk already
+  flagged for `enterSeatExcluding` and the Contract `enter` handler.
+- **`Ess.Hud`** (`src/57_hud.lua`, NEW namespace) — native HUD popups using confirmed-working resident-
+  module patterns instead of a hand-rolled widget, distinct from `Ess.UI.Toast` (a custom `.gfx` movie).
+  `.hint(sMsg, sId, bBroadcast)`/`.hideHint` wrap `MrxTutorialManager.ShowMessage`/`HideMessage` — the same
+  generic, reusable tutorial-style icon+sound popup the wiki confirmed live with an actual screenshot
+  (`wiki/snippets.md`); defaults to local-only unlike the native's own default-to-broadcast, matching
+  Ess's safe-by-default convention. `.banner(sMsg)` wraps the confirmed `EventFanfare` "custom sType"
+  trick (`wiki/namespaces/hud.md`) for a clean, icon-free, centered text banner. Live-tested: `hint`/
+  `hideHint` (both matching and mismatched identifiers) and `banner` all ran error-free against the real
+  native calls — the visual result itself can't be confirmed remotely (no screenshot capability into this
+  game), so this rests on the wiki's own already-screenshot-confirmed source rather than re-proving the
+  visual here.
 
 ## Non-goals
 
