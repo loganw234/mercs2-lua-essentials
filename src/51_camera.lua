@@ -246,33 +246,76 @@ function Ess.Camera.panicRevert()
     for idx in pairs(Ess.Camera._cine) do Ess.Camera.endCinematic(idx) end
 end
 
--- Ess.Easy.Camera.watch(uGuid, opts) -> stop() -- the one-call cinematic: take over the camera and watch a
--- target (e.g. a helicopter you just spawned) fly in. Static by default: the camera sits at your current
--- spot (a bit higher) and stays locked on the target as it moves. opts.chase = true instead keeps the
--- camera trailing behind/above the target every tick. Call the returned stop() (or Ess.Camera.endCinematic)
--- to hand control back.
---   opts: bone (lock onto a specific bone/hardpoint), dist (chase trail distance, default 18),
---         height (camera height above the target, default 8), interval (chase update, default 0.05).
+local function xyzOf(p) if not p then return nil end return p.x or p[1], p.y or p[2], p.z or p[3] end
+
+-- pointAlongPath(path, frac) -> x,y,z -- position `frac` (0..1) of the way along a polyline of {x,y,z} points.
+local function pointAlongPath(path, frac)
+    local n = #path
+    if n == 0 then return 0, 0, 0 end
+    if n == 1 then return xyzOf(path[1]) end
+    local s = math.max(0, math.min(frac, 1)) * (n - 1)
+    local seg = math.floor(s)
+    local lf = s - seg
+    local ax, ay, az = xyzOf(path[seg + 1] or path[n])
+    local bx, by, bz = xyzOf(path[seg + 2] or path[n])
+    return ax + (bx - ax) * lf, ay + (by - ay) * lf, az + (bz - az) * lf
+end
+
+-- Ess.Easy.Camera.watch(uGuid, opts) -> stop() -- take over the camera and cinematically follow a target
+-- (e.g. a helicopter you spawned). Camera motion is LERP-SMOOTHED every tick, so it glides instead of
+-- snapping (no jitter). Call the returned stop() (or Ess.Camera.endCinematic) to hand control back.
+--
+-- opts.mode:
+--   "static"    (default) -- camera glides to a fixed vantage (opts.at, or your current spot) and pans to
+--               keep the target framed as it moves. The classic "locked-off tracking" shot.
+--   "chase"     -- camera smoothly trails BEHIND + above the target along its heading. A follow-cam.
+--   "cinematic" -- camera dollies along opts.path ({ {x,y,z}, ... }) over opts.pathTime seconds while
+--               panning to track the target -- the "fly off to the side and sweep across" shot. With no
+--               path but an opts.at, it's just a smooth move to that side vantage (same as static-at-a-spot).
+-- other opts: bone (lock onto a specific bone/hardpoint), dist (chase trail dist, 18), height (8),
+--             smooth (lerp 0..1 per tick, 0.12 -- lower = floatier), pathTime (dolly duration, 8), i.
 function Ess.Easy.Camera.watch(uGuid, opts)
     opts = opts or {}
     local i = opts.i
     if not Ess.Camera.beginCinematic(i, opts.blend) then return function() end end
-    if opts.chase then
-        local dist, height = opts.dist or 18, opts.height or 8
-        local id = "Ess.Camera.watch:" .. (i or 0)
-        Ess.Loop.start(id, opts.interval or 0.05, function()
-            local ok, tx, ty, tz = pcall(Object.GetPosition, uGuid)
-            if not ok or not tx then return true end
-            Ess.Camera.placeCamera(tx, ty + height, tz - dist, i)   -- trail behind (-Z) and above
-            Ess.Camera.lookAtObject(uGuid, opts.bone, i)
-            return true
-        end)
-    else
-        -- static vantage: sit where the player is standing (a little higher) and track the target
-        local px, py, pz = Ess.Player.pose(i or 0)
-        if px then Ess.Camera.placeCamera(px, py + 4, pz, i) end
-        Ess.Camera.lookAtObject(uGuid, opts.bone, i)
-        Ess.Camera.hold(i)
-    end
+    local mode = opts.mode or (opts.chase and "chase") or "static"
+    local smooth = opts.smooth or 0.12
+    local dist, height = opts.dist or 18, opts.height or 8
+    local id = "Ess.Camera.watch:" .. (i or 0)
+
+    -- smoothed camera position, seeded at the player's current spot so it glides in from there
+    local cx, cy, cz = Ess.Player.pose(i or 0)
+    if not cx then cx, cy, cz = 0, 0, 0 end
+    local atX, atY, atZ = xyzOf(opts.at)
+    local lastTx, lastTz            -- previous target pos, for chase heading
+    local t0 = Ess.Time.stamp()
+
+    Ess.Loop.start(id, 0.03, function()
+        local ok, tx, ty, tz = pcall(Object.GetPosition, uGuid)
+        if not ok or not tx then return true end
+        -- ideal camera position for this mode
+        local ix, iy, iz
+        if mode == "chase" then
+            local hx, hz = 0, -1                                   -- default trail from -Z
+            if lastTx then
+                local dx, dz = tx - lastTx, tz - lastTz
+                local l = math.sqrt(dx * dx + dz * dz)
+                if l > 0.05 then hx, hz = dx / l, dz / l end        -- trail along the target's heading
+            end
+            lastTx, lastTz = tx, tz
+            ix, iy, iz = tx - hx * dist, ty + height, tz - hz * dist
+        elseif mode == "cinematic" and opts.path then
+            ix, iy, iz = pointAlongPath(opts.path, Ess.Time.elapsed(t0) / (opts.pathTime or 8))
+        else                                                       -- static / cinematic-at-a-spot
+            ix, iy, iz = atX or cx, atY or cy, atZ or cz
+        end
+        -- LERP toward the ideal -- this is what removes the jitter
+        cx = cx + (ix - cx) * smooth
+        cy = cy + (iy - cy) * smooth
+        cz = cz + (iz - cz) * smooth
+        Ess.Camera.placeCamera(cx, cy, cz, i)
+        Ess.Camera.lookAtObject(uGuid, opts.bone, i)               -- pan to keep the target framed
+        return true
+    end)
     return function() Ess.Camera.endCinematic(i) end
 end
