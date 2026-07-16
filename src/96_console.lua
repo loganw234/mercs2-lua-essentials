@@ -84,6 +84,8 @@ local REGISTRY = {
       desc = "Lifts every active out-of-bounds volume, for every connected player at once." },
     { ns = "Ess.Player", usage = "Ess.Player.teleport(x, y, z, yaw)",
       desc = "Warps the player(s) to a world spot (the safe MrxUtil idiom, not raw SetPosition)." },
+    { ns = "Ess.Easy (World)", usage = "Ess.Easy.World.removeMapBoundary()",
+      desc = "Drops the invisible walls fencing you into the story-unlocked map -- roam the whole thing." },
 
     { ns = "Ess.Raw.Mark", usage = "Ess.Raw.Mark.pulse(uGuid, rgb)",
       desc = "Flashes an object's existing marker in a color -- draw attention to it." },
