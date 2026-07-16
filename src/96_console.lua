@@ -40,6 +40,11 @@ local REGISTRY = {
     { ns = "Ess.Raw.AIOrders", usage = "Ess.Raw.AIOrders.enable(g, bOn)",
       desc = "Freezes/unfreezes AI control of a subject -- hold it still for a scripted moment." },
 
+    { ns = "Ess.Easy.Cinematic", usage = "Ess.Easy.Cinematic.play(steps, onDone)",
+      desc = "Play a cutscene: an ordered list of camera/spawn/say/fly/fade steps. Skippable (ESC)." },
+    { ns = "Ess.Easy.Cinematic", usage = "Ess.Easy.Cinematic.shot(at, lookAt, seconds)",
+      desc = "Build one static camera shot (storyboard sugar for a play() steps list)." },
+
     { ns = "Ess.Easy.Relations", usage = "Ess.Easy.Relations.makeHostile(factionList)",
       desc = "Every faction in the list becomes hostile to PMC." },
     { ns = "Ess.Easy.Relations", usage = "Ess.Easy.Relations.makeAllies(factionList)",

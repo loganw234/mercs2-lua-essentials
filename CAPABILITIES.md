@@ -102,6 +102,7 @@ in-game.
 | `Ess.Camera` | Camera effects (top-level `Camera` + `Graphics.Camera` + `Graphics.Effect`, kept clear) | `.shake/.stopShake`, `.fov/.restoreFov`, `.fade(amt)` (+ `Easy.Camera.shake/fadeOut/fadeIn`), `.lookAtAnchor`, `.followHardpoint`, `.staleAxisDecay`; **cinematic:** `.beginCinematic/.placeCamera/.lookAtObject/.lookAtPoint/.hold/.endCinematic/.panicRevert` + `Easy.Camera.watch(uGuid, {chase=, angle=})` (locked-off tracking shot by default, or a `Blend 0` fixed-angle follow) + `Easy.Camera.orbit(uGuid, {radius=, speed=})` (smooth orbit). Steals control until `stop()`; use the static `watch` for high-velocity subjects |
 | `Ess.Bones` | The confirmed bone/hardpoint recipes | `.attachFX/.detachFX`, `.waitForReady`, `.aimVector`, `.probeNames` |
 | `Ess.Points` | Arena spawn-point selection | `.bucket(spawnList)`, `.ideal(pts, refX, refZ, opts)` |
+| `Ess.Cinematic` | A declarative **cutscene timeline** — the runtime the cinematic authoring suite feeds | `.play(steps, opts)` (steps: `camera`/`wait`/`spawn`/`order`/`fly`/`say`/`banner`/`hint`/`vo`/`music`/`fade`/`shake`/`teleport`/`relations`/`func`, each paced by `hold` seconds; steps share a `ctx` — `spawn name=`/`group=` register actors that later steps reference), `.skip()`, `.stop()`, `.isPlaying()`; always restores control on end/error, **skippable with ESC** (every remaining step still fires). `Ess.Easy.Cinematic.play(steps, onDone)` / `.shot(at, lookAt, seconds)` |
 
 ## Audio & HUD
 
