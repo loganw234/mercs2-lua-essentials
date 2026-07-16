@@ -29,6 +29,27 @@ function Ess.Easy.Relations.makeAllies(factionList)
     Ess.Easy.Relations._handle = Ess.Relations.apply(pairsList, "Easy.Relations")
 end
 
+-- Ess.Easy.Relations.war(factionA, factionB) -- make two factions fight EACH OTHER (mutually hostile),
+-- independent of the player. This is the faction-vs-faction case makeHostile CAN'T express -- makeHostile
+-- only ever means "hostile to PMC (you)", so "China attacks the Allies" needs this instead.
+function Ess.Easy.Relations.war(a, b)
+    Ess.Easy.Relations.restore()
+    Ess.Easy.Relations._handle = Ess.Relations.apply({ { a, b, "hostile" } }, "Easy.Relations")
+end
+
+-- Ess.Easy.Relations.sideWith(friendFaction, foeFaction) -- YOU (PMC) join `friend` against `foe` in one
+-- call: PMC allies `friend`, PMC is hostile to `foe`, and `friend` is at war with `foe`. The whole stance
+-- for "I'm helping side A crush side B" (e.g. sideWith("China","Allied") -- you back China's assault on the
+-- Allied refinery).
+function Ess.Easy.Relations.sideWith(friend, foe)
+    Ess.Easy.Relations.restore()
+    Ess.Easy.Relations._handle = Ess.Relations.apply({
+        { "PMC", friend, "ally" },
+        { "PMC", foe,    "hostile" },
+        { friend, foe,   "hostile" },
+    }, "Easy.Relations")
+end
+
 function Ess.Easy.Relations.restore()
     if Ess.Easy.Relations._handle then
         Ess.Relations.restore(Ess.Easy.Relations._handle)

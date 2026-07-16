@@ -135,7 +135,7 @@ without a running contract.
 | Namespace | Core | Easy |
 |---|---|---|
 | `Ess.AIOrders` | `.command(guids, behavior, opts, tracker)` — 11 behaviors (move/patrol/defend/attack/hold/face/follow/flee/enter/deploy/animate); `.setGroup/.group` | `.attack(guids, target)`, `.patrol(guids, points)`, `.guard(guids, at)` |
-| `Ess.Relations` | `.apply(pairs, label)` → **handle**, `.restore(handle)`, `.isActive(handle)`, `.getFeeling/.setFeeling` (per-individual) | `.makeHostile(factions)`, `.makeAllies(factions)`, `.restore()` |
+| `Ess.Relations` | `.apply(pairs, label)` → **handle**, `.restore(handle)`, `.isActive(handle)`, `.getFeeling/.setFeeling` (per-individual) | `.makeHostile(factions)`, `.makeAllies(factions)`, `.war(a, b)` (two factions fight each other), `.sideWith(friend, foe)` (you join `friend` against `foe`), `.restore()` |
 | `Ess.Triggers` | `.arm(spec, onFire, tracker)` (stateless); `.scope()` → an **isolated** `:arm/:armNamed/:gate/:declare/:markFired` namespace | `.onPlayerNear(x,y,z,r,fn)`, `.onDeath(guid,fn)`, `.after(seconds,fn)` |
 | `Ess.Sandbox` | `.begin(id, providerNames, opts)`, `.finish(id)`, `.isActive(id)` — providers: layers/economy/supports/relations, all save-gated | `.arena(id, opts)` (all providers on), `.done(id)` |
 | `Ess.Layers` | Save-clean `vz_state_*` layer manipulation for arenas/minigames: `.begin/.add/.remove/.swap/.expect/.composite/.finish`, `.isActive/.isLoaded/.snapshot/.current` | (used via `Ess.Sandbox`'s `layers` provider) |

@@ -54,6 +54,10 @@ local REGISTRY = {
 
     { ns = "Ess.Easy.Relations", usage = "Ess.Easy.Relations.makeHostile(factionList)",
       desc = "Every faction in the list becomes hostile to PMC." },
+    { ns = "Ess.Easy.Relations", usage = "Ess.Easy.Relations.war(a, b)",
+      desc = "Make two factions fight EACH OTHER (mutually hostile), independent of the player." },
+    { ns = "Ess.Easy.Relations", usage = "Ess.Easy.Relations.sideWith(friend, foe)",
+      desc = "You (PMC) join `friend` against `foe`: ally friend, hostile to foe, and friend vs foe at war." },
     { ns = "Ess.Easy.Relations", usage = "Ess.Easy.Relations.makeAllies(factionList)",
       desc = "Every pair within the list becomes mutually allied." },
     { ns = "Ess.Easy.Relations", usage = "Ess.Easy.Relations.restore()",
