@@ -71,6 +71,16 @@ end
 -- Needed because Event.TimerRelative's OWN delta freezes under world-pause (menus/PDA) but the wall clock
 -- does not -- every heartbeat in this project that has to keep working while the game is paused
 -- (uilib, WaveDefense, ForgeCam, MissionForge) ends up hand-rolling this exact 3-call primitive.
+--
+-- NOT the same thing as the later, public Ess.Time (23_time.lua) despite wrapping the identical 3 native
+-- calls -- found on a deep re-read of 42_ui_engine.lua that these two were built in different sessions
+-- without cross-referencing each other, so the distinction is spelled out here rather than left as a
+-- surprise: Ess.Timer is Ess.UI's PRIVATE per-frame delta helper -- :elapsed() auto-advances (each call
+-- measures "since my own last call") and CLAMPS to 0.25s so a hitch/pause can't blow up per-tick math.
+-- Ess.Time is the PUBLIC modder-facing API for cooldowns/"how long has X been going on" -- its elapsed()
+-- does NOT auto-advance (only an explicit mark() does), unclamped, because a cooldown check needs to be
+-- idempotent and see the true elapsed value, not reset itself just by being polled. Use Ess.Timer only
+-- for Ess.UI's own per-frame dt; reach for Ess.Time for anything modder-facing.
 -- ============================================================
 Ess.Timer = Ess.Timer or {}
 Ess.Timer.__index = Ess.Timer

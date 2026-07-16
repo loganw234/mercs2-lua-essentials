@@ -1,5 +1,11 @@
 -- Ess/23_time.lua -- Ess.Time: the Sys.*TimeStamp elapsed-time idiom + time-scale, wrapped.
 --
+-- NOT the same thing as Ess.Timer (20_loop.lua), despite wrapping the same 3 native calls -- see that
+-- file's own cross-reference comment for the full distinction. Short version: Ess.Timer is Ess.UI's
+-- private, auto-advancing, CLAMPED per-frame dt helper; this is the public cooldown/stamp API, explicit
+-- and unclamped, because a cooldown check must be idempotent (elapsed() alone never resets it, only mark()
+-- does). This is the one to reach for from mod code.
+--
 -- API:
 --   Ess.Time.stamp() -> uStamp                 real-world clock mark
 --   Ess.Time.mainStamp() -> uStamp              pausable/scaled-clock mark

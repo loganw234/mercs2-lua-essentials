@@ -546,6 +546,29 @@ Engine Namespaces section against what Ess actually covers:**
   Live-tested both `Ess.Triggers` fixes together: an empty-inputs gate logged the warning exactly once (not
   spammed per-poll) and its `onFire` callback never ran; a real 1-of-1 `armNamed`+`gate` pair still fired
   correctly after its condition was met, confirming no regression.
+- **Deep-read pass continued onto `70_net.lua`/`71_net_wire.lua`/`90_override.lua`** (the ModNet wire-
+  protocol port + the tail-call-crash-avoidance primitive it's built on) — traced the serialization/
+  deserialization TLV round-trip, the 3-bytes-per-number wire packing (including the deliberate trailing-
+  zero-padding-is-harmless reasoning for non-multiple-of-3 payloads), the chunked reassembly, the LWW
+  synced-state resolution, and `Ess.Override.wrap`'s calling convention against `hijackCallback`'s use of
+  it — all checked out correct and internally consistent, no new bugs found. Given this file's own header
+  already flags it as "confirmed-working production co-op code... not something to creatively rewrite," a
+  clean result here is reassuring rather than surprising, but still worth recording as a completed pass.
+- **A real naming/documentation gap found continuing onto `42_ui_engine.lua`**: that file uses `Ess.Timer`
+  (`20_loop.lua`, built earlier this project — an object with an auto-advancing, 0.25s-CLAMPED `:elapsed()`
+  for per-frame heartbeat dt) — which turns out to wrap the exact same 3 native calls
+  (`Sys.RealTimeStamp`/`TimeStampMark`/`TimeStampGetElapsed`) as the brand-new `Ess.Time` built earlier in
+  THIS session, without either ever cross-referencing the other. Traced through both carefully: they are
+  NOT accidental duplicates — `Ess.Timer`'s auto-advance-and-clamp behavior is correct and necessary for
+  its actual job (per-frame dt that can't blow up on a hitch), while `Ess.Time.elapsed()` deliberately does
+  NOT auto-advance (only an explicit `mark()` does) because a cooldown check must be idempotent — but the
+  near-identical names with zero mutual cross-reference was a genuine, confusing gap I introduced by not
+  checking for `Ess.Timer` before building `Ess.Time`. Added an explicit cross-reference comment to BOTH
+  files (which one is internal-only `Ess.UI` plumbing, which is the public modder-facing API, and why both
+  legitimately exist) rather than risk merging or renaming either this late in an unsupervised stretch —
+  `Ess.Timer` has a real, narrow consumer (`Ess.UI`'s own heartbeat) that a structural change would need to
+  re-verify. Comment-only; hot-reloaded and confirmed both namespaces still coexist correctly
+  (`Ess.Timer ~= nil` and `Ess.Time ~= nil` both `true`), no regression.
 
 ## Non-goals
 
