@@ -1,6 +1,7 @@
 -- Ess/65_cinematic.lua -- Ess.Cinematic: a declarative CUTSCENE TIMELINE runtime. Play an ordered list of
--- steps -- camera cuts/tracks/dollies, waits, spawns, AI orders, heli fly-ins, narration/VO, fades, shakes,
--- music, teleports -- pacing them with per-step "hold" durations. This is the engine a "cinematic suite"
+-- steps -- camera cuts/tracks/dollies/orbits/chases, waits, spawns + face (turn an actor), AI orders, heli
+-- fly-ins, narration/VO, fades, shakes, music, teleports -- pacing them with per-step "hold" durations. The
+-- engine a "cinematic suite"
 -- for mission building sits on: MissionForge captures the SPATIAL steps (camera vantages, look-at points,
 -- action markers) in-game, the web tool authors the SEQUENCING (order/durations/params), and both just emit
 -- a `steps` list this runs. Ess.Contract plays one as a mission intro (def.cinematic).
@@ -99,6 +100,64 @@ STEP.camera = function(step, ctx, seq)
             applyLook()   -- re-issue the look every tick (required for a MOVING camera to stay smooth)
             return true
         end)
+    end
+end
+
+-- {type="orbit", target=<ref>, radius=, height=, speed=, startAngle=, look=<ref>, bone=}
+-- Camera smoothly ORBITS a target (reading its live position each tick) -- the showcase shot for a spawned
+-- object. Runs on the same CAMMOVE loop a dolly uses, so the next camera/orbit/chase step (or the cutscene
+-- ending) cleanly takes over. Blend-0 (set at play()) keeps a moving camera smooth (the confirmed rule).
+STEP.orbit = function(step, ctx, seq)
+    Ess.Loop.stop(CAMMOVE_ID)
+    local tgt = resolveGuid(ctx, step.target)
+    if not tgt then return end
+    local look = (step.look and resolveGuid(ctx, step.look)) or tgt
+    local radius, height, spd = step.radius or 12, step.height or 4, math.rad(step.speed or 40)
+    local start, t0 = math.rad(step.startAngle or 0), Ess.Time.stamp()
+    Ess.Loop.start(CAMMOVE_ID, 0.033, function()
+        local ok, tx, ty, tz = pcall(Object.GetPosition, tgt)
+        if ok and tx then
+            local a = start + Ess.Time.elapsed(t0) * spd
+            Ess.Camera.placeCamera(tx + math.sin(a) * radius, ty + height, tz + math.cos(a) * radius, seq.i)
+            Ess.Camera.lookAtObject(look, step.bone, seq.i)
+        end
+        return true
+    end)
+end
+
+-- {type="chase", target=<ref>, angle=, dist=, height=, look=<ref>, bone=}
+-- Camera FOLLOWS a moving target from a FIXED world angle (a clean trailing shot -- a fixed angle avoids the
+-- velocity-heading jitter of an auto-trail). Tracking a moving VEHICLE: point look= at its pilot with
+-- bone="Bone_Chest" (SetLookAt object-track works on character bones, not vehicle hardpoints).
+STEP.chase = function(step, ctx, seq)
+    Ess.Loop.stop(CAMMOVE_ID)
+    local tgt = resolveGuid(ctx, step.target)
+    if not tgt then return end
+    local look = (step.look and resolveGuid(ctx, step.look)) or tgt
+    local dist, height = step.dist or 16, step.height or 6
+    local ar = math.rad(step.angle or 200)
+    local ox, oz = math.sin(ar) * dist, math.cos(ar) * dist
+    Ess.Loop.start(CAMMOVE_ID, 0.033, function()
+        local ok, tx, ty, tz = pcall(Object.GetPosition, tgt)
+        if ok and tx then
+            Ess.Camera.placeCamera(tx + ox, ty + height, tz + oz, seq.i)
+            Ess.Camera.lookAtObject(look, step.bone, seq.i)
+        end
+        return true
+    end)
+end
+
+-- {type="face", who=<ref>, at={x,y,z}} or {who=<ref>, toward=<ref>} -- a DIRECT ACTION: turn a spawned
+-- actor to face a world point, or another named actor (e.g. an officer turns to face the player as he talks).
+STEP.face = function(step, ctx)
+    local who = resolveGuid(ctx, step.who or step.target)
+    if not who then return end
+    if step.toward then
+        local t = resolveGuid(ctx, step.toward)
+        if t then Ess.Object.faceObject(who, t) end
+    else
+        local x, y, z = xyz(step.at)
+        if x then Ess.Object.faceToward(who, x, y, z) end
     end
 end
 
