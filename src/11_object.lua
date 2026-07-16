@@ -7,6 +7,7 @@
 --   -- transform
 --   Ess.Object.pos(uGuid) -> x,y,z | nil            Ess.Object.setPos(uGuid, x,y,z)   (teleport an OBJECT)
 --   Ess.Object.yaw(uGuid) -> n | nil                Ess.Object.setYaw(uGuid, n)
+--   Ess.Object.faceToward(uGuid, x,y,z)             Ess.Object.faceObject(uGuid, uTarget)  (turn to face)
 --   Ess.Object.distance(uGuidA, uGuidBOrX, yOrIgnoreY, z, bIgnoreY) -> n | nil   collapses
 --                                        Object.GetDistanceFrom's two confirmed forms into one call
 --   -- health & life
@@ -136,6 +137,21 @@ function Ess.Object.yaw(uGuid)
 end
 function Ess.Object.setYaw(uGuid, n)
     pcall(Object.SetYaw, uGuid, n)
+end
+
+-- Ess.Object.faceToward(uGuid, x, y, z) -- turn the object to face a world point (ground-plane yaw; the y
+-- arg is accepted for call convenience but not used). Uses Ess.Math.angleTo so the yaw convention matches
+-- the engine's own. The everyday "make this NPC/prop look at that spot" for a cutscene or a scripted stance.
+function Ess.Object.faceToward(uGuid, x, y, z)
+    local px, _, pz = Ess.Object.pos(uGuid)
+    if not px or x == nil then return end
+    pcall(Object.SetYaw, uGuid, Ess.Math.angleTo(px, pz, x, z))
+end
+
+-- Ess.Object.faceObject(uGuid, uTarget) -- same, but face another object's CURRENT position.
+function Ess.Object.faceObject(uGuid, uTarget)
+    local tx, ty, tz = Ess.Object.pos(uTarget)
+    if tx then Ess.Object.faceToward(uGuid, tx, ty, tz) end
 end
 
 -- ============================================================

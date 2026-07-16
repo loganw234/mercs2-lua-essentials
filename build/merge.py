@@ -31,6 +31,7 @@ DIST = ROOT / "dist"
 # position their dependencies require, not just appended at the end.
 MANIFEST = [
     "00_core.lua",
+    "01_math.lua",
     "10_player.lua",
     "11_object.lua",
     "12_vehicle.lua",
