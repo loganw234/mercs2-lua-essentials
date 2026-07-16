@@ -449,6 +449,21 @@ Engine Namespaces section against what Ess actually covers:**
   said "15 objective-type handlers" — the table actually has 16 (`protect`/`stay` were added after the
   count was last written). Also fixed two purely cosmetic stale filename banners
   (`54_ui_chat.lua`/`55_ui_board.lua` each still said `50_`/`51_` from before a renumbering).
+- **`Ess.Camera.fade(nAmount)`** (`src/51_camera.lua`) — wraps the confirmed `Graphics.Effect.CameraFade`
+  (`resident/mrxactionhijack.lua`), a full-screen fade keyed `0` (clear) to `1` (black) — a THIRD distinct
+  native table sharing "Camera" in name/vicinity with top-level `Camera` and `Graphics.Camera` (both
+  already covered in this file), included here for the same "a modder looks under Camera for any screen
+  effect" reasoning already established for `fov`/`restoreFov`. No duration argument exposed — none exists
+  at either confirmed real call site (both pass a bare `0` or `1`), matching this project's discipline
+  against guessing unconfirmed parameters. Plus `Ess.Easy.Camera.fadeOut()`/`.fadeIn()` — named presets
+  for the two confirmed values, no `0`/`1` to remember. Surveyed the rest of `Graphics` (21 top-level
+  entries, `Graphics.Atmosphere` alone has 36 sub-methods) and left it unwrapped: `Atmosphere`'s confirmed
+  `Begin`/`SetValue`/`End` convention needs ~13 barely-documented magic string keys to use safely (not a
+  simple one-line beginner primitive); `Bloom`/`Contrast`/`Monochrome` are one-time boot-config setters,
+  not runtime gameplay toggles; `FuelTrail` has zero confirmed call sites anywhere in the corpus. Live-
+  tested: `fadeOut()` then `fadeIn()` a second later, both ran error-free, screen left in the clear
+  (non-faded) state afterward — deliberately tested the round trip rather than just the one-shot call, to
+  avoid leaving the live game visually broken.
 
 ## Non-goals
 

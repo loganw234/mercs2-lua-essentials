@@ -125,6 +125,8 @@ local REGISTRY = {
       desc = "Shakes player i's camera, no preset name/amplitude to think about." },
     { ns = "Ess.Camera", usage = "Ess.Camera.fov(i, nAngle, nDuration)",
       desc = "Blends player i's field-of-view to a new angle over nDuration seconds (a zoom effect)." },
+    { ns = "Ess.Easy (Camera)", usage = "Ess.Easy.Camera.fadeOut() / .fadeIn()",
+      desc = "Full-screen fade to black / back in -- a mission-start/end or cutscene transition." },
 
     { ns = "Ess.Time", usage = "Ess.Time.cooldown(seconds)",
       desc = "Returns a ready() function -- call it anytime, true at most once per `seconds` window." },

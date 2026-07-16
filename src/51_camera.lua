@@ -9,13 +9,17 @@
 --   Ess.Camera.stopShake(i, uSource)                               for the "ConstantlyRandom" preset
 --   Ess.Camera.fov(i, nAngle, nDuration) / .restoreFov(i, nDuration)   Graphics.Camera.*FovParams --
 --                                          takes the player INDEX directly, NOT a camera guid (see below)
+--   Ess.Camera.fade(nAmount)                                          Graphics.Effect.CameraFade (0=clear,
+--                                          1=black) -- a THIRD distinct native table, see below
+--   Ess.Easy.Camera.shake(i) / .fadeOut() / .fadeIn()
 --
 -- NOTE this is the Camera.* namespace (chase-cam/look-at/position/shake), not Graphics.Camera (LOD/FOV/
 -- near-far) -- confirmed cross-namespace footgun (they share only a name), keep them separate. `fov`/
 -- `restoreFov` below ARE Graphics.Camera, deliberately placed in this same file (they're still "camera
 -- effects" from a modder's point of view) but calling a DIFFERENT native table with a DIFFERENT argument
 -- shape (an index, not a guid) than every other function here -- don't let the shared file confuse the
--- two namespaces underneath.
+-- two namespaces underneath. `fade` is yet a THIRD table (Graphics.Effect), included here for the same
+-- "modder looks under Camera for any screen/camera effect" reasoning.
 
 local Ess = _G.Ess
 Ess.Camera = Ess.Camera or {}
@@ -142,10 +146,28 @@ function Ess.Camera.restoreFov(i, nDuration)
     pcall(Graphics.Camera.RestoreFovParams, i or 0, nDuration or 1)
 end
 
+-- Ess.Camera.fade(nAmount) -- CONFIRMED (wiki/namespaces/graphics.md): Graphics.Effect.CameraFade(nAmount),
+-- a THIRD distinct native table sharing "Camera" in name/vicinity with top-level Camera and Graphics.Camera
+-- (see file header) -- a full-screen fade keyed 0 (clear) to 1 (black), used at the start/end of
+-- `resident/mrxactionhijack.lua`'s hijack cinematic. No duration argument exists at any confirmed call
+-- site (both real uses pass a bare 0 or 1), so none is exposed here -- don't guess one.
+function Ess.Camera.fade(nAmount)
+    pcall(Graphics.Effect.CameraFade, nAmount)
+end
+
 -- Ess.Easy.Camera.shake(i) -- zero-config "just shake the screen" for the common explosion/impact case.
 Ess.Easy = Ess.Easy or {}
 Ess.Easy.Camera = Ess.Easy.Camera or {}
 function Ess.Easy.Camera.shake(i)
     local char = Ess.Player.character(i)
     Ess.Camera.shake(i, "ShakeCameraMedium", char, 6, 5)
+end
+
+-- Ess.Easy.Camera.fadeOut() / .fadeIn() -- named presets for the two confirmed values, no 0/1 to remember.
+function Ess.Easy.Camera.fadeOut()
+    Ess.Camera.fade(1)
+end
+
+function Ess.Easy.Camera.fadeIn()
+    Ess.Camera.fade(0)
 end
