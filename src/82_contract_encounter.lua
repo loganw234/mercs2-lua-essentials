@@ -99,7 +99,7 @@ SUPPORT_EFFECTS.reinforce = function(inst, task, ev)         -- units arrive: de
     local function spawnOne(i, tmpl)
         local ox, oz = ((i - 1) % 3 - 1) * 4, math.floor((i - 1) / 3) * 4
         if ev.deliver == "copter" then pcall(MrxCopterDrop.Create, fac, tmpl, x + ox, y, z + oz, false)
-        else local ok, u = pcall(Pg.Spawn, tmpl, x + ox, y, z + oz); if ok then C._track(task, u) end end
+        else local ok, u = C._safeSpawn(tmpl, x + ox, y, z + oz); if ok then C._track(task, u) end end
     end
     if ev.deliver == "paradrop" then
         pcall(Airstrike.Flyby, ev.vehicle or "Support Vehicle (Paradrop_AL)", x - 350, z + 350, x, z, y + (ev.altitude or 180), ev.speed or 140)
@@ -180,7 +180,7 @@ function C._spawnUnits(inst)
         if type(tmpl) == "table" then tmpl = tmpl[1 + math.floor(math.randf(0, #tmpl - 0.001))] end   -- pick one of a list
         local x, y, z = C._xyz(u.at or { u.x, u.y, u.z })
         if tmpl and x and C._rchance(u.chance) then                                                    -- u.chance<1 = probabilistic spawn
-            local ok, g = pcall(Pg.Spawn, tmpl, x, y, z, u.yaw)
+            local ok, g = C._safeSpawn(tmpl, x, y, z, u.yaw)
             if ok and g then
                 C._track(task, g)
                 if u.yaw then pcall(Object.SetYaw, g, u.yaw) end

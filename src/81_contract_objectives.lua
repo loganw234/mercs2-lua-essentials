@@ -10,6 +10,7 @@ local C = Ess.Contract
 local track, mark, markZone, addEv = C._track, C._mark, C._markZone, C._addEv
 local resolveTargets = C._resolveTargets
 local xyz = C._xyz
+local safeSpawn = C._safeSpawn
 
 C.tHandlers.chase = function(inst, task, obj, onDone)       -- destroy a FLEEING target before it reaches its escape point
     local guids = resolveTargets(inst, task, obj)
@@ -110,7 +111,7 @@ end
 C.tHandlers.collect = function(inst, task, obj, onDone)
     local remaining, r = {}, obj.nRadius or 4
     for _, s in ipairs(obj.tItems or {}) do
-        local ok, u = pcall(Pg.Spawn, s[1], s[2], s[3], s[4])
+        local ok, u = safeSpawn(s[1], s[2], s[3], s[4])
         if ok and u then track(task, u); mark(task, u, "action"); remaining[#remaining + 1] = u end
     end
     local quota, got = obj.nQuota or #remaining, 0
@@ -137,7 +138,7 @@ end
 
 C.tHandlers.escort = function(inst, task, obj, onDone)
     local s = obj.tSpawn or {}
-    local ok, u = pcall(Pg.Spawn, s[1], s[2], s[3], s[4])
+    local ok, u = safeSpawn(s[1], s[2], s[3], s[4])
     if not ok or not u then Ess.Log("escort couldn't spawn"); return onDone(true) end
     track(task, u); mark(task, u, "defend")
     addEv(task, Event.Create(Event.ObjectDeath, { u }, function()
@@ -156,7 +157,7 @@ end
 
 C.tHandlers.enter = function(inst, task, obj, onDone)
     local u = obj.sTarget and Pg.GetGuidByName(obj.sTarget)
-    if not u and obj.tSpawn then local s = obj.tSpawn; local ok, uu = pcall(Pg.Spawn, s[1], s[2], s[3], s[4]); if ok then u = track(task, uu) end end
+    if not u and obj.tSpawn then local s = obj.tSpawn; local ok, uu = safeSpawn(s[1], s[2], s[3], s[4]); if ok then u = track(task, uu) end end
     if not u then Ess.Log("enter has no vehicle"); return onDone(true) end
     mark(task, u, "action")
     addEv(task, Event.Create(Event.ObjectInSeat, { Player.GetAnyCharacter(), u, obj.sSeat or "d", "ei" }, function()
@@ -183,7 +184,7 @@ end
 -- background fail-conditions (put in a contract's `fail = { ... }`; only ever fail, never complete).
 C.tHandlers.protect = function(inst, task, obj, onDone)
     local u = obj.sTarget and Pg.GetGuidByName(obj.sTarget)
-    if not u and obj.tSpawn then local s = obj.tSpawn; local ok, uu = pcall(Pg.Spawn, s[1], s[2], s[3], s[4]); if ok then u = track(task, uu) end end
+    if not u and obj.tSpawn then local s = obj.tSpawn; local ok, uu = safeSpawn(s[1], s[2], s[3], s[4]); if ok then u = track(task, uu) end end
     if not u then return end
     mark(task, u, "defend")
     addEv(task, Event.Create(Event.ObjectDeath, { u }, function()
@@ -215,7 +216,7 @@ end
 C.tHandlers.interact = function(inst, task, obj, onDone)
     local u, z = nil, obj.tZone
     if obj.sTarget then local ok, uu = pcall(Pg.GetGuidByName, obj.sTarget); if ok then u = uu end
-    elseif obj.tSpawn then local s = obj.tSpawn; local ok, uu = pcall(Pg.Spawn, s[1], s[2], s[3], s[4]); if ok then u = track(task, uu) end end
+    elseif obj.tSpawn then local s = obj.tSpawn; local ok, uu = safeSpawn(s[1], s[2], s[3], s[4]); if ok then u = track(task, uu) end end
     if u then local ok, x, y, zz = pcall(Object.GetPosition, u); if ok and x then z = { x = x, y = y, z = zz } end end
     if not z or not z.x then Ess.Log("interact has no target/location"); return onDone(true) end
     if u then mark(task, u, "action") end
@@ -240,7 +241,7 @@ end
 C.tHandlers.verify = function(inst, task, obj, onDone)
     local u
     if obj.sTarget then local ok, uu = pcall(Pg.GetGuidByName, obj.sTarget); if ok then u = uu end
-    elseif obj.tSpawn then local s = obj.tSpawn; local ok, uu = pcall(Pg.Spawn, s[1], s[2], s[3], s[4]); if ok then u = track(task, uu) end end
+    elseif obj.tSpawn then local s = obj.tSpawn; local ok, uu = safeSpawn(s[1], s[2], s[3], s[4]); if ok then u = track(task, uu) end end
     if not u then Ess.Log("verify has no HVT"); return onDone(true) end
     mark(task, u, "verify")
     addEv(task, Event.Create(Event.ObjectDeath, { u }, function()
@@ -282,7 +283,7 @@ C.tHandlers.extract = function(inst, task, obj, onDone)
             if need <= 0 then return onDone(true) end   -- INSTANT: reach the LZ and you're extracted
             if not boarding then
                 boarding = true
-                if obj.sHeli then local ok, h = pcall(Pg.Spawn, obj.sHeli, z.x, z.y + 4, z.z); if ok then track(task, h) end end
+                if obj.sHeli then local ok, h = safeSpawn(obj.sHeli, z.x, z.y + 4, z.z); if ok then track(task, h) end end
                 Ess.Log("  extraction inbound - hold the LZ")
             end
             held = held + step

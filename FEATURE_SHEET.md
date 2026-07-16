@@ -338,6 +338,17 @@ Engine Namespaces section against what Ess actually covers:**
   Live-tested both end to end: `.reach` at the player's own position instant-completed
   (`id="easy1" status=complete`); `.destroy` correctly incremented to `id="easy2"`, spawned and tracked a
   real target, and completed on kill.
+- **Fixed a real gap found by auditing against this file's own Known Bug #8** (below): 8 `Pg.Spawn` call
+  sites across `80_contract.lua`/`81_contract_objectives.lua`/`82_contract_encounter.lua` called
+  `pcall(Pg.Spawn, ...)` directly with no blank-template validation first — inherited unchanged from the
+  ORIGINAL `ContractFramework.lua`, which never had this guard either. A contract author's typo'd blank
+  `tSpawns`/`def.units` template string could hard-CTD the game (pcall cannot catch a native crash). Added
+  a shared `C._safeSpawn(template, x, y, z, yaw)` helper (`80_contract.lua`) matching the guard pattern
+  already used by `Ess.Vehicle.followGhost`/`Ess.Bones.attachFX`/`Ess.UI.Menu`'s `ctx:spawn`, and routed
+  every Contract spawn call site through it. Live-tested: a contract with two blank/whitespace spawn
+  templates completed instantly (0 valid targets) with the bridge staying fully responsive afterward — no
+  crash — while the same test with a real `"blanco"` template still spawned, tracked, and completed
+  normally (full regression check, not just the new guard in isolation).
 
 ## Non-goals
 

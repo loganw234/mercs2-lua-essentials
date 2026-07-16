@@ -145,13 +145,31 @@ local function collectInArea(x, y, z, r, kind, faction, label)
 end
 C._collectInArea = collectInArea   -- exposed for 82_contract_encounter.lua
 
+-- safeSpawn(template, x, y, z, yaw) -> ok, uGuid
+-- CONFIRMED real gap found auditing this port against FEATURE_SHEET.md's own Known Bug #8: a blank/
+-- whitespace Pg.Spawn template string hard-CRASHES the engine (an empty name resolves to a null asset in
+-- native C++), and pcall canNOT catch a native crash, only a Lua error -- every Ess helper that reaches
+-- Pg.Spawn must validate the template BEFORE calling it, matching the guard already used in
+-- Ess.Vehicle.followGhost/Ess.Bones.attachFX/Ess.UI.Menu's ctx:spawn. The ORIGINAL ContractFramework.lua's
+-- own Pg.Spawn call sites (the direct ancestor of every one in this file and 81/82) never had this guard
+-- either -- a contract author's typo'd blank tSpawns[1]/def.units spawn field could CTD the game. Fixed
+-- here, not present in the original; every Contract Pg.Spawn call site in this file and 81/82 goes
+-- through this instead of a bare pcall(Pg.Spawn, ...).
+local function safeSpawn(template, x, y, z, yaw)
+    if type(template) ~= "string" or template:match("^%s*$") then
+        Ess.Log("Contract: blank spawn template rejected (would CTD Pg.Spawn)")
+        return false, nil
+    end
+    return pcall(Pg.Spawn, template, x, y, z, yaw)
+end
+
 -- flat list of target guids from obj.tSpawns (spawned + tracked for removal), obj.tObjects (named
 -- placements) and obj.tWhere (a live FastCollect query). Existing world objects are NOT tracked, so
 -- they're never removed on cleanup.
 local function resolveTargets(inst, task, obj)
     local out = {}
     for _, s in ipairs(obj.tSpawns or {}) do
-        local ok, u = pcall(Pg.Spawn, s[1], s[2], s[3], s[4])
+        local ok, u = safeSpawn(s[1], s[2], s[3], s[4])
         if ok and u then track(task, u); if s[5] then pcall(Object.SetYaw, u, s[5]) end; out[#out + 1] = u end
     end
     for _, name in ipairs(obj.tObjects or {}) do
@@ -415,3 +433,4 @@ end
 C._track, C._mark, C._markZone, C._addEv = track, mark, markZone, addEv
 C._hudLine, C._hudSay, C._rspan, C._rchance = hudLine, hudSay, rspan, rchance
 C._resolveTargets, C._grantReward, C._xyz = resolveTargets, grantReward, xyz
+C._safeSpawn = safeSpawn
