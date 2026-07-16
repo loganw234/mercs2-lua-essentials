@@ -9,6 +9,10 @@
 --   Ess.Relations.apply(id, pairs) -- pairs = { {a,b,set}, ... } or { {a=,b=,set=}, ... }
 --   Ess.Relations.restore(id)
 --   Ess.Relations.isActive(id) -> bool
+--   Ess.Relations.getFeeling(uGuidA, uGuidB) -> n / .setFeeling(uGuidA, uGuidB, n)   INDIVIDUAL-pair
+--                                                relation (Ai.GetFeeling/SetFeeling), distinct from the
+--                                                FACTION-level apply/restore above -- no snapshot/restore
+--                                                needed, it's a thin direct wrapper
 
 import("MrxFactionManager")
 
@@ -74,4 +78,24 @@ end
 
 function Ess.Relations.isActive(id)
     return Ess.Relations._active[id] ~= nil
+end
+
+-- Ess.Relations.getFeeling(uGuidA, uGuidB) -> n / .setFeeling(uGuidA, uGuidB, n)
+-- CONFIRMED (wiki/namespaces/ai.md): Ai.GetFeeling/SetFeeling is a per-INDIVIDUAL-pair relationship value,
+-- distinct from the per-FACTION Ai.GetRelation/SetRelation the apply/restore functions above are built on
+-- -- real confirmed use (mrxfollow.lua): SetFeeling(uGuid, uTarget, 100) to neutralize hostility on a
+-- SPECIFIC subject before starting a scripted "Follow" role, without touching that subject's whole
+-- faction's stance. Pairs naturally with Ess.AIOrders' own "follow" behavior for exactly that case.
+--
+-- CONFIRMED LIVE GOTCHA this session: a FRESHLY Pg.Spawn'd character's feeling reads back as a stale 0 if
+-- queried in the same tick as the spawn -- the same class of "needs a moment to settle" delay already
+-- documented for Ess.Bones (hardpoints nil for ~0.3s after spawn). Wait at least one tick/frame after
+-- spawning before calling getFeeling/setFeeling on a target you just created.
+function Ess.Relations.getFeeling(uGuidA, uGuidB)
+    local ok, n = pcall(Ai.GetFeeling, uGuidA, uGuidB)
+    return (ok and n) or 0
+end
+
+function Ess.Relations.setFeeling(uGuidA, uGuidB, n)
+    pcall(Ai.SetFeeling, uGuidA, uGuidB, n)
 end

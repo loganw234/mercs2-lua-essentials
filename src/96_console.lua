@@ -42,6 +42,8 @@ local REGISTRY = {
       desc = "Every pair within the list becomes mutually allied." },
     { ns = "Ess.Easy.Relations", usage = "Ess.Easy.Relations.restore()",
       desc = "Undo the last Easy.Relations change." },
+    { ns = "Ess.Relations", usage = "Ess.Relations.setFeeling(uGuidA, uGuidB, n)",
+      desc = "Sets how one specific character feels about another (not the whole faction)." },
 
     { ns = "Ess.Easy.Triggers", usage = "Ess.Easy.Triggers.onPlayerNear(x, y, z, r, fn)",
       desc = "Calls fn() once the player gets within r of a point." },

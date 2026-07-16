@@ -380,6 +380,16 @@ Engine Namespaces section against what Ess actually covers:**
   object's own guid directly, not a marker handle — the one function on this file that doesn't follow the
   handle-based pattern. Live-tested against a marked player character: pulse fired, halt fired, zero
   errors.
+- **`Ess.Relations.getFeeling`/`.setFeeling(uGuidA, uGuidB, n)`** (`src/61_relations.lua`) — wraps
+  `Ai.GetFeeling`/`SetFeeling`, a genuinely distinct per-INDIVIDUAL-pair relationship value, not the
+  per-FACTION one `Ess.Relations.apply`/`.restore` are built on. Real confirmed use (`mrxfollow.lua`):
+  neutralize hostility on one specific subject before starting a scripted `Ess.AIOrders` "follow" role,
+  without touching that subject's whole faction's stance. **Confirmed a new live gotcha while testing**: a
+  freshly `Pg.Spawn`'d character's feeling reads back as a stale `0` if queried in the SAME tick as the
+  spawn — the exact same class of "needs a moment to settle" delay already documented for `Ess.Bones`
+  (hardpoints nil for ~0.3s post-spawn), just discovered independently for this different native system.
+  Live-tested correctly after a 1s settle: `before=-100` (real initial hostile value) → `setFeeling(100)` →
+  `after=100`.
 
 ## Non-goals
 
