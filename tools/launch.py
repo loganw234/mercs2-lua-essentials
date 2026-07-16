@@ -31,9 +31,10 @@ STEPS
                      fully certain a single button covers every skip prompt), re-focus, one
                      deliberate START to clear the title screen (idling there starts a demo reel -- don't
                      wait long), re-focus, wait for the main menu, one more deliberate START to go from the
-                     default "Continue" selection to the "play online?" prompt, then STOP (deliberately --
-                     the default choice on that prompt isn't confirmed yet, so this macro never resolves
-                     it). Tune the --*-wait / --cutscene-* flags below if actual timing on your machine
+                     default "Continue" selection to the "play online?" prompt, then a final burst of
+                     alternating A/START taps (--resolve-taps, --resolve-gap apart) to push past that
+                     prompt into an actual loaded game -- confirmed harmless to over-press. Tune the
+                     --*-wait / --cutscene-* / --resolve-* flags below if actual timing on your machine
                      differs.
   --all              the whole chain, in order
   --stop-controller  tell a running xpad server to disconnect the virtual pad and exit
@@ -269,7 +270,8 @@ def launch(game_dir):
     )
 
 
-def skip_intro(pid, port, focus_wait, boot_wait, cutscene_taps, cutscene_gap, title_wait, menu_wait):
+def skip_intro(pid, port, focus_wait, boot_wait, cutscene_taps, cutscene_gap, title_wait, menu_wait,
+                resolve_taps=4, resolve_gap=4.0):
     print(f"[launch] skip-intro: waiting {focus_wait}s for the game window to appear")
     time.sleep(focus_wait)
     focus_game_window(pid)
@@ -296,8 +298,16 @@ def skip_intro(pid, port, focus_wait, boot_wait, cutscene_taps, cutscene_gap, ti
     time.sleep(menu_wait)
     focus_game_window(pid)
     xpad.send(["TAP", "START", "0.1"], port)
-    print("[launch] skip-intro: at the 'play online?' prompt -- stopping here on purpose "
-          "(default choice not yet confirmed); sequence complete")
+    print("[launch] skip-intro: at the 'play online?' prompt")
+
+    if resolve_taps > 0:
+        print(f"[launch] skip-intro: tapping A/START (alternating) x{resolve_taps}, {resolve_gap}s apart, "
+              "to push past the online-play prompt into an actual loaded game (Logan: extras don't hurt)")
+        resolve_buttons = ["A", "START"]
+        for i in range(resolve_taps):
+            time.sleep(resolve_gap)
+            xpad.send(["TAP", resolve_buttons[i % 2], "0.1"], port)
+    print("[launch] skip-intro: sequence complete")
 
 
 def status(game_dir, port):
@@ -338,6 +348,8 @@ def main():
     ap.add_argument("--cutscene-gap", type=float, default=4.8, help="seconds between cutscene-skip taps (give the engine time to actually transition between scenes)")
     ap.add_argument("--title-wait", type=float, default=2.4, help="seconds to wait at the title screen before tapping past it")
     ap.add_argument("--menu-wait", type=float, default=3.2, help="seconds to wait for the main menu before the final tap")
+    ap.add_argument("--resolve-taps", type=int, default=4, help="extra alternating A/START taps after the 'play online?' prompt, to push into an actual loaded game")
+    ap.add_argument("--resolve-gap", type=float, default=4.0, help="seconds between the extra resolve taps")
     args = ap.parse_args()
 
     game_dir = pathlib.Path(args.game_dir)
@@ -373,7 +385,8 @@ def main():
             print("[launch] skip-intro FAILED: no --launch in this run, so there's no known game PID to focus")
             sys.exit(1)
         skip_intro(proc.pid, args.port, args.focus_wait, args.boot_wait, args.cutscene_taps,
-                   args.cutscene_gap, args.title_wait, args.menu_wait)
+                   args.cutscene_gap, args.title_wait, args.menu_wait,
+                   args.resolve_taps, args.resolve_gap)
 
     if proc is not None:
         code = proc.poll()

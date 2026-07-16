@@ -18,16 +18,24 @@ plus `Ess.RNG` pulled forward from Group F — all single-tier, zero dependency 
 `ContractFramework`. Source in `src/00_core.lua` through `src/53_rng.lua`; `build/merge.py` concatenates
 them into `dist/Ess.lua` (gitignored, build it yourself: `python build/merge.py`). Verified with the
 existing corpus's own `tools/loadcheck.py` — loads clean, chunk reaches the bottom, boot line fires.
-**Deploy pipeline CONFIRMED in-engine 2026-07-16:** `tools/launch.py` (build -> deploy -> virtual-
-controller -> launch -> menu-navigation, see `tools/README.md`) drove the actual game from a cold start
-to the main-menu "play online?" prompt, and `scripts/lua_loader_printf.log` in the live game folder showed
-`[Ess] v0.1.0 ready` — the merged `dist/Ess.lua`, deployed as `1_Ess.lua`, loaded clean under the REAL
-engine (not just `loadcheck.py`'s stubbed lupa environment). This confirms the `do...end`-per-file merge
-strategy and every Group A-D + RNG function's *load-time* behavior in-engine. **Individual function
-BEHAVIOR is still unverified** — reaching the boot line only proves the chunk loaded without error, not
-that e.g. `Ess.Player.character(1)` returns the right thing in co-op. `tools/xpad.py` (a virtual Xbox 360
-controller over a local TCP socket, ViGEmBus + `vgamepad`) exists specifically to drive further tests like
-`Ess.Input.hijackController` against real controller events once there's an actual probe script for it.
+**Deploy pipeline + first real BEHAVIORAL verification CONFIRMED in-engine 2026-07-16:** `tools/launch.py`
+(build -> deploy -> virtual-controller -> launch -> menu-navigation all the way into an actual loaded
+game) + `tools/lua_repl.py` (a rewritten, log-based live REPL — see `tools/README.md`) together confirmed,
+against the real running game (not `loadcheck.py`'s stubbed lupa environment):
+- The merged `dist/Ess.lua` loads clean (`[Ess] v0.1.0 ready` in `lua_loader_printf.log`).
+- **`Ess.Player.character(0)` returns the EXACT same guid as `Player.GetLocalCharacter()`** — the flagship
+  convenience function, byte-for-byte verified, not just load-checked.
+- The error path works: a deliberately broken call correctly surfaces the real Lua traceback through the
+  log-tag mechanism (`attempt to call global '...' (a nil value)`), not just a generic failure.
+- **`Ess.RNG` produces real, varying values in the ACTUAL 32-bit-float engine** (`Ess.RNG.new(1)` drawing
+  3 values in a row: `0.001 0.086 0.437`) — this is the single most important hard-won fact in the whole
+  project (the big-LCG-degenerates trap) confirmed working live, not just reasoned about.
+
+**Still unverified:** everything else in Groups A-D + RNG hasn't been individually exercised yet (only
+`Ess.Player.character`/`Ess.RNG` have real behavioral confirmation so far) — `tools/lua_repl.py` now makes
+checking any of them a one-line `--code` call away. `tools/xpad.py` (virtual Xbox 360 controller) exists
+specifically to drive further tests like `Ess.Input.hijackController` against real controller events once
+there's a probe script for it.
 
 **Two documented gaps, left honest rather than guessed:** `Ess.Vehicle.enterSeatExcluding` falls back to
 `enterBestSeat` without enforcing the exclusion (the real native call wasn't confirmed against primary

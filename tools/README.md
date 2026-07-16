@@ -42,9 +42,9 @@ python tools/xpad.py send QUIT
 ```
 
 Full protocol + button names are in `xpad.py`'s own docstring. Verified standalone (server up, all
-commands round-tripping correctly including a bad-button error case, clean QUIT) on 2026-07-16 --
-**not yet exercised against the live game**, since that needs the game launched with the server already
-up per the quirk above.
+commands round-tripping correctly including a bad-button error case, clean QUIT) on 2026-07-16, and
+CONFIRMED live-driving the actual game (see `launch.py` below, which uses it for the whole intro/menu
+sequence) the same day.
 
 ## `launch.py` -- build -> deploy -> launch -> skip-intro, one command
 
@@ -58,24 +58,60 @@ the game -> bring its window to the foreground (SetForegroundWindow + a belt-and
 since synthetic controller input goes wherever OS focus is and launching a process does NOT hand it focus)
 -> an open-loop button macro: alternating START/A taps to clear the intro cutscene(s), one deliberate START
 past the title screen (idling there starts a demo reel), one more to go from the default "Continue"
-selection to the "play online?" prompt, then stop. Steps are also available individually
-(`--build`/`--deploy`/`--controller`/`--launch`/`--skip-intro`), plus `--status` (read-only) and
-`--stop-controller`. Full flag list in the script's own `--help`/docstring.
+selection to the "play online?" prompt, then a final `--resolve-taps` burst of alternating A/START
+(4 taps, 4s apart by default) to push past that prompt into an actual loaded game. Steps are also
+available individually (`--build`/`--deploy`/`--controller`/`--launch`/`--skip-intro`), plus `--status`
+(read-only) and `--stop-controller`. Full flag list in the script's own `--help`/docstring.
 
-**CONFIRMED working end-to-end 2026-07-16** (after two rounds of live tuning with Logan watching the
-screen — this tool has no visual feedback loop of its own, all timing is open-loop/fixed-delay): reached
-the "play online?" prompt from a cold launch, and `lua_loader_printf.log` showed `[Ess] v0.1.0 ready` —
-real in-engine confirmation the deploy pipeline works, not just a `loadcheck.py` pass. Fixes that took two
-iterations to find: (1) the game window needs OS focus or synthetic input lands nowhere — launching a
-process doesn't give it focus by itself; (2) a fresh virtual pad needs a settle delay before the game's
-own controller enumeration at boot, beyond what our own liveness check confirms; (3) intro cutscenes
-apparently don't all skip on the same button, so the burst alternates START/A rather than mashing one.
+**CONFIRMED working end-to-end 2026-07-16** (after several rounds of live tuning with Logan watching the
+screen — this tool has no visual feedback loop of its own, all timing is open-loop/fixed-delay): reaches
+an actual loaded game from a cold launch, confirmed by `[Ess] v0.1.0 ready` appearing in
+`lua_loader_printf.log`. Fixes that took iteration to find: (1) the game window needs OS focus or
+synthetic input lands nowhere — launching a process doesn't give it focus by itself; (2) a fresh virtual
+pad needs a settle delay before the game's own controller enumeration at boot, beyond what our own
+liveness check confirms; (3) intro cutscenes don't all skip on the same button, so bursts alternate
+START/A rather than mashing one; (4) the very first successful run actually sailed past the "play
+online?" prompt into a real game by itself (generous timing + tolerance for over-presses), which is why
+the sequence now deliberately keeps going with `--resolve-taps` instead of trying to stop exactly on that
+one screen.
+
+## `lua_repl.py` -- log-based live REPL into the running game
+
+Rewritten 2026-07-16 from the docs-corpus original (`docs/mercs2-luacd/tools/lua_repl.py`, sibling repo)
+after Logan flagged that version's `return`-over-socket handling as unreliable. The bridge's socket output
+is genuinely one-execution-behind (it flushes chunk N's result on the NEXT connection), which the original
+worked around with a fragile nonce+poll-with-flush-chunks dance. **This version has the chunk itself
+Loader.Printf its result (tagged with a per-call nonce) to `lua_loader_printf.log`, and treats that log as
+the authoritative result channel** — reading an append-only file has none of the socket's buffering
+ambiguity. The socket is still used to send the code and to surface an immediate (but explicitly
+advisory/possibly-stale) error signal.
+
+```
+python tools/lua_repl.py --code 'return Player.GetCash()'
+python tools/lua_repl.py --file experiment.lua
+python tools/lua_repl.py --probe                                   # is the bridge reachable?
+python tools/lua_repl.py --log-size                                # byte offset -- record before launching
+python tools/lua_repl.py --wait-log "[Ess]" --since-bytes N --wait-timeout 90   # block until OnLoad ran
+```
+
+**CONFIRMED end-to-end 2026-07-16**, against a real loaded game reached via `launch.py --all`:
+- `return 1+1` -> `2` (basic round-trip).
+- `Ess` confirmed loaded and reachable (`Ess.VERSION` read back correctly).
+- **`Ess.Player.character(0) == Player.GetLocalCharacter()`** -> `true` — the flagship convenience
+  function verified to return the EXACT same guid as the native call, not just "loads without error."
+- A deliberately broken call correctly surfaced the real Lua traceback via the ERR-tagged path
+  (`attempt to call global '...' (a nil value)`).
+- **`Ess.RNG.new(1)` drew 3 real, varying values live in the actual 32-bit-float engine** — behavioral
+  confirmation of the single most important hard-won fact in this whole project, not just reasoning about
+  it offline.
+
+Single-line results only (a `tostring()`'d value containing its own newline truncates at the first one) --
+fine for scalars/coordinates, not for dumping a big table; nothing has needed more than that yet.
 
 ### Suggested next test: `Ess.Input.hijackController`
 
-Combine this with `docs/mercs2-luacd/tools/lua_repl.py` (the live Lua bridge, TCP 127.0.0.1:27050, in the
-sibling docs corpus): have a probe script register `Ess.Input.hijackController` and log every event it
-receives, drive the virtual pad's stick/buttons via `xpad.py`, then read the log back over the REPL to
-confirm the hijack actually receives real controller input (and that the "letters only while hijacked"
-caveat about the underlying PDA claiming arrows holds up). This is the concrete next step flagged in
-`FEATURE_SHEET.md`'s Implementation status section.
+Have a probe script register `Ess.Input.hijackController` and log every event it receives, drive the
+virtual pad's stick/buttons via `xpad.py`, then read the log back via `lua_repl.py` to confirm the hijack
+actually receives real controller input (and that the "letters only while hijacked" caveat about the
+underlying PDA claiming arrows holds up). This is the concrete next step flagged in `FEATURE_SHEET.md`'s
+Implementation status section.

@@ -21,10 +21,12 @@ inside `WaveDefense.lua`/`ContractFramework.lua`.
   one deployable `dist/Ess.lua`. Run `python build/merge.py` from anywhere; it resolves its own paths.
 - `dist/` — the generated file. **Gitignored, not committed** — build it yourself before deploying.
 - `tools/` — testing infrastructure (not part of the `Ess` library itself). `xpad.py` is a virtual
-  Xbox 360 controller (ViGEmBus + `vgamepad`), driven over a local TCP socket, for exercising
-  controller-driven code like `Ess.Input.hijackController` end to end. `launch.py` chains
+  Xbox 360 controller (ViGEmBus + `vgamepad`), driven over a local TCP socket. `launch.py` chains
   build -> deploy -> launch -> menu-navigation into one command (`python tools/launch.py --all`),
-  confirmed working end-to-end 2026-07-16. See `tools/README.md`.
+  confirmed working end-to-end into an actual loaded game. `lua_repl.py` is a log-based live REPL into
+  the running game (rewritten from the docs-corpus original) — confirmed 2026-07-16 that
+  `Ess.Player.character(0)` returns the exact same guid as the native call, and `Ess.RNG` produces real
+  varying values live. See `tools/README.md`.
 
 ## Quick start (once you've built `dist/Ess.lua`)
 
