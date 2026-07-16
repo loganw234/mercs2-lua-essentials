@@ -1,4 +1,9 @@
-# Ess — Feature Sheet (working design doc, v0.1)
+# Ess — Feature Sheet (design doc + build log)
+
+> **Looking for what Ess can do today?** See **[CAPABILITIES.md](CAPABILITIES.md)** — a clean current-state
+> reference organized by what you reach for. THIS document is the original forward design doc plus the full
+> append-only build history (why things are the way they are, every bug found, every pivot). Read it for
+> rationale and provenance; read CAPABILITIES.md for the current API surface.
 
 `Ess` (global `_G.Ess`, long form "Essentials") is the foundational Lua library for Mercenaries 2
 modding. Its job: take every hard-won pattern this project has discovered — bone manipulation, the
@@ -623,6 +628,40 @@ Engine Namespaces section against what Ess actually covers:**
   free navigation and post-`items()` reselection, and the empty-list edge case (a temporarily out-of-range
   `_sel=1` that never gets read for indexing while `n==0`, so it's safe despite looking stale) all check
   out self-consistent with the file's own documented behavior. No source change.
+
+**★★★ 2026-07-17 — the four footguns the deep-read arc found were promoted from documented-warnings to
+STRUCTURAL fixes** (Logan, on return, cleared this explicitly: "address the 4 issues... backwards
+compatibility is ONLY required for the original uilib menu system"). This closed the last real gap against
+Design Principle 2 ("structural safety over documentation" — make a footgun impossible, don't warn about
+it). All four live-tested against the running game, four commits:
+- **Save-gate ordering hazard → one shared `Ess.Save` gate** (`2ceabf6`, new `src/24_save.lua`). The real
+  root cause was TWO subsystems each owning `Pg.SaveGame` (Layers' raw stash-and-swap + Sandbox's lazily-
+  installed wrap), so one's restore could silently discard the other's. Now a single never-uninstalled wrap
+  suppresses saves while ≥1 holder key is active; Layers and Sandbox just add/remove holder keys, never
+  touching `Pg.SaveGame` directly — clobbering is impossible by construction. Also: holders reset on world
+  reload (old design could stick gated forever), Sandbox gates per-id (concurrent sandboxes independent),
+  and a fully-failed `begin()` no longer strands a holder. Live-tested the exact hazard sequence: Layers-
+  direct → Sandbox-first-install-while-active → Layers.finish() STAYS gated (Sandbox still holds) → clean
+  release; plus a gated `Pg.SaveGame` confirmed suppressed.
+- **`Ess.Triggers` id-collision → per-scope state** (`57f382a`). Removed the global `_known`/`_fired` tables
+  and the top-level `armNamed`/`gate` (which needed a shared namespace). `Ess.Triggers.scope()` returns an
+  isolated `:arm/:armNamed/:gate/:declare/:markFired` namespace; two scopes can't interfere no matter what
+  ids they reuse. `Ess.Contract` gives each instance its own scope instead of hand-prefixing ids. Live-
+  tested: scope A firing `"start"` does NOT satisfy scope B's identically-named gate.
+- **`Ess.Relations` id-collision → handle-based** (`57f382a`, same commit). `apply(pairs, label)` returns an
+  opaque handle; `restore(handle)` undoes exactly that one apply. Two applies with the same label get
+  distinct handles. Updated the Sandbox relations provider, `Easy.Relations`, and Contract to hold handles.
+  Live-tested: two `"combat"`-labelled handles independent (restoring one leaves the other active); a full
+  contract accept (two-trigger AND-gate + relations) ran end-to-end and the relation reverted exactly on
+  abort (base −100 → friend +100 → restored −100).
+- **`Ess.Timer`/`Ess.Time` naming overlap → merged** (`2265a7f`). Folded `Ess.Timer` (the auto-advancing,
+  clamped per-frame delta object) into `Ess.Time.clock(maxDelta)` → `:delta()`, so all wall-clock timing
+  lives in one namespace; removed the separate `Ess.Timer` global and repointed `Ess.UI`'s heartbeat (its
+  only consumer). Live-tested: `clock:delta()` clamps to 0.25 after a 3s gap; UI heartbeat still renders.
+
+Full broad regression smoke test after all four: every namespace present and functioning, save-gate cleanly
+un-held, player alive at 120/120, zero errors. **CAPABILITIES.md written the same session as the clean
+current-state reference this build log had grown too long to serve as.**
 
 ## Non-goals
 

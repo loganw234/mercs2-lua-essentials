@@ -12,12 +12,16 @@ are now fully **absorbed as native `Ess` code** (`Ess.UI`, `Ess.Net`, `Ess.Contr
 original standalone files are retired from active use, kept untouched in their own repos in case they're
 needed again. `WaveDefense.lua` (the gamemode that motivated this whole project) is the one deliberate
 exception — it stays its own file, flagged for an eventual, not-yet-started refactor to *consume* `Ess.*`
-helpers rather than being absorbed itself. See [FEATURE_SHEET.md](FEATURE_SHEET.md) — its "Implementation
-status" section opens with an at-a-glance summary, then the full chronological build history below that.
+helpers rather than being absorbed itself.
+
+**Start here:** [CAPABILITIES.md](CAPABILITIES.md) — a clean, current-state reference of everything `Ess`
+does, organized by what you reach for and tier-aware. For the design rationale and full build history
+(every bug found, every pivot), see [FEATURE_SHEET.md](FEATURE_SHEET.md).
 
 ## Layout
 
-- `FEATURE_SHEET.md` — the design doc; read this first (start with its "at a glance" summary).
+- `CAPABILITIES.md` — **current-state capability reference; read this first** to see what Ess can do now.
+- `FEATURE_SHEET.md` — the original design doc + append-only build log (the *why* and the history).
 - `src/` — per-namespace source files, `NN_name.lua` (numeric prefix = load/dependency order, not
   alphabetical — see `build/merge.py`'s own comments for why). Roughly: `00`–`14` core/identity/query,
   `20`–`22` timing/input/state, `30`–`31` tracking/marking, `40`–`57` UI/gfx/sound/hud, `60`–`64` the
