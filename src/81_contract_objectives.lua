@@ -1,4 +1,4 @@
--- Ess/81_contract_objectives.lua -- Ess.Contract's 15 objective-type handlers, absorbed from
+-- Ess/81_contract_objectives.lua -- Ess.Contract's 16 objective-type handlers, absorbed from
 -- ContractFramework.lua. Each is `fn(inst, task, obj, onDone)`; call onDone(true|false) exactly once.
 -- Push spawns/blips/events into `task` (its own bucket) so several can run at once in parallel mode.
 --

@@ -1,4 +1,4 @@
--- Ess/50_ui_chat.lua -- Ess.UI.Chat: a scrolling message log (chat.gfx) with an optional typed input
+-- Ess/54_ui_chat.lua -- Ess.UI.Chat: a scrolling message log (chat.gfx) with an optional typed input
 -- line. Direct port of uilib.lua's UI.Chat.
 --
 -- local ch = Ess.UI.Chat{ x, y, title, onSubmit }

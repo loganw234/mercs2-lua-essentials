@@ -20,7 +20,7 @@
 --     implemented -- "need a .gfx; see README"). Reusing Ess.UI here instead of hand-rolling a second
 --     widget implementation is the whole point of absorbing uilib first.
 --
--- 81_contract_objectives.lua adds the 15 objective-type handlers (tHandlers); 82_contract_encounter.lua
+-- 81_contract_objectives.lua adds the 16 objective-type handlers (tHandlers); 82_contract_encounter.lua
 -- adds the support-effects/relations/AI-orders/triggers subsystem, now built on Ess.Relations/
 -- Ess.AIOrders/Ess.Triggers instead of re-hand-rolling that logic a second time.
 

@@ -16,8 +16,12 @@
 --   reinforce(deliver=copter|paradrop) / say(text) / music(cue) / vfx(particle) / damage(target,pct|kill) /
 --   vo(lines) / shake(preset,amplitude,duration,player) / hint(text,id) / custom
 -- trigger conditions: "immediate" | "once" | "recurring" | {proximity=r} | {onDestroy="nearest"|name}
---   | {onHealthBelow={target=,pct=}} | {onObjComplete=N} | {onCleared={faction=,radius=}} | {ref=id}
+--   | {onHealthBelow={target=,pct=}} | {onCleared={faction=,radius=}} | {ref=id}
 --   LOGIC GATES (as def.triggers entries): kind="all"/"count" with inputs={trigIds}, need=N (count).
+--   OBJECTIVE-COMPLETE is NOT an inline trigger= shape (Ess.Raw.Triggers.arm has no onObjComplete branch,
+--   deliberately -- see 62_triggers_raw.lua's own header) -- it's a top-level named def.triggers entry
+--   instead: { id=, kind="objective", index=N }, referenced from a support/waypoint the normal way via
+--   trigger={ref=id}.
 
 -- import() is file-scoped -- 80_contract.lua importing these doesn't make them visible here, confirmed
 -- the hard way (a live crash on MrxMusic in that file before this comment existed).

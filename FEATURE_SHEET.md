@@ -436,6 +436,19 @@ Engine Namespaces section against what Ess actually covers:**
   applies to placed alarm props in specific levels) — skipped as too niche for a core-foundations pass.
   Live-tested `.format` against real values: `format(65)="1:05"`, `format(65.7, true)="1:05.7"`,
   `format(3661)="1:01:01"`.
+- **Doc-only fixes, found via a fresh header-comment-vs-code audit pass (same methodology that found the
+  `Ess.Track` gap earlier) run by a research agent across all 54 `src/*.lua` files** — no behavior changed,
+  so no new live test needed (the underlying mechanisms were already live-verified during the absorption
+  phase). Two real contradictions: (1) `82_contract_encounter.lua`'s header listed `{onObjComplete=N}` as
+  a valid inline `trigger=` shape for a support/waypoint entry, but `Ess.Raw.Triggers.arm` has no such
+  branch — deliberately, per `62_triggers_raw.lua`'s own header ("`Ess.Contract` handles it locally
+  instead"). A contract author following the stale doc would write a trigger that silently never fires
+  (falls through to `arm`'s "spec matched no known condition" log line). Fixed the comment to describe the
+  REAL mechanism: a top-level `def.triggers = {{id=, kind="objective", index=N}}` entry, referenced the
+  normal way via `trigger={ref=id}`. (2) Both `80_contract.lua` and `81_contract_objectives.lua`'s headers
+  said "15 objective-type handlers" — the table actually has 16 (`protect`/`stay` were added after the
+  count was last written). Also fixed two purely cosmetic stale filename banners
+  (`54_ui_chat.lua`/`55_ui_board.lua` each still said `50_`/`51_` from before a renumbering).
 
 ## Non-goals
 

@@ -1,4 +1,4 @@
--- Ess/51_ui_board.lua -- Ess.UI.Board: a two-pane board (contracts.gfx): a scrolling list on the left +
+-- Ess/55_ui_board.lua -- Ess.UI.Board: a two-pane board (contracts.gfx): a scrolling list on the left +
 -- a details pane on the right (category line, up to 4 reward lines, up to 8 objective lines, a progress
 -- bar + progress text). Direct port of uilib.lua's UI.Board -- Ess.Contract's own board UI (the contract
 -- selection screen, intermission shops, etc) is built on this, not a separate hand-rolled UI.
