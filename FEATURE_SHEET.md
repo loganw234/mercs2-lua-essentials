@@ -590,6 +590,14 @@ Engine Namespaces section against what Ess actually covers:**
   shape (the Known Bug #3 fix, distinguishing "read a real 0" from "the read failed") matches its own
   documented design intent exactly. Comment-only; hot-reloaded and confirmed `Ess.Relations.apply` still
   present and callable.
+- **`62_triggers_raw.lua` (the primitive `Ess.Triggers.arm` itself builds on) traced clean** — every spec
+  branch (`immediate`/`once`/`recurring`/`proximity`/`onDestroy` both the named and "nearest"-poll forms/
+  `onHealthBelow`/`onCleared`) checked against its own header's documented behavior, no fixable bugs found.
+  The few edge cases considered (a permanently-vanished watch target under `onHealthBelow`, an unresolvable
+  named object under `onDestroy`) are inherent, expected limitations of polling-based liveness tracking —
+  fundamentally different from the earlier `Ess.Triggers.gate` empty-inputs finding, which was a STATIC
+  misconfiguration detectable at call time; these are dynamic runtime conditions that can't be validated up
+  front, the same as any "watch until X" pattern in any system. No source change, doc-only checkpoint.
 
 ## Non-goals
 
