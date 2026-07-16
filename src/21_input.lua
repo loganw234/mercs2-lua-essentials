@@ -1,12 +1,18 @@
 -- Ess/21_input.lua -- Ess.Input: the one correct keyboard-polling shape, a VK->char table, and the
--- controller-hijack trick for continuous analog input under a paused world.
+-- controller-hijack trick for continuous analog input under a paused world. Ess.TextConsole: a
+-- standalone typed-input console built on top of Ess.Input.VkToChar.
 --
 -- API:
 --   Ess.Input.poll() -> { pressed = {vk, ...}, down = function(vk) -> bool }
 --   Ess.Input.VkToChar(vk, bShift) -> sChar | nil
---   Ess.Input.hijackController(onInput) -> release()      UNVERIFIED in this build, see caveat below
+--   Ess.Input.hijackController(onInput) -> release()      niche -- see caveat below; low priority to
+--                                                          verify further, most mods don't need this
+--   Ess.TextConsole.open{ prompt=, text=, max=, lockPlayer=, onSubmit=, onCancel=, onChange= }
+--   Ess.TextConsole.close()
+--   Ess.TextConsole.isOpen() -> bool
 
 import("MrxGuiBase")
+import("MrxGui")
 
 local Ess = _G.Ess
 Ess.Input = Ess.Input or {}
@@ -76,9 +82,15 @@ end
 -- Ess.Input.hijackController(onInput) -> release()
 -- ALWAYS call the returned release() when done.
 function Ess.Input.hijackController(onInput)
-    local ok, pda = pcall(MrxGuiBase.WidgetIdIndex, "PDA")
+    local pda
+    local ok = pcall(function()
+        for _, oWidget in pairs(MrxGuiBase.WidgetIdIndex) do
+            local ok2, sName = pcall(function() return oWidget:GetName() end)
+            if ok2 and sName == "PDA" then pda = oWidget; break end
+        end
+    end)
     if not ok or not pda then
-        Ess.Log("Input.hijackController: couldn't find the PDA widget (unverified path -- see file header)")
+        Ess.Log("Input.hijackController: couldn't find the PDA widget")
         return function() end
     end
     pcall(function() pda:SetVisible(false) end)
@@ -89,4 +101,129 @@ function Ess.Input.hijackController(onInput)
     return function()
         pcall(function() pda:SetVisible(true) end)
     end
+end
+
+-- ============================================================
+-- Ess.TextConsole -- the open/close/buffer/backspace/escape/poll-loop free-text console, duplicated
+-- near-verbatim between MasterCheatMenu.lua's and CommonSpawnMenu.lua's own "Custom Name..." consoles
+-- (down to the same VK table and the same "reset the running-flag on Escape too, not just on the normal
+-- not-active check" bug fix -- Escape closes from INSIDE the poll loop, which returns immediately without
+-- rescheduling itself; skipping this reset makes the next open() see a stale "already running" flag and
+-- never start a new loop at all).
+--
+-- Unlike Ess.UI.Input (a one-shot modal prompt that auto-closes on submit, needs the ui_input.gfx movie),
+-- this is a REPL-style console that stays open across multiple Enter presses -- matching its source
+-- material exactly -- and needs no .gfx asset at all, just a plain MrxGui.TextWidget. For a standalone
+-- OnKey script (a cheat/spawn menu) that wants one quick text field without pulling in the whole Ess.UI
+-- kit.
+--
+-- Ess.TextConsole.open{ prompt=, text=, max=, lockPlayer=(default true), onSubmit=fn(text), onCancel=fn(),
+--                        onChange=fn(text) }
+--   lockPlayer disables player movement/actions while typing (Player.SetInputEnabled), matching the
+--   original console's behavior -- pass lockPlayer=false for an overlay that should keep gameplay running
+--   underneath (e.g. a chat box).
+-- Ess.TextConsole.close()   -- safe to call even if not open
+-- Ess.TextConsole.isOpen() -> bool
+-- ============================================================
+import("MrxGui")
+
+Ess.TextConsole = Ess.TextConsole or {}
+Ess.TextConsole._S = Ess.TextConsole._S or { active = false, buffer = "" }
+
+local function tcShow(bVisible)
+    local S = Ess.TextConsole._S
+    if bVisible and not S.widget then
+        local ok, w = pcall(function()
+            local tw = MrxGui.TextWidget:new()
+            tw:SetFont("english_18")
+            tw:SetColor(255, 255, 0)
+            tw:SetLocation(20, 20, 400, 45)
+            local okP, uP = pcall(Player.GetLocalPlayer)
+            if okP and uP then pcall(function() tw:SetOwner(uP) end) end
+            MrxGui.AddWidget(tw)
+            tw:SetVisible(false)
+            return tw
+        end)
+        if ok then S.widget = w end
+    end
+    if S.widget then pcall(function() S.widget:SetVisible(bVisible) end) end
+end
+
+local function tcPaint()
+    local S = Ess.TextConsole._S
+    if S.widget then pcall(function() S.widget:SetText((S.prompt or "> ") .. S.buffer .. "_") end) end
+end
+
+local function tcLoop()
+    local S = Ess.TextConsole._S
+    if not S.active then return false end
+    local sEvents = Loader.PopKeyEvents()
+    local okShift, held = pcall(Loader.IsKeyDown, 0x10)   -- VK_SHIFT -- ONE specific key, not a per-key poll loop
+    local bShift = okShift and held
+    local changed = false
+    for i = 1, #sEvents do
+        local vk = string.byte(sEvents, i)
+        if vk == 0x0D then                       -- Enter: submit, buffer resets, console STAYS open
+            local text = S.buffer
+            S.buffer = ""
+            changed = true
+            local cb = S.onSubmit
+            if cb then pcall(cb, text) end
+            if not S.active then return false end -- onSubmit may have closed it -- state changed under us
+        elseif vk == 0x1B then                   -- Escape: cancel and close
+            local cb = S.onCancel
+            Ess.TextConsole.close()
+            if cb then pcall(cb) end
+            return false
+        elseif vk == 0x08 then                   -- Backspace
+            S.buffer = S.buffer:sub(1, #S.buffer - 1)
+            changed = true
+        else
+            local ch = Ess.Input.VkToChar(vk, bShift)
+            if ch and #S.buffer < (S.max or 200) then
+                S.buffer = S.buffer .. ch
+                changed = true
+            end
+        end
+    end
+    if changed then
+        tcPaint()
+        if S.onChange then pcall(S.onChange, S.buffer) end
+    end
+    return true
+end
+
+function Ess.TextConsole.open(opts)
+    opts = opts or {}
+    local S = Ess.TextConsole._S
+    S.active = true
+    S.buffer = tostring(opts.text or "")
+    S.max = opts.max or 200
+    S.prompt = tostring(opts.prompt or "> ")
+    S.onSubmit, S.onCancel, S.onChange = opts.onSubmit, opts.onCancel, opts.onChange
+    S.lockPlayer = opts.lockPlayer ~= false
+    pcall(Loader.ClearKeyEvents)
+    if S.lockPlayer then
+        local ok, uP = pcall(Player.GetLocalPlayer)
+        if ok and uP then pcall(Player.SetInputEnabled, uP, false) end
+    end
+    tcShow(true)
+    tcPaint()
+    Ess.Loop.start("Ess.TextConsole", 0.01, tcLoop)
+end
+
+function Ess.TextConsole.close()
+    local S = Ess.TextConsole._S
+    if not S.active then return end
+    S.active = false
+    Ess.Loop.stop("Ess.TextConsole")
+    if S.lockPlayer then
+        local ok, uP = pcall(Player.GetLocalPlayer)
+        if ok and uP then pcall(Player.SetInputEnabled, uP, true) end
+    end
+    tcShow(false)
+end
+
+function Ess.TextConsole.isOpen()
+    return Ess.TextConsole._S.active == true
 end

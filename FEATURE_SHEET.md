@@ -219,14 +219,60 @@ interior-cell geometry — an environmental fluke, not a Contract bug). A genuin
 **in the ORIGINAL `ContractFramework.lua`** (not introduced by the port) and fixed in the port; re-verified
 live under a realistic gate-driven scenario, not just the original simple repro.
 
+**★★★ 2026-07-16 (same day, later still) — fleshing out the core foundations, per Logan's redirect**
+("focus on the core foundations... remember the three tier system, flesh the system out more rather than
+hyperfocusing"): five more pieces built and live-verified in one pass.
+- **`Ess.Probe.nearby` fixed at the source** to exclude the local player by default (`includeSelf` param) —
+  see the incident + fix detail above and in the `ess-probe-nearby-self-inclusion-footgun` memory.
+- **`Ess.TextConsole`** (`21_input.lua`) — the open/close/buffer/backspace/escape console pattern from
+  `MasterCheatMenu.lua`/`CommonSpawnMenu.lua`, was in the original plan but never built. No `.gfx` asset
+  needed (a plain `MrxGui.TextWidget`), for standalone OnKey scripts that don't want the whole `Ess.UI` kit.
+  Live-tested: widget creation, text painting, and `Player.SetInputEnabled` lock/unlock all ran error-free
+  through a full open→close cycle; the character-buffer logic itself is a near-verbatim port of the
+  confirmed-working reference and couldn't be exercised with real keystrokes remotely (no keyboard-
+  injection tool available, only the virtual controller) — an honest limit, not a skipped step. Also fixed
+  `Ess.Input.hijackController`'s real bug while in the area (it called `MrxGuiBase.WidgetIdIndex` as a
+  function; it's a plain table, scanned by name per the confirmed `freecam.md` reference) — not
+  further pursued past that fix, since Logan flagged continuous-controller-input hijacking as low-value
+  for most modders.
+- **`Ess.Easy.Toast`/`Confirm`/`Menu`** (`95_ui_easy.lua`) — the one piece of the three-tier model left
+  unbuilt once `uilib` became native `Ess.UI`. Live-tested: Toast, Confirm (both onYes/onNo branches), and
+  Menu (both the array-of-pairs and map entry shapes, action dispatch, clean close).
+- **`Ess.Easy.Console`** (`96_console.lua`, NEW — not in the original plan, Logan's idea mid-session) — an
+  in-game, browsable, searchable reference for every `Ess.Easy.*` call plus a handful of standout one-line
+  Core helpers, so a brand-new modder can discover what they can call without FEATURE_SHEET.md open in
+  another tab. Built on `Ess.UI.Board` (list+detail, reusing `contracts.gfx`) for browsing and
+  `Ess.TextConsole` for the search box — two existing pieces composed together rather than a third UI
+  built from scratch. Live-tested: browse (zero errors across the full registry), search-and-filter with
+  an exact match count confirmed via a temporary `Ess.UI.Toast` intercept (3 matches for "mark", 0 for a
+  nonsense query), and the empty-query full-reset path.
+- **`Ess.Vehicle.enterSeatExcluding`** — the other pre-existing honest gap (previously just fell back to
+  `enterBestSeat` with no real exclusion). Now VERIFIED against primary source: `destroyer-vehicle.md`'s
+  `DestroyerTool.lua` (a real, live-confirmed-working deployed script) does exactly this for its co-op-
+  partner boarding button via `Vehicle.GetSeatByType`/`Vehicle.EnterBySeatGuid` looped over allowed seat
+  types. Ported faithfully (same call shape, same argument values). Not live-tested — spawning+entering a
+  vehicle from this exact PMC HQ interior cell is a confirmed bridge-stall risk (see `12_vehicle.lua`'s own
+  header), the same caution already applied to skipping the Contract `enter` objective handler's live test.
+- **`LayerFw` → native `Ess.Layers`** (`64_layers.lua`) — the last of the four framework absorptions.
+  Full 228-line port of `LayerFw.lua`'s begin/add/remove/swap/expect/composite/finish, including its
+  save-gate (a raw stash-and-swap of `Pg.SaveGame`, deliberately NOT `Ess.Override.wrap` — there's no
+  tail-call concern here, the gated function never calls through). `Ess.Sandbox`'s `layers` provider is now
+  a 2-line wrapper over this instead of an existence-checked `_G.LayerFw` call. Live-tested end to end:
+  raw `Ess.Layers.begin/remove/finish` correctly toggled and restored `vz_state_mer_oilrig_pristine`
+  (confirmed via `isLoaded`, not just "no error"); the `Sandbox` "layers" provider wiring confirmed
+  delegating correctly; and the full 4-provider `Ess.Easy.Sandbox.arena` (layers+economy+supports+
+  relations together) restored cash to the exact same `73400` value the overnight session's own test saw
+  months earlier on this same save — a strong cross-session correctness signal, not just "didn't crash."
+
 ## Non-goals
 
-- **SUPERSEDED 2026-07-16 for three of these four** (see Design principle 1 below) — kept here for
-  history. Originally: not a replacement for `ModNet`/`uilib`/`ContractFramework`/`LayerFw`; `Ess` would
-  adopt each as a dependency/provider rather than reimplementing it. Logan later directed a full native
-  absorption of `ModNet`/`uilib`/`ContractFramework` instead (their standalone files are retired from this
-  install once Ess's versions are confirmed working) — `LayerFw` is the one exception, still adopted
-  unchanged as the `layers` provider inside `Ess.Sandbox`.
+- **SUPERSEDED 2026-07-16, all four** (see Design principle 1 below) — kept here for history. Originally:
+  not a replacement for `ModNet`/`uilib`/`ContractFramework`/`LayerFw`; `Ess` would adopt each as a
+  dependency/provider rather than reimplementing it. Logan later directed a full native absorption of all
+  four instead (each standalone file is retired from this install once Ess's version is confirmed
+  working) — `WaveDefense.lua` is explicitly NOT part of this (it's a unique gamemode built on top of
+  these frameworks, not a framework itself; it stays its own file and will eventually be refactored to
+  *consume* `Ess.*` helpers, not be absorbed into `Ess`).
 - Not a WAD/gfx authoring tool. `gfxforge`/`gfx_tool`/the movie-asset pipeline stay separate build-time
   tools; `Ess.Gfx` only wraps the **runtime** `FlashWidget` API a movie is driven through.
 - Not a replacement for `lua-bridge` itself. `Loader.*`/`Tcp.*`/the script-loader hooks are the substrate
@@ -234,17 +280,21 @@ live under a realistic gate-driven scenario, not just the original simple repro.
 
 ## Design principles
 
-1. **Absorb `ModNet`/`uilib`/`ContractFramework`; adopt `LayerFw`.** Originally this whole document
-   specified "adopt, don't duplicate" for all four (`ModNet`→alias, `uilib`→alias, `ContractFramework`→
-   alias, `LayerFw`→the `layers` provider). **Logan pivoted this 2026-07-16**: `Ess.Net`/`Ess.UI`/
-   `Ess.Contract` are now full native ports — the original `ModNet.lua`/`uilib.lua`/`ContractFramework.lua`
-   files are retired from this game install (kept untouched in their own repos in case they're needed
-   again), not loaded alongside `Ess` any more. `Ess.UI.Menu`'s builder/`ctx:` API is byte-for-byte
-   backward compatible with `uilib`'s own (the one hard requirement from Logan), so existing
-   menu-system scripts port over with no rewrite. `LayerFw` is unaffected by the pivot — still adopted
-   unchanged as the `layers` provider inside `Ess.Sandbox`, its own repo/global untouched. Where a
-   promotable internal helper existed (e.g. `ContractFramework`'s private `mark`/`markZone`), it's now
-   public `Ess.*` API as before, unaffected by the alias→port change.
+1. **Absorb `ModNet`/`uilib`/`ContractFramework`/`LayerFw` — all of them, natively.** Originally this
+   whole document specified "adopt, don't duplicate" for all four (each → an alias/existence-checked
+   provider). **Logan pivoted this 2026-07-16, then extended the pivot to cover `LayerFw` too**: "the
+   other framework files are to be abandoned, moving forward Essentials will contain all of them." All
+   four are now full native ports — `Ess.Net`/`Ess.UI`/`Ess.Contract`/`Ess.Layers` — and the original
+   `ModNet.lua`/`uilib.lua`/`ContractFramework.lua`/`LayerFw.lua` files are retired from this game install
+   (kept untouched in their own repos in case they're needed again), not loaded alongside `Ess` any more.
+   `Ess.UI.Menu`'s builder/`ctx:` API is byte-for-byte backward compatible with `uilib`'s own (the one hard
+   requirement from Logan), so existing menu-system scripts port over with no rewrite. `Ess.Sandbox`'s
+   `layers` provider is now a two-line wrapper over native `Ess.Layers` instead of an existence-checked
+   `_G.LayerFw` call. **`WaveDefense.lua` is explicitly NOT part of this absorption** — it's a unique
+   gamemode built on top of these frameworks, not a framework itself; it keeps its own file and will
+   eventually be refactored to *consume* `Ess.*` helpers (a separate, deliberate follow-up), not be
+   absorbed into `Ess`. Where a promotable internal helper existed (e.g. `ContractFramework`'s private
+   `mark`/`markZone`), it's now public `Ess.*` API as before, unaffected by the alias→port change.
 2. **Structural safety over documentation.** Where possible, make a footgun impossible to write rather
    than warning about it in a comment. Example: `Ess.Override.wrap` should accept only a shape that
    can't tail-call the original (see Known Bugs below) — not a helper that *could* be used wrong.
@@ -523,9 +573,14 @@ mercs2-lua-essentials/
     63_sandbox_raw.lua      Ess.Raw.Sandbox
     63_sandbox.lua          Ess.Sandbox
     63_sandbox_easy.lua     Ess.Easy.Sandbox
+    64_layers.lua            Ess.Layers (absorbed from LayerFw -- the Sandbox "layers" provider's own home)
     90_override.lua          Ess.Override
     95_ui_easy.lua           Ess.Easy.Toast/Confirm/Menu (thin presets over Ess.UI)
-    99_adopt.lua             aliases: Ess.Net=ModNet, Ess.UI=UI, Ess.Contract=Contract
+    96_console.lua           Ess.Easy.Console (browsable/searchable Ess.Easy reference, NOT in the original plan)
+
+    [this table predates the absorption pivot and doesn't list the 42-55 (Ess.UI)/70-71 (Ess.Net)/
+     80-82 (Ess.Contract) file groups -- see build/merge.py's MANIFEST for the authoritative, current
+     full file/load-order list]
   build/
     merge.py                concatenates src/*.lua in an EXPLICIT manifest order (not a naive
                              alphabetical glob) -> dist/Essentials.lua, stamps a version/build-date

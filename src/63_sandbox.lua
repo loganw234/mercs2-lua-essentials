@@ -13,9 +13,9 @@
 --   Ess.Sandbox.finish(id)
 --   Ess.Sandbox.isActive(id) -> bool
 --
--- Built-in providers: "layers" (adopts LayerFw if deployed alongside Ess -- existence-checked, never a
--- hard dependency, exactly like the 99_adopt.lua aliases), "economy" (cash isolation), "supports"
--- (support-menu isolation), "relations" (thin wrapper over Ess.Relations, reads opts.relations).
+-- Built-in providers: "layers" (native Ess.Layers, 64_layers.lua -- absorbed from LayerFw, not adopted),
+-- "economy" (cash isolation), "supports" (support-menu isolation), "relations" (thin wrapper over
+-- Ess.Relations, reads opts.relations).
 
 local Ess = _G.Ess
 Ess.Sandbox = Ess.Sandbox or {}
@@ -109,24 +109,15 @@ Ess.Raw.Sandbox.register("supports", {
 })
 
 -- ============================================================
--- Built-in provider: layers -- adopts LayerFw (confirmed API: L.begin(sId) -> bool, L.finish(fCb))
--- IF it's deployed alongside Ess in this install, existence-checked exactly like the 99_adopt.lua
--- aliases -- never a hard dependency. LayerFw does its OWN internal save-gating too (separate from this
--- file's gateSaves/ungateSaves); the two compose fine since each only ever restores Pg.SaveGame back to
--- whatever IT saw as "original" at the point it wrapped, chaining correctly either order.
+-- Built-in provider: layers -- Ess.Layers (64_layers.lua), absorbed from LayerFw natively (was an
+-- existence-checked adopt of an external _G.LayerFw global; now the same code lives in this framework).
+-- Ess.Layers does its OWN internal save-gating too (separate from this file's gateSaves/ungateSaves); the
+-- two compose fine since each only ever restores Pg.SaveGame back to whatever IT saw as "current" at the
+-- point it gated, chaining correctly either order.
 -- ============================================================
 Ess.Raw.Sandbox.register("layers", {
-    apply = function(id)
-        if not _G.LayerFw then
-            Ess.Log("Sandbox: 'layers' provider requested but LayerFw (_G.LayerFw) isn't deployed in this install")
-            return
-        end
-        _G.LayerFw.begin(id)
-    end,
-    restore = function(id)
-        if not _G.LayerFw then return end
-        _G.LayerFw.finish()
-    end,
+    apply = function(id) Ess.Layers.begin(id) end,
+    restore = function(id) Ess.Layers.finish() end,
 })
 
 -- ============================================================

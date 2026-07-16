@@ -5,7 +5,7 @@
 --   Ess.Vehicle.riders(uVeh) -> { uCharGuid, ... }
 --   Ess.Vehicle.seatOf(uChar) -> sSeat | nil
 --   Ess.Vehicle.enterBestSeat(uChar, uVeh) -> ok
---   Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats) -> ok   (documented gap, see below)
+--   Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats) -> ok, sSeatTypeUsed
 --   Ess.Vehicle.followGhost(template, x, y, z) -> ghost | nil         ghost.guid, ghost:update(x,y,z), ghost:remove()
 
 import("MrxUtil")
@@ -54,17 +54,29 @@ function Ess.Vehicle.enterBestSeat(uChar, uVeh)
     return ok and true or false
 end
 
--- Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats) -> ok
--- INTENDED for "board a vehicle but never take the driver seat" (e.g. a co-op partner boarding after the
--- driver already has). DOCUMENTED GAP: the exact native call this should use hasn't been verified against
--- primary source in this pass (only summarized third-hand from a deep-dive survey) -- MrxUtil does NOT
--- appear to expose an exclusion-list form of seat entry, and fabricating a plausible-sounding function
--- name here would be worse than being honest about the gap. This currently just falls back to
--- enterBestSeat, which does NOT guarantee avoiding an excluded seat -- do not rely on the exclusion
--- actually working until this is verified against wiki/deep-dives/destroyer-vehicle.md and fixed.
+-- Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats) -> ok, sSeatTypeUsed | nil
+-- For "board a vehicle but never take the driver seat" (e.g. a co-op partner boarding after the driver
+-- already has). VERIFIED against primary source: `wiki/deep-dives/destroyer-vehicle.md`'s `DestroyerTool.lua`
+-- (a real, live-confirmed-working deployed script, not a summary) does exactly this for its co-op-partner
+-- boarding button -- `Vehicle.GetSeatByType(uVeh, sType, true)` resolves a specific seat-type code ("d"/
+-- "g"/"p"/"c") to a seat guid, then `Vehicle.EnterBySeatGuid(uVeh, uChar, uSeat, true)` boards it -- looped
+-- over the allowed types in priority order, skipping any type named in `excludeSeats`. Both boolean
+-- arguments are passed exactly as the confirmed-working reference does; their precise semantics are
+-- otherwise unconfirmed (see wiki/namespaces/vehicle.md), so this doesn't invent different values.
+local ALL_SEAT_TYPES = { "d", "g", "p", "c" }   -- driver/gunner/passenger/cargo, matches EnterBestAvailableSeat's own priority order
 function Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats)
-    Ess.Log("Vehicle.enterSeatExcluding: NOT YET VERIFIED, falling back to enterBestSeat (exclusion not enforced)")
-    return Ess.Vehicle.enterBestSeat(uChar, uVeh)
+    local excl = {}
+    for _, s in ipairs(excludeSeats or {}) do excl[s] = true end
+    for _, sType in ipairs(ALL_SEAT_TYPES) do
+        if not excl[sType] then
+            local okSeat, uSeat = pcall(Vehicle.GetSeatByType, uVeh, sType, true)
+            if okSeat and uSeat then
+                local okEnter, entered = pcall(Vehicle.EnterBySeatGuid, uVeh, uChar, uSeat, true)
+                if okEnter and entered then return true, sType end
+            end
+        end
+    end
+    return false, nil
 end
 
 -- Ess.Vehicle.followGhost(template, x, y, z) -> ghost | nil
