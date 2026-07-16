@@ -9,6 +9,8 @@
 --   Ess.Hud.hideHint(sId, bBroadcast)
 --   Ess.Hud.banner(sMsg)                  a clean, icon-free, centered text banner via the EventFanfare
 --                                         "custom" trick (CONFIRMED live-tested)
+--   Ess.Hud.objective(sText)              set the persistent objective-tray line (nil clears it)
+--   Ess.Hud.radio(sText, nHold)           a transient radio-chatter subtitle that auto-clears after nHold s
 
 import("MrxTutorialManager")
 import("MrxGuiHudMessage")
@@ -50,4 +52,28 @@ function Ess.Hud.banner(sMsg)
     if type(sMsg) ~= "string" or sMsg == "" then return end
     ensureBannerTexture()
     pcall(function() Hud.EventFanfare:Commence({ sType = "custom", vText = sMsg }) end)
+end
+
+-- Ess.Hud.objective(sText) -- set the persistent objective-tray line (Hud.ObjectiveTray slot 1, the "current
+-- objective" line). Pass nil to clear it. CONFIRMED (this is exactly what Ess.Contract drives its objective
+-- line with); promoted here so ANY mission/mod can set the HUD objective without reaching into Contract or
+-- re-deriving the SetSlotToText/ClearSlot shape.
+function Ess.Hud.objective(sText)
+    if sText == nil then pcall(function() Hud.ObjectiveTray:ClearSlot({ nSlot = 1 }) end)
+    else pcall(function() Hud.ObjectiveTray:SetSlotToText({ nSlot = 1, sText = tostring(sText) }) end) end
+end
+
+-- Ess.Hud.radio(sText, nHold) -- a transient "radio chatter" subtitle (objective-tray slot 3) that clears
+-- itself after nHold seconds (default 5) -- the game's own one-off mission-chatter line, and the natural
+-- fit for cutscene dialogue/subtitles. A generation guard means a NEWER radio() call won't get wiped early
+-- by an OLDER line's pending clear-timer (an improvement over Ess.Contract's own hudSay, which can).
+Ess.Hud._radioGen = Ess.Hud._radioGen or 0
+function Ess.Hud.radio(sText, nHold)
+    if type(sText) ~= "string" or sText == "" then return end
+    Ess.Hud._radioGen = Ess.Hud._radioGen + 1
+    local myGen = Ess.Hud._radioGen
+    pcall(function() Hud.ObjectiveTray:SetSlotToText({ nSlot = 3, sText = sText }) end)
+    pcall(Event.Create, Event.TimerRelative, { tonumber(nHold) or 5 }, function()
+        if Ess.Hud._radioGen == myGen then pcall(function() Hud.ObjectiveTray:ClearSlot({ nSlot = 3 }) end) end
+    end)
 end

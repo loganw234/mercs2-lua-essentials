@@ -1,7 +1,7 @@
 -- Ess/65_cinematic.lua -- Ess.Cinematic: a declarative CUTSCENE TIMELINE runtime. Play an ordered list of
 -- steps -- camera cuts/tracks/dollies/orbits/chases, waits, spawns + face (turn an actor), AI orders, heli
--- fly-ins, narration/VO, fades, shakes, music, teleports -- pacing them with per-step "hold" durations. The
--- engine a "cinematic suite"
+-- fly-ins, narration (say banner / subtitle / hint / VO), fades, shakes, music, teleports -- pacing them
+-- with per-step "hold" durations. The engine a "cinematic suite"
 -- for mission building sits on: MissionForge captures the SPATIAL steps (camera vantages, look-at points,
 -- action markers) in-game, the web tool authors the SEQUENCING (order/durations/params), and both just emit
 -- a `steps` list this runs. Ess.Contract plays one as a mission intro (def.cinematic).
@@ -205,6 +205,13 @@ end
 -- {type="say", text=} / {type="banner", text=} -- a clean centered narration banner (Ess.Hud.banner).
 STEP.say = function(step) Ess.Hud.banner(step.text or step.msg or "") end
 STEP.banner = STEP.say
+
+-- {type="subtitle", text=, hold=} -- a lower-third radio-style caption (Ess.Hud.radio) -- the better fit
+-- for cutscene DIALOGUE than the big centered banner. Stays up for this step's hold, then clears itself.
+STEP.subtitle = function(step)
+    local dur = step.hold; if not dur or dur <= 0 then dur = 5 end
+    Ess.Hud.radio(step.text or step.msg or "", dur)
+end
 
 -- {type="hint", text=, id=} -- the persistent tutorial-style HUD popup (stays until hideHint / cutscene end).
 STEP.hint = function(step, ctx)
