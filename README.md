@@ -20,6 +20,9 @@ inside `WaveDefense.lua`/`ContractFramework.lua`.
 - `build/merge.py` — concatenates `src/*.lua` (in an explicit dependency order, not alphabetical) into
   one deployable `dist/Ess.lua`. Run `python build/merge.py` from anywhere; it resolves its own paths.
 - `dist/` — the generated file. **Gitignored, not committed** — build it yourself before deploying.
+- `tools/` — testing infrastructure (not part of the `Ess` library itself). `xpad.py` is a virtual
+  Xbox 360 controller (ViGEmBus + `vgamepad`), driven over a local TCP socket, for exercising
+  controller-driven code like `Ess.Input.hijackController` end to end. See `tools/README.md`.
 
 ## Quick start (once you've built `dist/Ess.lua`)
 

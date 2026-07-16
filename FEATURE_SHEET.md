@@ -19,7 +19,10 @@ plus `Ess.RNG` pulled forward from Group F — all single-tier, zero dependency 
 them into `dist/Ess.lua` (gitignored, build it yourself: `python build/merge.py`). Verified with the
 existing corpus's own `tools/loadcheck.py` — loads clean, chunk reaches the bottom, boot line fires.
 **Not yet in-engine tested** — `loadcheck.py` catches load-time errors, not actual behavior; treat every
-function here as unverified against the live game until it's actually been run there.
+function here as unverified against the live game until it's actually been run there. Toward closing that
+gap: `tools/xpad.py` (a virtual Xbox 360 controller over a local TCP socket, ViGEmBus + `vgamepad`,
+verified standalone 2026-07-16) exists specifically to test `Ess.Input.hijackController` against real
+controller events — see `tools/README.md`. Not yet actually run against the live game.
 
 **Two documented gaps, left honest rather than guessed:** `Ess.Vehicle.enterSeatExcluding` falls back to
 `enterBestSeat` without enforcing the exclusion (the real native call wasn't confirmed against primary
