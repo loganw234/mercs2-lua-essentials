@@ -510,6 +510,22 @@ Engine Namespaces section against what Ess actually covers:**
   `RemoveSubject`, internal plumbing for player-join, not something a gameplay mod calls). Live-tested both
   against a freshly spawned `blanco` dummy (settled 1.5s first, per this project's established "give a
   fresh spawn a moment" rule): `priorityTarget` and `enable(false)`/`enable(true)` all fired error-free.
+- **A real bug found on a deliberate DEEP (not skim) re-read of the two highest-stakes files in the
+  framework** — `Ess.UI.Menu` (the one piece with a strict backward-compatibility requirement) checked out
+  completely clean on a careful trace through its single-slot enforcement, re-render logic, and runtime-
+  state persistence across OnKey re-runs. `Ess.Sandbox` (`63_sandbox.lua`) — the mechanism that gates
+  `Pg.SaveGame` for the whole session — did NOT: `Ess.Sandbox.begin(id, providerNames, opts)` always
+  `return true` (unless `id` was already active), even when EVERY named provider was unknown or failed to
+  apply — a typo'd provider name (e.g. `"laycers"`) would silently isolate nothing while the caller still
+  got told "ok," with only an easy-to-miss log line as the real signal. Fixed to `return #applied > 0`, so
+  the return value honestly answers "did this sandbox actually isolate anything" (matching what the
+  function's own `-> ok` doc comment already implied). Verified the save-gate/`_nActive` counter logic
+  itself was already correct (confirmed `gateSaves()`'s idempotent-install + `ungateSaves()`-only-when-
+  last-active design matches the header's own "gated once, even across nested sandboxes" claim exactly).
+  Live-tested both paths: a typo'd provider name now correctly returns `false` (log shows the exact
+  expected trace: unknown-provider warning, empty applied list, clean finish); a real provider (`relations`)
+  still correctly returns `true` and applies/restores normally; the save-gate correctly ungated
+  (`_gated=false nActive=0`) after both test sandboxes finished.
 
 ## Non-goals
 

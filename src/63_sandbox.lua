@@ -9,7 +9,8 @@
 -- LayerFw already solved generically. This is one implementation, one save-gate, four built-in providers.
 --
 -- API:
---   Ess.Sandbox.begin(id, providerNames, opts) -> ok
+--   Ess.Sandbox.begin(id, providerNames, opts) -> ok   false if id was already active, OR if every named
+--                                                       provider was unknown/failed (nothing was isolated)
 --   Ess.Sandbox.finish(id)
 --   Ess.Sandbox.isActive(id) -> bool
 --
@@ -151,7 +152,12 @@ function Ess.Sandbox.begin(id, providerNames, opts)
     end
     Ess.Sandbox._active[id] = { providers = applied }
     Ess.Log("Sandbox.begin '" .. tostring(id) .. "' -> " .. table.concat(applied, ", "))
-    return true
+    -- CONFIRMED real gap found on a deep re-read: this used to always `return true` here (as long as `id`
+    -- wasn't already active), even when EVERY named provider was unknown/failed and `applied` came back
+    -- empty -- a typo'd provider name would silently isolate nothing while still reporting "ok", with only
+    -- an easy-to-miss log line as the real signal. `#applied > 0` makes the return value honestly answer
+    -- "did this sandbox actually isolate anything," matching what the doc comment's "-> ok" already implied.
+    return #applied > 0
 end
 
 -- Ess.Sandbox.finish(id) -- restores every provider that successfully applied under this id, in order,
