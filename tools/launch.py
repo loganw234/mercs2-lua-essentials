@@ -60,6 +60,7 @@ import re
 import subprocess
 import shutil
 import sys
+import threading
 import time
 
 user32 = ctypes.windll.user32
@@ -74,6 +75,7 @@ DEPLOY_PRIORITY = 5  # lowest number loads first; leaves room below for anything
 
 sys.path.insert(0, str(TOOLS_DIR))
 import xpad  # noqa: E402  (same tools/ directory)
+import lua_repl  # noqa: E402  (same tools/ directory -- for --wait-ess's log poll)
 
 
 # ============================================================
@@ -310,6 +312,22 @@ def skip_intro(pid, port, focus_wait, boot_wait, cutscene_taps, cutscene_gap, ti
     print("[launch] skip-intro: sequence complete")
 
 
+def wait_for_ess(game_dir, since_bytes, timeout, result):
+    """Runs in a background thread, started right after --launch so it's polling from the earliest
+    possible moment -- concurrent with --skip-intro's own fixed-delay button sequence, not queued after
+    it. Useful when a human is watching and can skip intros faster than the open-loop timing assumes:
+    the marker may appear well before skip_intro's sleeps finish, and this catches it the moment it does
+    instead of only checking afterward."""
+    result["start"] = time.monotonic()
+    found = lua_repl.wait_log(game_dir, "[Ess]", since_bytes, timeout)
+    result["found"] = found
+    result["elapsed"] = time.monotonic() - result["start"]
+    if found:
+        print(f"[launch] wait-ess: '[Ess]' ready marker detected after {result['elapsed']:.1f}s (background poll)")
+    else:
+        print(f"[launch] wait-ess: WARNING -- '[Ess]' not seen within {timeout}s (background poll)")
+
+
 def status(game_dir, port):
     print(f"[launch] dist/Ess.lua built:    {'yes' if DIST.exists() else 'no'}")
     target = game_dir / "scripts" / "OnLoad" / DEPLOY_NAME
@@ -350,6 +368,14 @@ def main():
     ap.add_argument("--menu-wait", type=float, default=3.2, help="seconds to wait for the main menu before the final tap")
     ap.add_argument("--resolve-taps", type=int, default=4, help="extra alternating A/START taps after the 'play online?' prompt, to push into an actual loaded game")
     ap.add_argument("--resolve-gap", type=float, default=4.0, help="seconds between the extra resolve taps")
+    ap.add_argument("--wait-ess", action="store_true",
+                     help="poll for the '[Ess]' ready marker in a background thread starting immediately "
+                          "after --launch, concurrent with --skip-intro's own fixed-delay sequence, instead "
+                          "of needing a separate lua_repl.py --wait-log call afterward. Exits 2 if the "
+                          "marker never appears within --ess-timeout. Useful when a human is watching and "
+                          "can skip intros faster than the open-loop timing assumes -- the marker may fire "
+                          "well before skip_intro's own sleeps finish, and this catches it the moment it does.")
+    ap.add_argument("--ess-timeout", type=float, default=90.0, help="max seconds to wait for the [Ess] marker when --wait-ess is set")
     args = ap.parse_args()
 
     game_dir = pathlib.Path(args.game_dir)
@@ -378,7 +404,15 @@ def main():
     if do_controller:
         start_controller(args.port, args.controller_settle)
 
+    since_bytes = lua_repl.log_size(game_dir) if (do_launch and args.wait_ess) else 0
     proc = launch(game_dir) if do_launch else None
+
+    ess_thread, ess_result = None, {}
+    if proc is not None and args.wait_ess:
+        ess_thread = threading.Thread(
+            target=wait_for_ess, args=(game_dir, since_bytes, args.ess_timeout, ess_result), daemon=True)
+        ess_thread.start()
+        print(f"[launch] wait-ess: polling for '[Ess]' in the background (up to {args.ess_timeout}s)")
 
     if do_skip:
         if proc is None:
@@ -394,6 +428,12 @@ def main():
             print("[launch] game process is still running")
         else:
             print(f"[launch] WARNING: game process already exited (code {code}) -- something went wrong")
+
+    if ess_thread is not None:
+        ess_thread.join()
+        if not ess_result.get("found"):
+            print("[launch] done (Ess readiness NOT confirmed)")
+            sys.exit(2)
 
     print("[launch] done")
 
