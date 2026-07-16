@@ -41,59 +41,66 @@ end
 -- SetColorValue("uiAmbientColor", r,g,b,255) ; End(dur). Graphics.Atmosphere is a global namespace (no
 -- import). This hides the Begin/End scope.
 --
--- ⚠ REGION-GATED (confirmed the hard way): these modify the atmosphere of the named map region you're
--- standing IN. They work out in the real map (Maracaibo/Caracas/...), but NO-OP when you're "outside all
--- regions" -- e.g. inside the PMC HQ or on its runway apron, where you're on the bare base default
--- atmosphere with no active region object to modify. So we warn if you're not in a region. (The global
--- setters SetTime/SetSky/SetTimeSpeed are deliberately NOT used -- confirmed inert in live play.)
-local ATMO_REGIONS = {
-    "rgn_atmo_Maracaibo", "rgn_atmo_Caracas", "rgn_atmo_caracas", "rgn_atmo_Angelfalls", "rgn_atmo_GR",
-    "rgn_atmo_GRstripmine", "rgn_atmo_PMC", "rgn_atmo_PMCinterior", "rgn_atmo_carmonaislandrain",
-    "rgn_atmo_interior",
-}
-local function inAtmoRegion()
-    local char = Ess.Player.character(0)
-    if not char then return false end
-    for _, name in ipairs(ATMO_REGIONS) do
-        local ok, rgn = pcall(Pg.GetGuidByName, name)
-        if ok and rgn then
-            local oki, inside = pcall(Object.InsideBoundary, char, rgn, true)
-            if oki and (inside == true or inside == 1) then return true end
-        end
-    end
-    return false
-end
-local function atmosApply(fn)
-    if not inAtmoRegion() then
-        Ess.Log("Easy.World: atmosphere is region-gated -- you're not standing in a map atmosphere region " ..
-                "(e.g. the HQ/runway), so this won't show. Head out into the map and try again.")
-    end
+-- These apply GLOBALLY (confirmed live: they modify whatever atmosphere is currently active, in ANY zone
+-- including out of bounds). The one catch: CROSSING INTO A NEW ZONE re-applies that zone's own atmosphere,
+-- which overwrites your custom look. So these are PERSISTENT by default -- a lightweight keeper loop watches
+-- the active setting (Graphics.Atmosphere.GetCurrentSetting) and snaps your look back the instant a zone
+-- swaps it out, so it survives driving across the map. Ess.Easy.World.resetAtmosphere() stops the keeper and
+-- restores the natural look. (The global setters SetTime/SetSky/SetTimeSpeed are deliberately NOT used --
+-- confirmed inert in live play; these use the confirmed SetValue/SetColorValue interface.)
+Ess.Easy.World._atmo = Ess.Easy.World._atmo or nil   -- current custom apply fn (nil = none active)
+Ess.Easy.World._atmoTag = nil                        -- last-seen active-setting string (zone-change detector)
+
+local function rawApply(fn, dur)
     pcall(function()
         Graphics.Atmosphere.Begin()
         fn()
-        Graphics.Atmosphere.End(0.5)
+        Graphics.Atmosphere.End(dur or 0.5)
+    end)
+end
+
+-- The keeper: re-apply the custom look whenever the active atmosphere setting changes (i.e. you crossed a
+-- zone and it overwrote us). Uses End(0) on the re-apply so it SNAPS back with no easing flash.
+local function setPersistentAtmo(fn)
+    Ess.Easy.World._atmo = fn
+    rawApply(fn, 0.5)                                 -- first application eases in
+    local ok, cur = pcall(Graphics.Atmosphere.GetCurrentSetting)
+    Ess.Easy.World._atmoTag = ok and tostring(cur) or nil
+    Ess.Loop.start("Ess.World.atmoKeeper", 0.2, function()
+        local f = Ess.Easy.World._atmo
+        if not f then return false end               -- cleared by resetAtmosphere -> stop
+        local ok2, c2 = pcall(Graphics.Atmosphere.GetCurrentSetting)
+        local tag = ok2 and tostring(c2) or nil
+        if tag ~= Ess.Easy.World._atmoTag then        -- zone swapped the atmosphere -> snap our look back
+            rawApply(f, 0)
+            local ok3, c3 = pcall(Graphics.Atmosphere.GetCurrentSetting)
+            Ess.Easy.World._atmoTag = (ok3 and tostring(c3)) or tag
+        end
+        return true
     end)
 end
 
 -- Ess.Easy.World.tint(r, g, b) -- wash the world in an ambient color (0..255 each; default deep red).
 function Ess.Easy.World.tint(r, g, b)
-    atmosApply(function() Graphics.Atmosphere.SetColorValue("uiAmbientColor", r or 220, g or 30, b or 30, 255) end)
+    setPersistentAtmo(function() Graphics.Atmosphere.SetColorValue("uiAmbientColor", r or 220, g or 30, b or 30, 255) end)
 end
 
 -- Ess.Easy.World.brightness(n) -- overall light level; 0.05 ~ near-black, 1 = normal, >1 blown out.
 function Ess.Easy.World.brightness(n)
-    atmosApply(function() Graphics.Atmosphere.SetValue("fLightIntensity", n or 1) end)
+    setPersistentAtmo(function() Graphics.Atmosphere.SetValue("fLightIntensity", n or 1) end)
 end
 
--- Ess.Easy.World.hellscape() -- the confirmed dark + deep-red look, in one call.
+-- Ess.Easy.World.hellscape() -- the confirmed dark + deep-red look, in one call (and it sticks across zones).
 function Ess.Easy.World.hellscape()
-    atmosApply(function()
+    setPersistentAtmo(function()
         Graphics.Atmosphere.SetValue("fLightIntensity", 0.08)
         Graphics.Atmosphere.SetColorValue("uiAmbientColor", 220, 30, 30, 255)
     end)
 end
 
--- Ess.Easy.World.resetAtmosphere() -- undo any tint/brightness back to the region's default look.
+-- Ess.Easy.World.resetAtmosphere() -- stop the keeper and let the world's natural look return.
 function Ess.Easy.World.resetAtmosphere()
+    Ess.Easy.World._atmo = nil                        -- keeper stops itself on its next tick
+    Ess.Loop.stop("Ess.World.atmoKeeper")
     pcall(Graphics.Atmosphere.Restore)
 end

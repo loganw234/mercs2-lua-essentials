@@ -12,6 +12,11 @@
 --   Ess.Camera.fade(nAmount)                                          Graphics.Effect.CameraFade (0=clear,
 --                                          1=black) -- a THIRD distinct native table, see below
 --   Ess.Easy.Camera.shake(i) / .fadeOut() / .fadeIn()
+--   -- CINEMATIC (steals mouse control until released):
+--   Ess.Camera.beginCinematic(i, blend) / .placeCamera(x,y,z,i) / .lookAtObject(uGuid, bone, i) /
+--     .lookAtPoint(x,y,z,i) / .hold(i) / .endCinematic(i) / .panicRevert()
+--   Ess.Easy.Camera.watch(uGuid, opts) -> stop()   take over the camera and watch a target (e.g. a heli
+--                                        you spawned) fly in; opts.chase trails it, else a static locked shot
 --
 -- NOTE this is the Camera.* namespace (chase-cam/look-at/position/shake), not Graphics.Camera (LOD/FOV/
 -- near-far) -- confirmed cross-namespace footgun (they share only a name), keep them separate. `fov`/
@@ -170,4 +175,104 @@ end
 
 function Ess.Easy.Camera.fadeIn()
     Ess.Camera.fade(0)
+end
+
+-- ============================================================
+-- CINEMATIC camera -- take over the player's camera for a scripted shot. ⚠ STEALS mouse/look control from
+-- the player until endCinematic() (or panicRevert()) is called -- ALWAYS provide a way back.
+--
+-- CONFIRMED-live sequence (session-camera-atmosphere-findings.md, distilled from mrxactionhijack.lua):
+--   Player.SetCinematicMode(p, true, true); Camera.Blend(c, dur)
+--   Camera.SetPosition(c, x, y, z, true)           -- fixed vantage
+--   Camera.SetLookAt(c, uGuid, sBone)              -- object+bone form AUTO-TRACKS the object as it moves
+--   Camera.Hold(c, true, false)
+-- release: Camera.Hold(c,false,false); Camera.StopBlending(c); Player.SetCinematicMode(p, false)
+-- ============================================================
+Ess.Camera._cine = Ess.Camera._cine or {}   -- active-cinematic state per player index
+
+-- Ess.Camera.beginCinematic(i, nBlend) -> ok -- enters cinematic mode and blends in. Steals control.
+function Ess.Camera.beginCinematic(i, nBlend)
+    local p, c = Ess.Player.slot(i), Ess.Player.camera(i)
+    if not (p and c) then return false end
+    pcall(Player.SetCinematicMode, p, true, true)
+    pcall(Camera.Blend, c, nBlend or 1)
+    Ess.Camera._cine[i or 0] = { p = p, c = c }
+    return true
+end
+
+-- Ess.Camera.placeCamera(x, y, z, i) -- put the cinematic camera at a fixed world vantage.
+function Ess.Camera.placeCamera(x, y, z, i)
+    local c = Ess.Player.camera(i)
+    if c then pcall(Camera.SetPosition, c, x, y, z, true) end
+end
+
+-- Ess.Camera.lookAtObject(uGuid, sBone, i) -- lock the camera onto an object (optionally a specific bone/
+-- hardpoint). The object form auto-tracks: as the object moves, the camera keeps pointing at it -- exactly
+-- the "watch it fly in" behavior. sBone optional (nil = the object's origin).
+function Ess.Camera.lookAtObject(uGuid, sBone, i)
+    local c = Ess.Player.camera(i)
+    if not c then return end
+    if sBone then pcall(Camera.SetLookAt, c, uGuid, sBone)
+    else pcall(Camera.SetLookAt, c, uGuid) end
+end
+
+-- Ess.Camera.lookAtPoint(x, y, z, i) -- lock the camera onto a fixed world point (coord form).
+function Ess.Camera.lookAtPoint(x, y, z, i)
+    local c = Ess.Player.camera(i)
+    if c then pcall(Camera.SetLookAt, c, x, y, z, false, true) end
+end
+
+-- Ess.Camera.hold(i) -- pin the current framing.
+function Ess.Camera.hold(i)
+    local c = Ess.Player.camera(i)
+    if c then pcall(Camera.Hold, c, true, false) end
+end
+
+-- Ess.Camera.endCinematic(i) -- release control back to the player and stop any Easy.Camera.watch chase loop.
+function Ess.Camera.endCinematic(i)
+    local idx = i or 0
+    Ess.Loop.stop("Ess.Camera.watch:" .. idx)
+    local st = Ess.Camera._cine[idx]
+    if not st then return end
+    pcall(Camera.Hold, st.c, false, false)
+    pcall(Camera.StopBlending, st.c)
+    pcall(Player.SetCinematicMode, st.p, false)
+    Ess.Camera._cine[idx] = nil
+end
+
+-- Ess.Camera.panicRevert() -- force-release EVERY active cinematic (the always-works escape hatch; the
+-- lua-bridge still accepts commands while control is locked, so this can be fired blind to recover).
+function Ess.Camera.panicRevert()
+    for idx in pairs(Ess.Camera._cine) do Ess.Camera.endCinematic(idx) end
+end
+
+-- Ess.Easy.Camera.watch(uGuid, opts) -> stop() -- the one-call cinematic: take over the camera and watch a
+-- target (e.g. a helicopter you just spawned) fly in. Static by default: the camera sits at your current
+-- spot (a bit higher) and stays locked on the target as it moves. opts.chase = true instead keeps the
+-- camera trailing behind/above the target every tick. Call the returned stop() (or Ess.Camera.endCinematic)
+-- to hand control back.
+--   opts: bone (lock onto a specific bone/hardpoint), dist (chase trail distance, default 18),
+--         height (camera height above the target, default 8), interval (chase update, default 0.05).
+function Ess.Easy.Camera.watch(uGuid, opts)
+    opts = opts or {}
+    local i = opts.i
+    if not Ess.Camera.beginCinematic(i, opts.blend) then return function() end end
+    if opts.chase then
+        local dist, height = opts.dist or 18, opts.height or 8
+        local id = "Ess.Camera.watch:" .. (i or 0)
+        Ess.Loop.start(id, opts.interval or 0.05, function()
+            local ok, tx, ty, tz = pcall(Object.GetPosition, uGuid)
+            if not ok or not tx then return true end
+            Ess.Camera.placeCamera(tx, ty + height, tz - dist, i)   -- trail behind (-Z) and above
+            Ess.Camera.lookAtObject(uGuid, opts.bone, i)
+            return true
+        end)
+    else
+        -- static vantage: sit where the player is standing (a little higher) and track the target
+        local px, py, pz = Ess.Player.pose(i or 0)
+        if px then Ess.Camera.placeCamera(px, py + 4, pz, i) end
+        Ess.Camera.lookAtObject(uGuid, opts.bone, i)
+        Ess.Camera.hold(i)
+    end
+    return function() Ess.Camera.endCinematic(i) end
 end

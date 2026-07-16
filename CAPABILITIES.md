@@ -98,7 +98,7 @@ in-game.
 
 | Namespace | What it's for | Key calls |
 |---|---|---|
-| `Ess.Camera` | Camera effects (top-level `Camera` + `Graphics.Camera` + `Graphics.Effect`, kept clear) | `.shake/.stopShake`, `.fov/.restoreFov`, `.fade(amt)` (+ `Easy.Camera.shake/fadeOut/fadeIn`), `.lookAtAnchor`, `.followHardpoint`, `.staleAxisDecay` |
+| `Ess.Camera` | Camera effects (top-level `Camera` + `Graphics.Camera` + `Graphics.Effect`, kept clear) | `.shake/.stopShake`, `.fov/.restoreFov`, `.fade(amt)` (+ `Easy.Camera.shake/fadeOut/fadeIn`), `.lookAtAnchor`, `.followHardpoint`, `.staleAxisDecay`; **cinematic:** `.beginCinematic/.placeCamera/.lookAtObject/.lookAtPoint/.hold/.endCinematic/.panicRevert` + `Easy.Camera.watch(uGuid, {chase=})` (take over the camera to watch a target fly in — auto-tracks; steals control until stop()) |
 | `Ess.Bones` | The confirmed bone/hardpoint recipes | `.attachFX/.detachFX`, `.waitForReady`, `.aimVector`, `.probeNames` |
 | `Ess.Points` | Arena spawn-point selection | `.bucket(spawnList)`, `.ideal(pts, refX, refZ, opts)` |
 
