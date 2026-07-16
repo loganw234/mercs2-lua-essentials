@@ -22,7 +22,9 @@ inside `WaveDefense.lua`/`ContractFramework.lua`.
 - `dist/` — the generated file. **Gitignored, not committed** — build it yourself before deploying.
 - `tools/` — testing infrastructure (not part of the `Ess` library itself). `xpad.py` is a virtual
   Xbox 360 controller (ViGEmBus + `vgamepad`), driven over a local TCP socket, for exercising
-  controller-driven code like `Ess.Input.hijackController` end to end. See `tools/README.md`.
+  controller-driven code like `Ess.Input.hijackController` end to end. `launch.py` chains
+  build -> deploy -> launch -> menu-navigation into one command (`python tools/launch.py --all`),
+  confirmed working end-to-end 2026-07-16. See `tools/README.md`.
 
 ## Quick start (once you've built `dist/Ess.lua`)
 

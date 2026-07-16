@@ -18,11 +18,16 @@ plus `Ess.RNG` pulled forward from Group F — all single-tier, zero dependency 
 `ContractFramework`. Source in `src/00_core.lua` through `src/53_rng.lua`; `build/merge.py` concatenates
 them into `dist/Ess.lua` (gitignored, build it yourself: `python build/merge.py`). Verified with the
 existing corpus's own `tools/loadcheck.py` — loads clean, chunk reaches the bottom, boot line fires.
-**Not yet in-engine tested** — `loadcheck.py` catches load-time errors, not actual behavior; treat every
-function here as unverified against the live game until it's actually been run there. Toward closing that
-gap: `tools/xpad.py` (a virtual Xbox 360 controller over a local TCP socket, ViGEmBus + `vgamepad`,
-verified standalone 2026-07-16) exists specifically to test `Ess.Input.hijackController` against real
-controller events — see `tools/README.md`. Not yet actually run against the live game.
+**Deploy pipeline CONFIRMED in-engine 2026-07-16:** `tools/launch.py` (build -> deploy -> virtual-
+controller -> launch -> menu-navigation, see `tools/README.md`) drove the actual game from a cold start
+to the main-menu "play online?" prompt, and `scripts/lua_loader_printf.log` in the live game folder showed
+`[Ess] v0.1.0 ready` — the merged `dist/Ess.lua`, deployed as `1_Ess.lua`, loaded clean under the REAL
+engine (not just `loadcheck.py`'s stubbed lupa environment). This confirms the `do...end`-per-file merge
+strategy and every Group A-D + RNG function's *load-time* behavior in-engine. **Individual function
+BEHAVIOR is still unverified** — reaching the boot line only proves the chunk loaded without error, not
+that e.g. `Ess.Player.character(1)` returns the right thing in co-op. `tools/xpad.py` (a virtual Xbox 360
+controller over a local TCP socket, ViGEmBus + `vgamepad`) exists specifically to drive further tests like
+`Ess.Input.hijackController` against real controller events once there's an actual probe script for it.
 
 **Two documented gaps, left honest rather than guessed:** `Ess.Vehicle.enterSeatExcluding` falls back to
 `enterBestSeat` without enforcing the exclusion (the real native call wasn't confirmed against primary

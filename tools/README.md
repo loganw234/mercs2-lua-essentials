@@ -46,6 +46,31 @@ commands round-tripping correctly including a bad-button error case, clean QUIT)
 **not yet exercised against the live game**, since that needs the game launched with the server already
 up per the quirk above.
 
+## `launch.py` -- build -> deploy -> launch -> skip-intro, one command
+
+```
+python tools/launch.py --all
+```
+
+Chains: `build/merge.py` -> copy `dist/Ess.lua` to `<game>/scripts/OnLoad/1_Ess.lua` (byte-verified) and
+add/update its `lua_loader.ini` `[OnLoad]` entry in place -> start (or reuse) an `xpad.py` server -> launch
+the game -> bring its window to the foreground (SetForegroundWindow + a belt-and-suspenders center click,
+since synthetic controller input goes wherever OS focus is and launching a process does NOT hand it focus)
+-> an open-loop button macro: alternating START/A taps to clear the intro cutscene(s), one deliberate START
+past the title screen (idling there starts a demo reel), one more to go from the default "Continue"
+selection to the "play online?" prompt, then stop. Steps are also available individually
+(`--build`/`--deploy`/`--controller`/`--launch`/`--skip-intro`), plus `--status` (read-only) and
+`--stop-controller`. Full flag list in the script's own `--help`/docstring.
+
+**CONFIRMED working end-to-end 2026-07-16** (after two rounds of live tuning with Logan watching the
+screen — this tool has no visual feedback loop of its own, all timing is open-loop/fixed-delay): reached
+the "play online?" prompt from a cold launch, and `lua_loader_printf.log` showed `[Ess] v0.1.0 ready` —
+real in-engine confirmation the deploy pipeline works, not just a `loadcheck.py` pass. Fixes that took two
+iterations to find: (1) the game window needs OS focus or synthetic input lands nowhere — launching a
+process doesn't give it focus by itself; (2) a fresh virtual pad needs a settle delay before the game's
+own controller enumeration at boot, beyond what our own liveness check confirms; (3) intro cutscenes
+apparently don't all skip on the same button, so the burst alternates START/A rather than mashing one.
+
 ### Suggested next test: `Ess.Input.hijackController`
 
 Combine this with `docs/mercs2-luacd/tools/lua_repl.py` (the live Lua bridge, TCP 127.0.0.1:27050, in the
