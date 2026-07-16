@@ -39,10 +39,13 @@ MANIFEST = [
     "21_input.lua",
     "22_state.lua",
     "30_track.lua",
+    "40_gfx.lua",
     "50_bones.lua",
     "51_camera.lua",
     "52_points.lua",
     "53_rng.lua",
+    "90_override.lua",
+    "99_adopt.lua",
 ]
 
 

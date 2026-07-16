@@ -75,9 +75,32 @@ always immediately ready, as documented); `lookAtAnchor` spawned a `TinyGeometry
 sequence across a simulated timeout; `followHardpoint` ran ~15 ticks over 1.5s against the player's own
 chest bone with zero errors in the log. All passed.
 
-**Not yet built:** Group E (`Ess.Gfx` + the `uilib`/`ModNet`/`ContractFramework` aliases) and Group G (the
-tiered encounter toolkit — Sandbox/Triggers/AIOrders/Relations/Mark). Per the suggested build order, these
-come next.
+**★ 2026-07-16 (overnight session) — Group E built and verified: `Ess.Gfx` + adopt-aliases.**
+`src/40_gfx.lua` (`widget`/`call`/`onEvent`/`setVisible`/`warmupRerender`/`menuNav`) live-tested against
+`"minimap"`, a real pre-existing base-game movie asset (deliberately not authoring a new `.gfx` WAD patch
+tonight — out of scope, a separate toolchain, and touching game data files is more invasive than this
+session's mandate). All six functions confirmed: widget construction, own-tracked visibility (not
+`GetVisible()`), a direct `CallActionScriptCallback`, `SetFlashEventHandler` registration, a repaint thunk
+firing exactly its requested tick count then self-stopping, and menu-nav polling running error-free.
+`src/99_adopt.lua` (`Ess.Net`/`Ess.UI`/`Ess.Contract`) confirmed correctly detecting ModNet/uilib/
+ContractFramework are NOT deployed in this install and logging that fact rather than erroring — the
+alias-wiring itself is untestable further until one of those frameworks is deployed alongside Ess, but the
+defensive existence-check path is proven correct.
+
+**★ 2026-07-16 (overnight session) — Group J built and verified: `Ess.Override`.** `src/90_override.lua`
+(`wrap`/`mergeIntoLiveTable`) live-tested: `wrap` correctly composes original+new logic, its double-wrap
+guard refuses (and doesn't corrupt) a second wrap attempt on the same key, and `mergeIntoLiveTable`
+confirmed to append into (never replace) the existing table object, preserving reference identity across
+repeated merges — exactly the "tables are references" mechanic the wardrobe-unlock precedent relies on.
+
+**Also discovered while testing tonight (a REPL/testing-methodology note, not an Ess bug):** passing a
+multi-return-value expression directly as the sole argument to `tostring(...)` in this engine's Lua can
+produce surprising results (observed `tostring(1, nil, nil, nil)` -> `"nil"`, `tostring(1, nil)` ->
+a function-address string) — capture into a single named local first (`local r = f(); tostring(r)`),
+never `tostring(multiReturnCall())` directly, when testing anything through `lua_repl.py`.
+
+**Not yet built:** Group G (the tiered encounter toolkit — Sandbox/Triggers/AIOrders/Relations/Mark),
+requiring a full re-read of `ContractFramework.lua`/`WaveDefense.lua` first per the build plan.
 
 ## Non-goals
 
