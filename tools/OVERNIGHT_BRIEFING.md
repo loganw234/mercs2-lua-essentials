@@ -208,3 +208,26 @@ abruptly, that section should always reflect true current state.
   this engine — not an Ess bug, just don't test that way; noted in FEATURE_SHEET.md). Committed `2854635`.
   Only item 8 (Group G) remains — starting the required full re-read of ContractFramework.lua/
   WaveDefense.lua now, per the explicit instruction not to work from a prior summary this time.
+- 2026-07-16 (overnight) — fully re-read both ContractFramework.lua (1265 lines) and WaveDefense.lua
+  (1601 lines) end to end (not a summary), then built + live-verified ALL of Group G: `Ess.AIOrders`/
+  `Ess.Relations`/`Ess.Triggers`/`Ess.Sandbox`, Raw/Core/Easy tiers, 12 files. Fixed two real bugs found
+  reading the source (Known Bugs #2 and #3 — Triggers' gate-input validation, Relations' restore-on-
+  failed-read). Sandbox is the first production use of Ess.Override.wrap. Committed `31d5866`. This
+  completes ALL 8 items in this briefing's §4 priority list.
+- 2026-07-16 (overnight) — §4 fully complete, but clearly more well-specified, safe, in-scope work
+  remained in FEATURE_SHEET.md's own catalog (not busywork — real unbuilt rows with real specs), so
+  continued rather than stopping early: built + live-verified `Ess.Mark` (`871c2bc`, the tiered design's
+  own motivating example), `Ess.Net.hijackCallback` (`785fb16`, generalizes ModNet's confirmed black-
+  screen fix; also caught+fixed a real adopt-ordering bug this introduced in 99_adopt.lua), and
+  `Ess.ScrollLog` (`4ca6789`, the MrxGuiTextBuffer workaround — caught+fixed a real missing-`import()` bug
+  live, which `loadcheck.py`'s stub couldn't have caught at all).
+- 2026-07-16 (overnight) — **stopping point reached.** Every namespace in FEATURE_SHEET.md's catalog is
+  now built and live-verified EXCEPT: (a) the parts of `Ess.Net`/`Ess.UI`/`Ess.Contract` that need
+  ModNet/uilib/ContractFramework actually deployed alongside Ess to test against (not the case in this
+  install; the alias mechanism itself is already correctly wired, defensively, in `99_adopt.lua`), (b)
+  refactoring `ContractFramework.lua`/`WaveDefense.lua` themselves to consume the new code (explicitly
+  out of scope for an unsupervised session per §5), and (c) `Ess.Input.hijackController`, a gap that
+  predates tonight and needs a qualitatively different kind of test (real controller-driven PDA
+  interaction) than the REPL-based pattern this whole session used. This matches §7's stopping condition
+  exactly — remaining work is genuinely blocked, out of scope, or a different category of task, not
+  something to keep inventing around. Stopping here.
