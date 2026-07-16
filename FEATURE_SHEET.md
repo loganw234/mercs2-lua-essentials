@@ -482,6 +482,17 @@ Engine Namespaces section against what Ess actually covers:**
   would invoke). Live-tested both: `usingController()` correctly returned `true` (consistent with this
   dev-loop's virtual Xbox controller being active), `showPlayerMarkers(false)` then `(true)` both
   error-free.
+- **`Ess.Player.rumble(i, fLength)`** (`src/10_player.lua`) — wraps the confirmed `Pg.Rumble(uCharacterGuid,
+  fLength)` (`resident/mrxactionhijack.lua`), resolved through `Ess.Player.character(i)` like every other
+  function in this file rather than taking a raw guid. Pulled from a survey of `Pg` (80 functions, the
+  largest engine namespace) specifically for anything confirmed and broadly useful still unwrapped — most
+  of `Pg` is already covered indirectly (`Spawn` via `_safeSpawn`, `FastCollect*` via `Ess.Probe`,
+  `GetGuidByName` via `Ess.Guid`, `AddContextAction`/`RemoveContextAction` via `Ess.Track:contextAction`,
+  layer streaming via `Ess.Layers`) or deliberately excluded (`ContractActivated`/`AchievementAddCount` —
+  the native achievement/contract system `Ess.Contract`'s own design avoids for save-corruption risk).
+  `Rumble` was the standout gap: a confirmed, simple, genuinely broad "juice" primitive (controller haptic
+  feedback for a damage/impact/pickup moment) that nothing in the framework exposed. Live-tested: fired
+  error-free against the local player.
 
 ## Non-goals
 

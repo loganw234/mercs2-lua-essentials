@@ -74,6 +74,8 @@ local REGISTRY = {
       desc = "Returns x, y, z, yaw, char, player for player i." },
     { ns = "Ess.Player", usage = "Ess.Player.targetUnderReticle(i)",
       desc = "What player i is aiming at right now: uGuid, x, y, z (uGuid nil if nothing's targeted)." },
+    { ns = "Ess.Player", usage = "Ess.Player.rumble(i, fLength)",
+      desc = "Controller haptic feedback for player i -- a quick damage/impact/pickup buzz." },
     { ns = "Ess.Player", usage = "Ess.Player.removeBoundaries()",
       desc = "Lifts every active out-of-bounds volume, for every connected player at once." },
 

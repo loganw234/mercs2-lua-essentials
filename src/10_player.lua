@@ -10,6 +10,7 @@
 --   Ess.Player.targetUnderReticle(i) -> uGuid|nil, x, y, z    "what am I aiming at" -- the flagship reason
 --                                        the wiki's whole Engine Namespaces section exists at all
 --   Ess.Player.removeBoundaries() -> nCleared    lifts every active out-of-bounds volume, all players
+--   Ess.Player.rumble(i, fLength)                Pg.Rumble -- controller haptic feedback
 
 import("MrxPmc")
 
@@ -123,4 +124,14 @@ function Ess.Player.removeBoundaries()
         if pcall(Player.RemoveAllBoundary, p) then n = n + 1 end
     end
     return n
+end
+
+-- Ess.Player.rumble(i, fLength) -- CONFIRMED (wiki/namespaces/pg.md): Pg.Rumble(uCharacterGuid, fLength)
+-- (`resident/mrxactionhijack.lua`, real values 0.15-ish seconds). Controller haptic feedback -- the common
+-- "juice" a damage/impact/pickup moment wants -- resolved through Ess.Player.character(i) rather than
+-- taking a raw guid, matching every other function in this file.
+function Ess.Player.rumble(i, fLength)
+    local char = Ess.Player.character(i)
+    if not char then return end
+    pcall(Pg.Rumble, char, fLength or 0.2)
 end
