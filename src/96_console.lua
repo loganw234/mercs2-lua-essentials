@@ -75,6 +75,9 @@ local REGISTRY = {
     { ns = "Ess.Player", usage = "Ess.Player.removeBoundaries()",
       desc = "Lifts every active out-of-bounds volume, for every connected player at once." },
 
+    { ns = "Ess.Raw.Mark", usage = "Ess.Raw.Mark.pulse(uGuid, rgb)",
+      desc = "Flashes an object's existing marker in a color -- draw attention to it." },
+
     { ns = "Ess.Sound", usage = "Ess.Sound.cue(uGuidOrNil, sCueName)",
       desc = "Plays a sound effect; nil guid = a plain UI/HUD one-shot with no world position." },
     { ns = "Ess.Sound", usage = "Ess.Sound.ambience(sStreamName)",

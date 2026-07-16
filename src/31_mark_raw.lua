@@ -6,6 +6,8 @@
 --   Ess.Raw.Mark.pda(uGuid, tex) -> sName|nil             / .removePda(sName)
 --   Ess.Raw.Mark.world(uGuid, tex, rgb) -> handle|nil     / .removeWorld(handle)
 --   Ess.Raw.Mark.worldDisc(uGuid, radius, rgb, alpha) -> handle|nil   (a ground ring, not a floating icon)
+--   Ess.Raw.Mark.pulse(uGuid, rgb) / .haltPulse(uGuid)   flash an EXISTING marker in a color -- takes the
+--                                                         object uGuid directly, not a marker handle
 
 local Ess = _G.Ess
 Ess.Raw = Ess.Raw or {}
@@ -67,4 +69,16 @@ function Ess.Raw.Mark.worldDisc(uGuid, radius, rgb, alpha)
     local ok, m = pcall(Marker.AddDisc, uGuid, radius or 15, r, g, b, alpha or 0.15)
     if ok then return m end
     return nil
+end
+
+-- Ess.Raw.Mark.pulse(uGuid, rgb) / .haltPulse(uGuid) -- flashes/pulses the object's EXISTING marker in a
+-- color, a "draw attention to this" effect distinct from placing a new static marker. CONFIRMED real
+-- start/stop pair (mrxfactionmanager.lua): both take the object's own uGuid directly, NOT a marker
+-- handle, unlike every other function in this file.
+function Ess.Raw.Mark.pulse(uGuid, rgb)
+    local r, g, b = rgbOf(rgb)
+    pcall(Marker.Pulse, uGuid, r, g, b)
+end
+function Ess.Raw.Mark.haltPulse(uGuid)
+    pcall(Marker.HaltPulse, uGuid)
 end

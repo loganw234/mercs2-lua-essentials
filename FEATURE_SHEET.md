@@ -360,6 +360,12 @@ Engine Namespaces section against what Ess actually covers:**
   connected player at once (co-op safe by construction, iterates `Player.GetAllPlayers()`, no `i` argument
   needed). Only clears what's active right now, doesn't disable the boundary system itself. Live-tested:
   `cleared=1` in single-player, no errors.
+- **`Ess.Raw.Mark.pulse(uGuid, rgb)`/`.haltPulse(uGuid)`** (`src/31_mark_raw.lua`) — wraps the confirmed
+  `Marker.Pulse`/`HaltPulse` start/stop pair, a "flash the object's existing marker" attention effect
+  distinct from placing a new static marker (everything else `Ess.Raw.Mark` already wrapped). Takes the
+  object's own guid directly, not a marker handle — the one function on this file that doesn't follow the
+  handle-based pattern. Live-tested against a marked player character: pulse fired, halt fired, zero
+  errors.
 
 ## Non-goals
 
