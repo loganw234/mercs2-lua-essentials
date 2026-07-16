@@ -11,8 +11,11 @@
 --                                        the wiki's whole Engine Namespaces section exists at all
 --   Ess.Player.removeBoundaries() -> nCleared    lifts every active out-of-bounds volume, all players
 --   Ess.Player.rumble(i, fLength)                Pg.Rumble -- controller haptic feedback
+--   Ess.Player.teleport(x, y, z, yaw, onDone)    warp the player(s) to a world spot -- the CONFIRMED
+--                                                MrxUtil.TeleportHeroesToLocations idiom (NOT raw SetPosition)
 
 import("MrxPmc")
+import("MrxUtil")
 
 local Ess = _G.Ess
 Ess.Player = Ess.Player or {}
@@ -134,4 +137,24 @@ function Ess.Player.rumble(i, fLength)
     local char = Ess.Player.character(i)
     if not char then return end
     pcall(Pg.Rumble, char, fLength or 0.2)
+end
+
+-- Ess.Player.teleport(x, y, z, yaw, onDone) -- warp the player to a world position. Wraps the CONFIRMED
+-- MrxUtil.TeleportHeroesToLocations idiom (the exact mechanism Ess.Contract's own `def.start` uses, and the
+-- one grand_prix's race contract teleport ran on) -- deliberately NOT raw Object.SetPosition, which is
+-- unreliable on characters (streaming/physics can snap them back). Teleports ALL connected heroes to this
+-- spot (co-op safe); `onDone` fires once the warp completes (use it to spawn/enable things only after the
+-- player has actually arrived). For the co-op case where each hero needs a DIFFERENT spot, drop to
+-- MrxUtil.TeleportHeroesToLocations directly with a per-hero location list.
+--
+-- CONFIRMED live behavior: teleporting OUT of the PMC HQ interior cell unloads that cell and drops the
+-- player into the open world -- interior coordinates do NOT round-trip (teleport back to an interior y and
+-- you'll land on open-world terrain below it and take fall damage instead). This is the clean way to get
+-- the player into the streamed gameworld for anything that misbehaves in the cramped HQ interior (e.g. the
+-- spawn+enter-vehicle bridge-stall Ess.Vehicle flags). Fall damage on this engine is capped (~97) and never
+-- fatal on its own, so an accidental drop can't kill the player -- but heal afterward (Ess.Object.heal) if
+-- you don't want them left hurt.
+function Ess.Player.teleport(x, y, z, yaw, onDone)
+    local locs = { { x, y, z, yaw or 0 } }
+    pcall(MrxUtil.TeleportHeroesToLocations, locs, onDone or function() end)
 end
