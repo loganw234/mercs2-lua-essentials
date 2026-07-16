@@ -67,6 +67,16 @@ straight to step 4 — check first with `python tools/launch.py --status`, which
 side effects) whether the build is current, whether it's deployed, whether the controller server is up,
 and whether the game process is still running.
 
+**Faster alternative to steps 1+3:** `python tools/launch.py --all --wait-ess` polls for `[Ess]` in the
+background from the moment the game process starts, concurrent with the skip-intro sequence, instead of
+waiting for skip-intro to finish first. **Known quirk, hit repeatedly across a long session (2026-07-17):**
+the background poll itself false-negatives fairly often — it reports `WARNING -- '[Ess]' not seen` even
+when Ess loaded completely fine, or the game was just still genuinely mid-boot. Never trust that warning by
+itself; always follow up with a direct `python tools/lua_repl.py --code 'return tostring(_G.Ess ~= nil)'`.
+If THAT also comes back `false` or throws `attempt to index global 'Ess' (a nil value)` (a real race, not a
+bug — you queried in the exact instant between the bridge coming up and OnLoad finishing), wait another
+5-10s and retry rather than concluding the game is broken.
+
 ## Reading `lua_repl.py`'s output
 
 - `[lua_repl] OK: <value>` — your code ran, `<value>` is whatever it `return`ed, stringified. No return
