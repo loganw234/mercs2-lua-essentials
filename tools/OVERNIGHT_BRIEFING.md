@@ -185,3 +185,11 @@ abruptly, that section should always reflect true current state.
 ## Progress log (append one line per completed item, newest at bottom)
 
 - 2026-07-16 23:xx — briefing written, no autonomous work started yet.
+- 2026-07-16 (overnight start) — fixed a real bug in `lua_repl.py`: `--wait-log`/`--since-bytes` silently
+  timed out forever if the log was truncated (by a fresh game launch) below the recorded offset. Fixed in
+  both poll functions, committed `fcfd4d3`.
+- 2026-07-16 (overnight) — smoke-tested ALL of Groups A-D + RNG live (item 1 of §4 done). All passed.
+  Two real discoveries logged in FEATURE_SHEET.md + in-source comments: `Player.slot(1)` non-nil in
+  single-player (not a valid co-op check, use `character(1)`); spawn+enter-vehicle from the PMC HQ interior
+  preceded a 30s+ bridge stall, recovered via process kill+relaunch, causation unconfirmed but flagged.
+  Committed `e178e6b`. Moving to item 2 (`Ess.Bones`) next.
