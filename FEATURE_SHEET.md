@@ -12,6 +12,20 @@ once we start writing code against it.
 
 ## Implementation status (2026-07-16)
 
+**At a glance (2026-07-17):** every namespace in the original catalog (Groups A–J) is built and live-tested
+against the running game. All four originally-adopted frameworks are now fully NATIVE, not aliased —
+uilib→`Ess.UI`, ModNet→`Ess.Net`, ContractFramework→`Ess.Contract`, LayerFw→`Ess.Layers` (see "Design
+principles" §1 below for the pivot's history) — `WaveDefense.lua` is the one deliberate exception, staying
+its own gamemode file, flagged for an eventual (not started) refactor to *consume* `Ess.*` rather than be
+absorbed into it. The three-tier model (`Raw`/Core/`Easy`) is complete for every namespace that has one,
+including `Ess.Contract` (`Ess.Easy.Contract`, the last gap, closed 2026-07-17). Beyond the original plan:
+`Ess.Sound`, `Ess.Human`, `Ess.Hud`, `Ess.TextConsole`, and `Ess.Easy.Console` (an in-game searchable API
+reference/browser) were all added during later sessions closing gaps found by surveying the wiki's Engine
+Namespaces section against what Ess actually covered. The chronological entries below are the full,
+append-only build history — read them for exactly what's been live-tested (most things, with real
+before/after value confirmations) versus merely load-checked; don't assume "built" implies "verified,"
+each entry says which.
+
 **Built:** Groups A, B, C, D (`Ess.Safe`/`Table`/`Guid`/`Name`/`Log`, `Ess.Player`, `Ess.Object`,
 `Ess.Vehicle`, `Ess.Probe`, `Ess.Loop`/`Timer`, `Ess.Input`, `Ess.State`/`SaveVar`, `Ess.Track`/`Event`)
 plus `Ess.RNG` pulled forward from Group F — all single-tier, zero dependency on `ModNet`/`uilib`/
