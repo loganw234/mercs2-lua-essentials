@@ -126,6 +126,13 @@ local REGISTRY = {
     { ns = "Ess.Camera", usage = "Ess.Camera.fov(i, nAngle, nDuration)",
       desc = "Blends player i's field-of-view to a new angle over nDuration seconds (a zoom effect)." },
 
+    { ns = "Ess.Time", usage = "Ess.Time.cooldown(seconds)",
+      desc = "Returns a ready() function -- call it anytime, true at most once per `seconds` window." },
+    { ns = "Ess.Time", usage = "Ess.Time.elapsed(uStamp)",
+      desc = "Seconds since a Ess.Time.stamp() was marked -- polled elapsed-time, no callback needed." },
+    { ns = "Ess.Easy (Time)", usage = "Ess.Easy.Time.slowmo(n, seconds)",
+      desc = "Slows the game to speed n (default 0.2) for `seconds`, then auto-restores normal speed." },
+
     { ns = "Ess", usage = "Ess.Log(msg)",
       desc = "Prints a line to the Lua bridge log (lua_loader_printf.log)." },
     { ns = "Ess.TextConsole", usage = "Ess.TextConsole.open{ onSubmit = fn }",

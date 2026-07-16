@@ -39,6 +39,7 @@ MANIFEST = [
     "20_loop.lua",
     "21_input.lua",
     "22_state.lua",
+    "23_time.lua",
     "30_track.lua",
     "31_mark_raw.lua",
     "31_mark.lua",

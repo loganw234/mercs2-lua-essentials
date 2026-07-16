@@ -19,9 +19,9 @@ principles" §1 below for the pivot's history) — `WaveDefense.lua` is the one 
 its own gamemode file, flagged for an eventual (not started) refactor to *consume* `Ess.*` rather than be
 absorbed into it. The three-tier model (`Raw`/Core/`Easy`) is complete for every namespace that has one,
 including `Ess.Contract` (`Ess.Easy.Contract`, the last gap, closed 2026-07-17). Beyond the original plan:
-`Ess.Sound`, `Ess.Human`, `Ess.Hud`, `Ess.TextConsole`, and `Ess.Easy.Console` (an in-game searchable API
-reference/browser) were all added during later sessions closing gaps found by surveying the wiki's Engine
-Namespaces section against what Ess actually covered. The chronological entries below are the full,
+`Ess.Sound`, `Ess.Human`, `Ess.Hud`, `Ess.Time`, `Ess.TextConsole`, and `Ess.Easy.Console` (an in-game
+searchable API reference/browser) were all added during later sessions closing gaps found by surveying the
+wiki's Engine Namespaces section against what Ess actually covered. The chronological entries below are the full,
 append-only build history — read them for exactly what's been live-tested (most things, with real
 before/after value confirmations) versus merely load-checked; don't assume "built" implies "verified,"
 each entry says which.
@@ -405,6 +405,26 @@ Engine Namespaces section against what Ess actually covers:**
   wraps the confirmed "set to `GetMaxHealth`" idiom. Live-tested: both distance forms returned the exact
   same value (`10`, matching a real 10-unit spawn offset) for the same pair; heal took a damaged target
   from `10` to `100` exactly.
+- **`Ess.Time`** (`src/23_time.lua`, NEW namespace) — the `Sys.RealTimeStamp`/`MainTimeStamp`/
+  `TimeStampMark`/`TimeStampGetElapsed` elapsed-time idiom, confirmed pervasively across
+  `resident/antiair.lua`/`mrxplaystate.lua`/`mrxstatsmanager.lua`/`mrxtaskrace.lua` but never wrapped
+  anywhere in the framework — a genuinely core foundational primitive (polled elapsed-time / cooldowns, the
+  lower-level alternative to the callback-based `Event.TimerRelative` pattern). `.stamp()`/`.mainStamp()`
+  mark real-world vs. pausable/scaled clocks; `.mark`/`.elapsed`/`.since` (alias) round out the raw idiom.
+  `.cooldown(seconds)` closes over stamp+elapsed+re-mark into a single `ready()` closure — one line instead
+  of hand-rolling the pattern per call site, which is exactly what every real cooldown call site in the
+  corpus does today. `.scale(n)`/`.restoreScale()` wrap the confirmed `Sys.SetTimeScale` slow-motion idiom
+  (`resident/hero.lua:249`). Plus `Ess.Easy.Time.slowmo(n, seconds)` — applies a time-scale and
+  auto-restores after `seconds` of REAL time via `Ess.Loop`, for the common finisher-moment/impact-slowdown
+  case with zero manual bookkeeping.
+  **Bug caught and fixed before commit**: the first draft of `.cooldown()` marked its stamp at creation
+  time, so `ready()` returned `false` for the first `seconds` window even though the ability had never
+  actually been used — backwards from the obvious expectation that a fresh cooldown starts ready. Fixed to
+  defer the first stamp until the first `ready()` call succeeds. Live-tested post-fix: first call `true`,
+  immediate retry `false`, `true` again after the window elapsed (0.5s window, confirmed ready after a 1s
+  real wait); `elapsed`/`since` tracked real wall-clock time correctly across round-trips; `scale`/
+  `restoreScale`/`Easy.Time.slowmo` all ran error-free with the auto-restore Loop callback completing
+  cleanly (checked the log for the callback's own error path, none fired).
 
 ## Non-goals
 
@@ -525,7 +545,7 @@ concrete API sketch. Source column names which survey/read it came from (`DD`=de
 | Item | Status | Problem | Sketch |
 |---|---|---|---|
 | `Ess.Loop.start(id, interval, tickFn, needsTick)` | EXTRACT | The generation-guarded self-rescheduling `Event.TimerRelative` heartbeat is independently built at least **five** times: `uilib.lua`'s `ensureTick`, `contracts.lua`'s `poll()`, `WaveDefense.lua`'s main loop, plus ForgeMenu and MissionForge per the deep-dive survey (DD). `uilib`'s version is the most complete (generation counter, idle self-stop, `needsTick` predicate) — port that one. | `Ess.Loop.start(id, interval, fn, needsTick)` → auto-stops when `needsTick()` returns false, restarts on next `Ess.Loop.wake(id)`. |
-| `Ess.Timer.start()` / `:elapsed()` | NEW | `Sys.RealTimeStamp`/`Sys.TimeStampMark`/`Sys.TimeStampGetElapsed` is a 3-call primitive reimplemented as a wall-clock delta in `uilib`, `WaveDefense`, ForgeCam, and MissionForge, specifically because `Event.TimerRelative` freezes under world-pause (NS, DD). | object wrapping the 3 calls, clamped delta (uilib clamps to 0.25s — keep that). |
+| `Ess.Time.stamp()` / `.elapsed()` / `.cooldown()` | **BUILT** (`src/23_time.lua`, see Implementation status) | `Sys.RealTimeStamp`/`Sys.TimeStampMark`/`Sys.TimeStampGetElapsed` is a 3-call primitive reimplemented as a wall-clock delta in `uilib`, `WaveDefense`, ForgeCam, and MissionForge, specifically because `Event.TimerRelative` freezes under world-pause (NS, DD). | Built as closures over the 3 native calls directly (no reimplemented delta needed — `TimeStampGetElapsed` already returns the correct seconds), plus `.mainStamp()` for the pausable/scaled clock, `.cooldown(seconds)->ready()` for the single most common call-site shape, and `.scale()`/`Easy.Time.slowmo()` for `Sys.SetTimeScale`. |
 | `Ess.Input.poll()` | EXTRACT | `Loader.PopKeyEvents()` (edge ring-drain) + `Loader.GetKeyboardState()` (held-state snapshot) is the *only* correct pattern — independently arrived at and documented as "2 calls/tick, never per-key `IsKeyDown` in a loop" in `uilib`, `contracts.lua`, ForgeMenu, and MissionForge, each after first getting it wrong and hitting a framerate bug (DD, OB, and this project's own `uilib-ui-kit`/`active-world-forge-project` memory). | `{pressed = {vk,...}, down = fn(vk)}` per tick; **the raw per-key `IsKeyDown`-in-a-loop pattern should not be exposed at all** — the whole point is making the mistake unavailable. |
 | `Ess.Input.VkToChar(vk, shift)` | EXTRACT | The shifted-digit/punctuation table is byte-for-byte duplicated between `MasterCheatMenu.lua` and `CommonSpawnMenu.lua` (OB), and `uilib.lua`'s `CHAR` table is a third, near-identical copy. | one canonical table (uilib's is a good base — already handles A-Z/digits/punctuation). |
 | `Ess.Input.hijackController(onInput)` / `.release()` | EXTRACT | The only way to get continuous analog input into Lua: find the `"PDA"` widget, `SetEventHandler("ControllerInput", fn)`, hide/show pair, fully reversible (DD, freecam.md/forgecam.md). | direct port, with the "letters-only nav while hijacked" reminder baked into the doc comment. |
