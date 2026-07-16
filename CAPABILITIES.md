@@ -32,7 +32,8 @@ each is one guessable call:
 |---|---|
 | `Ess.Easy.Vehicle.summon(template)` | spawn a vehicle in front + drop you in the driver seat |
 | `Ess.Easy.Spawn.explosion(type)` / `.crate(type)` / `.weapon(name)` / `.airstrike(round)` | a boom in front / a supply drop / a weapon pickup / a shell on your own head |
-| `Ess.Easy.World.removeMapBoundary()` / `.clearWanted()` / `.setTimeOfDay(n)` / `.sky(preset)` / `.timeSpeed(n)` | roam the whole map / lose all heat / set time of day / change weather / freeze the sky |
+| `Ess.Easy.World.removeMapBoundary()` / `.clearWanted()` | roam the whole map / lose all heat |
+| `Ess.Easy.World.hellscape()` / `.tint(r,g,b)` / `.brightness(n)` / `.resetAtmosphere()` | recolor/darken the world (region-gated — only shows when you're standing in a real map region, not the HQ) |
 | `Ess.Easy.Player.giveGrapplingHook()` / `.unlockFastTravel()` / `.unlockAllHQs()` / `.giveAllRewards()` / `.freeSupport()` | the game's own cheat-menu unlocks, one call each |
 | `Ess.Easy.Fun.dance()` / `.fanfare(win)` | technoviking dance / victory-or-fail music sting |
 

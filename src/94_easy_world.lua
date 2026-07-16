@@ -5,9 +5,10 @@
 -- API:
 --   Ess.Easy.World.removeMapBoundary()   drop the invisible walls fencing the player into the unlocked map
 --   Ess.Easy.World.clearWanted()         instantly lose all heat (clear the pursuit/wanted level)
---   Ess.Easy.World.setTimeOfDay(n)       set time of day, n = 0..1 (0.5 = noon-ish)
---   Ess.Easy.World.sky(sPreset)          switch the sky/weather preset ("afternoon", "Maracaibo", ...)
---   Ess.Easy.World.timeSpeed(n)          day/night cycle speed; 0 = freeze the sky where it is
+--   Ess.Easy.World.tint(r, g, b)         wash the world in an ambient color (0..255)
+--   Ess.Easy.World.brightness(n)         overall light level (0.05 ~ near-black, 1 = normal)
+--   Ess.Easy.World.hellscape()           fun preset: dark + deep red
+--   Ess.Easy.World.resetAtmosphere()     undo any tint/brightness back to the region default
 
 import("WifVzBoundary")
 
@@ -35,19 +36,64 @@ function Ess.Easy.World.clearWanted()
     pcall(Pg.ClearPursuitLock, true)
 end
 
--- Time & sky: CONFIRMED convention (mrxbootstrap.lua) -- Graphics.Atmosphere changes are wrapped in a
--- Begin()/End() scope; this hides that so it's a real one-liner. Graphics.Atmosphere is a global namespace
--- (no import).
---   setTimeOfDay(n): n in 0..1 across the day (SetTime).      sky(preset): named sky/weather (SetSky).
---   timeSpeed(n): day/night advance rate (SetTimeSpeed); 0 freezes the current sky.
-local function atmos(fn, ...)
-    local a = { ... }
+-- ATMOSPHERE / lighting -- the CONFIRMED-live interface (session-camera-atmosphere-findings.md + verified
+-- again in-engine): Graphics.Atmosphere.Begin() ; SetValue("fLightIntensity", n) /
+-- SetColorValue("uiAmbientColor", r,g,b,255) ; End(dur). Graphics.Atmosphere is a global namespace (no
+-- import). This hides the Begin/End scope.
+--
+-- ⚠ REGION-GATED (confirmed the hard way): these modify the atmosphere of the named map region you're
+-- standing IN. They work out in the real map (Maracaibo/Caracas/...), but NO-OP when you're "outside all
+-- regions" -- e.g. inside the PMC HQ or on its runway apron, where you're on the bare base default
+-- atmosphere with no active region object to modify. So we warn if you're not in a region. (The global
+-- setters SetTime/SetSky/SetTimeSpeed are deliberately NOT used -- confirmed inert in live play.)
+local ATMO_REGIONS = {
+    "rgn_atmo_Maracaibo", "rgn_atmo_Caracas", "rgn_atmo_caracas", "rgn_atmo_Angelfalls", "rgn_atmo_GR",
+    "rgn_atmo_GRstripmine", "rgn_atmo_PMC", "rgn_atmo_PMCinterior", "rgn_atmo_carmonaislandrain",
+    "rgn_atmo_interior",
+}
+local function inAtmoRegion()
+    local char = Ess.Player.character(0)
+    if not char then return false end
+    for _, name in ipairs(ATMO_REGIONS) do
+        local ok, rgn = pcall(Pg.GetGuidByName, name)
+        if ok and rgn then
+            local oki, inside = pcall(Object.InsideBoundary, char, rgn, true)
+            if oki and (inside == true or inside == 1) then return true end
+        end
+    end
+    return false
+end
+local function atmosApply(fn)
+    if not inAtmoRegion() then
+        Ess.Log("Easy.World: atmosphere is region-gated -- you're not standing in a map atmosphere region " ..
+                "(e.g. the HQ/runway), so this won't show. Head out into the map and try again.")
+    end
     pcall(function()
         Graphics.Atmosphere.Begin()
-        fn(unpack(a))
-        Graphics.Atmosphere.End()
+        fn()
+        Graphics.Atmosphere.End(0.5)
     end)
 end
-function Ess.Easy.World.setTimeOfDay(n) atmos(Graphics.Atmosphere.SetTime, n or 0.5) end
-function Ess.Easy.World.sky(sPreset)    atmos(Graphics.Atmosphere.SetSky, sPreset or "afternoon") end
-function Ess.Easy.World.timeSpeed(n)    atmos(Graphics.Atmosphere.SetTimeSpeed, n or 0) end
+
+-- Ess.Easy.World.tint(r, g, b) -- wash the world in an ambient color (0..255 each; default deep red).
+function Ess.Easy.World.tint(r, g, b)
+    atmosApply(function() Graphics.Atmosphere.SetColorValue("uiAmbientColor", r or 220, g or 30, b or 30, 255) end)
+end
+
+-- Ess.Easy.World.brightness(n) -- overall light level; 0.05 ~ near-black, 1 = normal, >1 blown out.
+function Ess.Easy.World.brightness(n)
+    atmosApply(function() Graphics.Atmosphere.SetValue("fLightIntensity", n or 1) end)
+end
+
+-- Ess.Easy.World.hellscape() -- the confirmed dark + deep-red look, in one call.
+function Ess.Easy.World.hellscape()
+    atmosApply(function()
+        Graphics.Atmosphere.SetValue("fLightIntensity", 0.08)
+        Graphics.Atmosphere.SetColorValue("uiAmbientColor", 220, 30, 30, 255)
+    end)
+end
+
+-- Ess.Easy.World.resetAtmosphere() -- undo any tint/brightness back to the region's default look.
+function Ess.Easy.World.resetAtmosphere()
+    pcall(Graphics.Atmosphere.Restore)
+end
