@@ -43,6 +43,39 @@ once we start writing code against it.
 
 ---
 
+## Tiered access model
+
+Resolved by interview with Logan (2026-07-16): **three tiers, exposed as three parallel namespaces**,
+each literally built on the one below it — `Ess.Easy.*` calls into `Ess.*`, `Ess.*` calls into
+`Ess.Raw.*`. A beginner reading `Ess.Easy`'s own autocomplete/docs never has to know the other two exist.
+
+- **`Ess.Raw.*` — composability.** The actual building blocks the other two tiers are assembled from
+  (e.g. `Ess.Raw.Mark.radar`/`.pda`/`.world` as three independent calls, `Ess.Raw.Sandbox.register` for a
+  brand-new provider). This is where an expert who wants to build something `Ess` didn't anticipate goes —
+  not a "skip the safety checks" escape hatch, a "here are the actual primitives" one. Composed correctly,
+  `Ess.Raw` can reconstruct everything `Ess.*` (Core) offers.
+- **`Ess.*` (unqualified — "Core") — what most of this document already describes.** Named parameters,
+  sensible defaults, explicit control over the well-known knobs (e.g. `Ess.Mark.object(uGuid, {radar=,
+  pda=, world=})`). The tier a modder graduates to once they understand a concept well enough to want to
+  override a default.
+- **`Ess.Easy.*` — guardrails.** Optimizes for "hard to misconfigure" over flexibility: opinionated preset
+  functions named for *intent*, not mechanism (`Ess.Easy.Mark.enemy(uGuid)`, not `Ess.Easy.Mark(uGuid,
+  {radar=true, pda=true, world=false})`) — the convention knowledge (should an enemy get a world marker?
+  should a hostile faction stay hostile to its own side?) is baked into the preset name so a newcomer
+  never has to know it's a decision at all. Smallest possible surface area: a handful of named calls, not
+  a config table.
+
+**Scope — tiering only where it earns its keep**, decided per namespace as each one is actually designed,
+not applied uniformly. Confirmed candidates so far (the ones with a real beginner/advanced gap):
+`Ess.Mark`, `Ess.Sandbox`, `Ess.Triggers`, `Ess.AIOrders`, `Ess.Relations`, and a handful of `Ess.Easy.*`
+presets sitting in front of the adopted `uilib`. Everything else in this document (Groups A, B, C, most of
+F, H, I, J) stays **single-tier** — `Ess.RNG`/`Ess.Timer`/`Ess.Table`/etc. are already about as simple as a
+beginner needs, and inventing an `Easy`/`Raw` split for them would just be three names for one thing. This
+list isn't closed — a namespace can gain tiering later if implementation reveals a real gap, per the same
+"does this earn it" test.
+
+---
+
 ## Namespace catalog
 
 Each entry: **status** (`NEW` = nothing like this exists yet · `ADOPT` = wrap/re-export an existing
@@ -97,7 +130,22 @@ concrete API sketch. Source column names which survey/read it came from (`DD`=de
 |---|---|---|---|
 | `Ess.Track.new()` | NEW | The single most leak-prone shape in the engine, repeated everywhere a handle must be remembered to clean up later: `Event.Create`→`Event.Delete`, `Marker.Add*`→`Marker.Remove`, `Hud.Radar:AddObjective`→`RemoveObjective`, `Pda.Map:AddBlip`→`RemoveBlip`, `Object.AddQualityRef`→`RemoveQualityRef`, `Object.AddToDisposer`→`RemoveFromDisposer`, `Pg.AddContextAction`→`RemoveContextAction` (NS). `ContractFramework.lua`'s `task = {events={}, guids={}, markers={}, marks={}}` + `cleanupTask` is a *correct* hand-rolled instance of exactly this, repeated with variations in `WaveDefense.lua` (`W.drops`, `W.crates`, `run.enemies`). | a generic registry: `local t = Ess.Track.new(); t:event(Event.Create(...)); t:marker(Marker.AddBlip(...)); t:closeAll()` — `ContractFramework`'s task-cleanup becomes a thin wrapper over this instead of its own bespoke arrays. |
 | `Ess.Event.on(type, args, cb)` | EXTRACT | Wraps `Event.Create`, returns a tracked handle; validates the args-table shape against the event type before calling (a wrong shape doesn't error, it just silently never fires — NS). | thin wrapper + `Ess.Track` integration. |
-| `Ess.Mark.object(uGuid, kind)` / `.zone(x,y,z,r)` / `.clear(handle)` | PROMOTE | `ContractFramework.lua`'s private `mark`/`markZone`/`unmarkZone` (lines ~86–132) are **already the correct implementation** — spawns/marks on all three surfaces at once (round radar `Hud.Radar:AddObjective`, PDA `Pda.Map:AddBlip`, in-world `Marker.AddBlip`/`AddDisc`), keyed by guid string, torn down together. `WaveDefense.lua`'s own `addEnemyBlip` is radar+PDA **only** — it's missing the world marker `Contract`'s version has, a real gap that promoting this helper would have prevented. | move (or re-export) as `Ess.Mark`, have both `ContractFramework` and `WaveDefense` consume the one shared implementation. |
+| `Ess.Mark.object(uGuid, opts)` / `.zone(x,y,z,r,opts)` / `.clear(handle)` | PROMOTE | `ContractFramework.lua`'s private `mark`/`markZone`/`unmarkZone` (lines ~86–132) mark all **three** surfaces unconditionally (round radar `Hud.Radar:AddObjective`, PDA `Pda.Map:AddBlip`, in-world `Marker.AddBlip`/`AddDisc`). `WaveDefense.lua`'s `addEnemyBlip` deliberately marks radar+PDA **only**, skipping the world marker — confirmed **intentional** (Logan: not every marked thing should also clutter the world with a floating icon), not a gap. **This is the motivating example for the tiered design below**: the correct primitive isn't "always mark all three," it's three independent surface toggles (`opts.radar`/`opts.pda`/`opts.world`, each default-on) — `ContractFramework`'s all-three call and `WaveDefense`'s radar+PDA-only call become two different `opts` values against the *same* underlying helper instead of two different implementations. | keyed by guid string, torn down together regardless of which surfaces were used; `ContractFramework` and `WaveDefense` both become consumers of the one shared, fully-configurable implementation. |
+
+**Tiered breakdown — `Ess.Mark`** (the motivating example for the whole tiering model, see the interview
+note above):
+- `Ess.Raw.Mark.radar(uGuid, tex, rgb)` / `.pda(uGuid, tex)` / `.world(uGuid, tex, rgb)` — the three
+  surfaces as fully independent calls, each pcall-wrapped and returning its own handle. `ContractFramework`'s
+  `mark()` decomposed into its three constituent native calls (`Hud.Radar:AddObjective`, `Pda.Map:AddBlip`,
+  `Marker.AddBlip`).
+- `Ess.Mark.object(uGuid, {radar=true, pda=true, world=true})` — one call, all three toggles default-on,
+  invokes whichever `Ess.Raw.Mark` primitives it needs and returns one combined handle for `Ess.Mark.clear`.
+  This is the row above; `ContractFramework`'s existing all-three call and `WaveDefense`'s radar+PDA-only
+  call both become this same function with different `opts` — no more forking into two implementations.
+- `Ess.Easy.Mark.enemy(uGuid)` (→ radar+PDA, no world icon — matches `WaveDefense`'s real convention),
+  `Ess.Easy.Mark.objective(uGuid)` (→ all three — matches `ContractFramework`'s convention),
+  `Ess.Easy.Mark.zone(x,y,z,r)` (→ world ring only, the ground-disc "go here" case). A beginner picks the
+  preset matching what they're marking and never sees a bool.
 
 ### Group E — UI / GFX
 
@@ -111,6 +159,13 @@ concrete API sketch. Source column names which survey/read it came from (`DD`=de
 | `Ess.Gfx.menuNav(widget, keys)` | PROMOTE | Edge-triggered Up/Down/Enter → `SetSelected`, needed because a HUD widget gets no native input of its own. `uilib.lua`'s `navName`/list nav is the reference implementation. | promote the input-mapping half; `Ess.Menu` (below) is the full widget. |
 | `Ess.ScrollLog.new(name, x,y,w,h)` | EXTRACT | `MrxGuiTextBuffer` via the direct `HandleInstantiationEventForTextBuffer` call — never the documented `InstantiateTextBuffer`, which crashes on a real shipped engine bug (`oWidget` undefined in its own scope). This ~30-line workaround is duplicated near-verbatim between `CoopChatUI` and `WorldProbeLogUI` (DD). Also: display-duration × message-count is real queued wall-clock time — a 194-line dump at a 15s default once blocked a UI for ~50 minutes (DD, world-inspector.md) — the port should default to a short duration for bulk dumps. | one library instead of two hand-rolled copies, with the duration-scaling guard built in. |
 | `Ess.Menu` / `Ess.UI` | ADOPT | `uilib.lua`'s `UI.Menu`/`List`/`Panel`/`Bar`/`Toast`/`Confirm`/`Input`/`Chat`/`Board` is a mature, engine-verified 9-widget kit built on the exact `Ess.Loop`/`Ess.Input`/`Ess.Gfx` primitives above. | `Ess.UI = UI` (alias) once uilib itself is rebased onto the shared primitives — no reimplementation. |
+
+**Tiered breakdown — UI:** `Ess.Gfx` above already *is* the `Ess.Raw` tier for widgets (raw FlashWidget
+primitives); the adopted `uilib`/`Ess.UI` is the Core tier — it's already fairly friendly, so most UI work
+doesn't need an Easy tier at all. A thin `Ess.Easy` layer covers only the handful of single-call cases
+that don't need the widget-object API: `Ess.Easy.Toast(msg)`, `Ess.Easy.Confirm(text, onYes)`,
+`Ess.Easy.Menu(title, {label=fn, ...})` (a flat, non-nested menu — no `:category` concept). `UI.Menu`'s
+full nesting/`:switch`/`ctx:confirm` power stays one tier up, at Core.
 
 ### Group F — World manipulation
 
@@ -138,6 +193,15 @@ concrete API sketch. Source column names which survey/read it came from (`DD`=de
 | `Ess.Relations` | EXTRACT | Faction snapshot→apply→restore, independently built **three times**: `ContractFramework.lua`'s `def.relations` (generic, trigger-aware), `WaveDefense.lua`'s `setupRelations`/`restoreRelations` (snapshot-based, records original `GetRelation` values first), and (per project memory) `TerritorialWar`. `ContractFramework`'s version has one confirmed gap: if the original `Ai.GetRelation` read fails, that direction is silently never restored — worth fixing while unifying. | one implementation both `ContractFramework` and any future gamemode call; fixes the silent-restore-skip. |
 | `Ess.Triggers` | EXTRACT | `ContractFramework.lua`'s `armTrigger` engine (immediate/once/recurring/proximity/onDestroy/onHealthBelow/onObjComplete/onCleared, plus `all`/`count` logic gates) is a complete declarative trigger system, currently reachable only via `def.support`/`def.waypoints`/`def.triggers`. **Confirmed real gap found this session:** a logic gate's `inputs` list can only reference ids that are themselves declared as *named* `def.triggers` entries — an id belonging to a `def.support`/`def.waypoints` entry (even one with its own inline `trigger` condition) never populates `inst.trigFired` and so can never satisfy a gate, contradicting the worked example on the framework's own wiki page. `Ess.Triggers` should validate gate inputs against the named-trigger table at registration time and fail loudly instead of silently never firing. | extract `armTrigger`/`namedTrig`/the gate-poll loop into `Ess.Triggers.arm(spec, onFire)` / `Ess.Triggers.gate(inputs, need, onFire)`, with the validation fix. |
 | `Ess.Sandbox` | EXTRACT | The single biggest unifying idea in this whole design. `LayerFw.lua`'s `begin`/`add`/`remove`/`swap`/`expect`/`finish` (snapshot → apply → **guaranteed** restore, with `Pg.SaveGame` gated the entire time so a crash mid-mode just leaves the pre-mode vanilla state) and `WaveDefense.lua`'s independently-built cash isolation (`isolateSupports`/`restoreSupports`, `restoreEconomy`, the `Pg.SaveGame` wrap in `WaveDefense.lua` itself) are **the same pattern applied to two different resources**, written twice, with `WaveDefense`'s copy duplicating the save-gate `LayerFw` already solved generically. | `Ess.Sandbox.register(name, {snapshot=fn, apply=fn, restore=fn})` — providers: `layers` (= `LayerFw`, finally wired in as the project's own memory has been flagging since 2026-07-12), `economy`, `supports`, `relations` (= `Ess.Relations` above). `Ess.Sandbox.begin(id, providerNames)` / `.finish(id)` drives every registered provider through one save-gated snapshot/restore, instead of one hand-rolled copy per gamemode. |
+
+**Tiered breakdown — the encounter toolkit:**
+
+| Namespace | `Ess.Raw.*` (composability) | `Ess.*` (Core, as specified above) | `Ess.Easy.*` (guardrails) |
+|---|---|---|---|
+| Sandbox | `Sandbox.register(name, {snapshot,apply,restore})`, direct `gateSaves()`/`ungateSaves()` — write your own provider. | `Sandbox.begin(id, providerNames)` / `.finish(id)` over the built-in providers (layers/economy/supports/relations). | `Sandbox.arena(id)` — begins with every built-in provider on, no provider list to think about; `Sandbox.done(id)` closes it out. |
+| Triggers | `Triggers.arm(spec, onFire)` — one condition primitive at a time, the extracted `armTrigger`, full vocabulary. | `Triggers` — named triggers + `fires` lists + `all`/`count` logic gates (with the gate-input validation fix from Known Bugs #2). | `Triggers.onPlayerNear(x,y,z,r,fn)` / `.onDeath(uGuid,fn)` / `.after(seconds,fn)` — the handful of single-purpose cases that cover most real usage, no `spec` table syntax. |
+| AIOrders | direct `aiActor`/`aiPri` + the raw `Ai.Goal`/`Ai.Anchor`/`Ai.Deploy` shapes — for a behavior not in the built-in list. | `AIOrders.command(guids, behavior, opts)` — the 11 behaviors as designed above. | `AIOrders.attack(guids, target)` / `.patrol(guids, points)` / `.guard(guids, at)` — named calls hiding `opts`. |
+| Relations | snapshot/apply/restore primitives directly over `Ai.GetRelation`/`SetRelation`. | `Relations` — `{a,b,set}` tuples as designed above, with the restore-on-failed-read fix from Known Bugs #3. | `Relations.makeHostile(factionList)` / `.makeAllies(factionList)` — the two genuinely common presets, no `"friend"/"enemy"` vocabulary to learn. |
 
 ### Group H — Networking
 
@@ -171,30 +235,33 @@ Concrete, currently-real issues surfaced during this research pass — not hypot
 2. **Trigger logic gates (`kind="all"/"count"`) can silently never fire** if any of their `inputs` names a
    `def.support`/`def.waypoints` id rather than a named `def.triggers` id — contradicts the framework's own
    documented worked example. `Ess.Triggers` should validate this at registration and fail loudly.
-3. **`WaveDefense.lua`'s enemy blips (`addEnemyBlip`) mark radar+PDA only** — missing the world marker that
-   `ContractFramework`'s `mark()` already does correctly. A shared `Ess.Mark` would have made this
-   impossible to under-implement.
-4. **`ContractFramework.lua`'s relation restore silently skips a direction whose original `Ai.GetRelation`
+3. **`ContractFramework.lua`'s relation restore silently skips a direction whose original `Ai.GetRelation`
    read failed** — the pre-existing stance is lost rather than restored. Fix while unifying into
    `Ess.Relations`.
-5. **`Object.GetVisible()` not `IsVisible()`** (which doesn't exist and nil-calls silently under `pcall`),
+4. **`Object.GetVisible()` not `IsVisible()`** (which doesn't exist and nil-calls silently under `pcall`),
    and **`not w:GetVisible()` is *also* wrong** even with the right name, since the getter returns `1`/`0`
    and only `nil`/`false` are falsy in Lua. `Ess.Gfx.setVisible` must track its own boolean, never read the
    getter back to decide.
-6. **`Player.SetCash`/`AddCash`/`SetFuel`/`AddFuel` silently skip the HUD refresh** that `MrxPmc.AddCashQty`/
+5. **`Player.SetCash`/`AddCash`/`SetFuel`/`AddFuel` silently skip the HUD refresh** that `MrxPmc.AddCashQty`/
    `AddFuelQty` trigger — `Ess.Player.giveCash`/`giveFuel` must hard-route through `MrxPmc`, no raw-setter
    option.
-7. **The `X and false or Y` ternary substitute breaks when `X`'s "true" value is itself `false`** — hit as a
+6. **The `X and false or Y` ternary substitute breaks when `X`'s "true" value is itself `false`** — hit as a
    real load-time crash in `WaveDefense.lua`'s `loadMods` (indexed `mod.vals` for a toggle, which has none).
    Worth a lint-style callout in `Ess`'s own contributor docs even though it can't be fixed by a wrapper.
-8. **`_G.X = _G.X or {defaults}` silently drops newly-added fields** on an existing session's table once the
+7. **`_G.X = _G.X or {defaults}` silently drops newly-added fields** on an existing session's table once the
    schema grows — a real, hit bug (`freecam.md`). `Ess.State` merges field-by-field instead.
-9. **A blank/whitespace `Pg.Spawn` template string hard-crashes the engine even through `pcall`** — native
+8. **A blank/whitespace `Pg.Spawn` template string hard-crashes the engine even through `pcall`** — native
    crashes can't be caught, only Lua errors can. `uilib.lua`'s `ctx:spawn` already validates this up front;
    every `Ess` helper that reaches `Pg.Spawn` must do the same validation before the call, not rely on
    `pcall` to make it safe.
-10. **Tail-calling the original inside an override (`return fOriginal(...)`)** collapses the stack frame and
+9. **Tail-calling the original inside an override (`return fOriginal(...)`)** collapses the stack frame and
     breaks the engine's module system — see `Ess.Override` above.
+
+**Not a bug, corrected:** an earlier draft of this document flagged `WaveDefense.lua`'s radar+PDA-only enemy
+blips as a gap versus `ContractFramework`'s all-three-surface marking. That was wrong — it's a deliberate
+design choice (not every marked object should also get a floating world icon), and it's the reason
+`Ess.Mark` is specified with three independent surface toggles rather than an all-or-nothing default. See
+the Group D table above and the tiering discussion below.
 
 ---
 
@@ -218,29 +285,44 @@ mercs2-lua-essentials/
     21_input.lua            Ess.Input, Ess.TextConsole
     22_state.lua            Ess.State, Ess.SaveVar
     30_track.lua            Ess.Track, Ess.Event
-    31_mark.lua             Ess.Mark
-    40_gfx.lua              Ess.Gfx
+    31_mark_raw.lua         Ess.Raw.Mark      (radar/pda/world as 3 independent calls)
+    31_mark.lua             Ess.Mark          (Core: opts-driven object/zone)
+    31_mark_easy.lua        Ess.Easy.Mark     (enemy/objective/zone presets)
+    40_gfx.lua              Ess.Gfx = Ess.Raw's widget primitives (the Raw tier of UI)
     41_scrolllog.lua         Ess.ScrollLog
     50_bones.lua            Ess.Bones
     51_camera.lua            Ess.Camera
     52_points.lua            Ess.Points
     53_rng.lua               Ess.RNG
-    60_aiorders.lua          Ess.AIOrders
-    61_relations.lua         Ess.Relations
-    62_triggers.lua          Ess.Triggers
-    63_sandbox.lua           Ess.Sandbox
+    60_aiorders_raw.lua     Ess.Raw.AIOrders
+    60_aiorders.lua         Ess.AIOrders
+    60_aiorders_easy.lua    Ess.Easy.AIOrders
+    61_relations_raw.lua    Ess.Raw.Relations
+    61_relations.lua        Ess.Relations
+    61_relations_easy.lua   Ess.Easy.Relations
+    62_triggers_raw.lua     Ess.Raw.Triggers
+    62_triggers.lua         Ess.Triggers
+    62_triggers_easy.lua    Ess.Easy.Triggers
+    63_sandbox_raw.lua      Ess.Raw.Sandbox
+    63_sandbox.lua          Ess.Sandbox
+    63_sandbox_easy.lua     Ess.Easy.Sandbox
     90_override.lua          Ess.Override
+    95_ui_easy.lua           Ess.Easy.Toast/Confirm/Menu (thin presets over Ess.UI)
     99_adopt.lua             aliases: Ess.Net=ModNet, Ess.UI=UI, Ess.Contract=Contract
   build/
-    merge.py                concatenates src/*.lua in filename order -> dist/Essentials.lua,
-                             stamps a version/build-date header banner
+    merge.py                concatenates src/*.lua in an EXPLICIT manifest order (not a naive
+                             alphabetical glob) -> dist/Essentials.lua, stamps a version/build-date
+                             header banner
   dist/
     Essentials.lua          (generated; open question below on whether this is committed)
 ```
 
 Numeric filename prefixes double as both load-order (matching the existing `1_`-prefix lua-bridge
 convention this project already uses for framework files) and a visual grouping in a file browser —
-`00`–`13` never depend on anything below them, `90`/`99` depend on everything.
+`00`–`13` never depend on anything below them, `90`/`99` depend on everything. **Within a tiered group,
+alphabetical filename order does NOT match dependency order** (`_mark.lua` sorts before `_mark_easy.lua`
+sorts before `_mark_raw.lua`, but Raw must load first, then Core, then Easy) — `merge.py` keeps an
+explicit ordered file list for exactly this reason rather than globbing and sorting.
 
 ## Relationship to existing frameworks — the migration story
 
@@ -264,8 +346,7 @@ convention this project already uses for framework files) and a visual grouping 
 
 ## Open questions (before implementation starts)
 
-1. **Naming:** `Ess` vs `Essentials` vs something else as the actual global — leaning `Ess` per your call,
-   confirming before it's baked into 20 files.
+1. ~~**Naming:** `Ess` vs `Essentials` vs something else as the actual global.~~ **Resolved:** `Ess`.
 2. **`Ess.RNG` — shared global stream or per-consumer instances?** `WaveDefense.lua` uses one shared
    `W._rng`. Multiple mods sharing one `Ess`-global stream would perturb each other's sequences if both
    draw from it in the same tick — instanced (`Ess.RNG.new()`) avoids that at the cost of every consumer
@@ -292,6 +373,10 @@ convention this project already uses for framework files) and a visual grouping 
    existing frameworks, but as additive aliases, not edits to their source.
 5. Group G — the deliberate, higher-risk pass that actually opens up `ContractFramework.lua` and
    `WaveDefense.lua` internals. Do this only once 1–4 are stable and (ideally) after a co-op smoke test of
-   whatever's live at the time.
+   whatever's live at the time. **Internal order within each tiered namespace: Raw first (it's the
+   extraction of what already works inside `ContractFramework`/`WaveDefense`, zero new design), then Core
+   (already fully specified above), then Easy last** (its presets are just opinionated calls into Core, so
+   it can't be designed correctly until Core exists) — this applies to `Mark` (Group D) too, not just
+   Group G.
 6. `Ess.Override` (Group J) can land any time after step 1 — it has no dependents yet, it's just a safety
    primitive waiting to be used by whichever later group needs it first.
