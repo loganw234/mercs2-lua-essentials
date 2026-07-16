@@ -7,6 +7,8 @@
 --   Ess.Vehicle.enterBestSeat(uChar, uVeh) -> ok
 --   Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats) -> ok, sSeatTypeUsed
 --   Ess.Vehicle.exit(uVeh, uChar) -> ok
+--   Ess.Vehicle.flyTo(uHeli, x, y, z, opts) -> cancel()               send an AI heli to a point (driver-wait
+--                                        + Ai.Deliver); opts.onReady(driver) fires when the order is issued
 --   Ess.Vehicle.followGhost(template, x, y, z) -> ghost | nil         ghost.guid, ghost:update(x,y,z), ghost:remove()
 --   Ess.Easy.Vehicle.summon(sTemplate, opts) -> uVeh | nil            spawn a vehicle in front + hop in the
 --                                        driver seat -- the whole "give me a <vehicle>" thought in ONE line
@@ -92,6 +94,26 @@ end
 function Ess.Vehicle.exit(uVeh, uChar)
     local ok, result = pcall(Vehicle.Exit, uVeh, uChar, true)
     return ok and result and true or false
+end
+
+-- Ess.Vehicle.flyTo(uHeli, x, y, z, opts) -> cancel() -- send an AI helicopter to a world point. Wraps the
+-- two gotchas the drop/delivery code (mrxcopterdrop.lua) handles: (1) the flight command is
+-- Ai.Deliver(driver, x, y, z, dropHeight, careless) -- NOT Ai.Goal "MoveToPos", which does NOT fly a heli;
+-- (2) a freshly-spawned heli has no driver for a moment, so this polls Ess.Vehicle.driver until it exists,
+-- THEN issues the order. opts.height (drop height, default 0.5), opts.careless (bool), opts.onReady(driver)
+-- (fired once the order is issued -- handy for chaining a camera onto the pilot). Returns cancel() to stop
+-- the driver-wait early.
+function Ess.Vehicle.flyTo(uHeli, x, y, z, opts)
+    opts = opts or {}
+    local id = "Ess.Vehicle.flyTo:" .. tostring(uHeli)
+    Ess.Loop.start(id, 0.15, function()
+        local drv = Ess.Vehicle.driver(uHeli)
+        if not drv then return true end                 -- keep waiting for the pilot to exist
+        pcall(Ai.Deliver, drv, x, y, z, opts.height or 0.5, opts.careless and true or false)
+        if opts.onReady then pcall(opts.onReady, drv) end
+        return false                                    -- done
+    end)
+    return function() Ess.Loop.stop(id) end
 end
 
 -- Ess.Vehicle.followGhost(template, x, y, z) -> ghost | nil
