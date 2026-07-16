@@ -62,9 +62,22 @@ direct source read — both are flagged in their own file's header comment, and 
 specifically remains untested (lower priority than building the unbuilt namespaces below; `tools/xpad.py`
 exists to eventually drive a real controller-event test for it).
 
-**Not yet built:** the rest of Group F (Bones/Camera/Points), Group E (`Ess.Gfx` + the `uilib`/`ModNet`/
-`ContractFramework` aliases), and Group G (the tiered encounter toolkit — Sandbox/Triggers/AIOrders/
-Relations/Mark). Per the suggested build order, these come next in roughly that sequence.
+**★ 2026-07-16 (overnight session) — rest of Group F built and behaviorally verified live:**
+`Ess.Bones` (`attachFX`/`detachFX`/`waitForReady`/`aimVector`/`probeNames`), `Ess.Camera`
+(`lookAtAnchor`/`staleAxisDecay`/`followHardpoint`), `Ess.Points` (`bucket`/`ideal`) — source in
+`src/50_bones.lua`/`51_camera.lua`/`52_points.lua`, added to `build/merge.py`'s MANIFEST. Every function
+individually exercised against the live game (Points additionally verified with pure synthetic data, no
+game needed): `attachFX`/`detachFX` glued+removed a real FX on the player's own `bone_attach_rhand`;
+`aimVector` returned a real non-zero vector between two hand bones; `probeNames` correctly distinguished
+2 real hits from 1 miss in a 3-candidate sweep; `waitForReady` fired its callback (player character is
+always immediately ready, as documented); `lookAtAnchor` spawned a `TinyGeometry` anchor and bound
+`Camera.SetLookAt` without any bridge stall; `staleAxisDecay` produced the exact expected 0.50/0.50/0.00
+sequence across a simulated timeout; `followHardpoint` ran ~15 ticks over 1.5s against the player's own
+chest bone with zero errors in the log. All passed.
+
+**Not yet built:** Group E (`Ess.Gfx` + the `uilib`/`ModNet`/`ContractFramework` aliases) and Group G (the
+tiered encounter toolkit — Sandbox/Triggers/AIOrders/Relations/Mark). Per the suggested build order, these
+come next.
 
 ## Non-goals
 
