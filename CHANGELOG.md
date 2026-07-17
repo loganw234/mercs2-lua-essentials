@@ -21,10 +21,16 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 - **`Ess.Math`** — clamp01 / remap / smoothstep / lerpAngle (shortest-path angle lerp) / wrap.
 - **`Ess.RNG`** — `:shuffle` (in-place, unbiased Fisher-Yates) and `:pickN` (distinct sample without
   replacement).
-- Recipes: `text_and_tables`, `pick_colors`, `random_order`.
+- **GETTING_STARTED.md** — an install-to-first-mod on-ramp (linked from the README) for a game that never
+  shipped mod support: the OnLoad/OnKey model, the `_G.Ess` guard, the re-run gotcha, the dev loop.
+- Recipes: `text_and_tables`, `pick_colors`, `random_order` (the new utilities); `cooldowns`,
+  `remember_this_session` (timing / session state); `watch_a_vehicle`, `a_custom_hud` (engine patterns).
 
-All of the above is pure Lua (no engine calls) and was verified by execution against the real source (via
-lupa), not just built — so it's correctness-checked despite the game being closed.
+**Verification (game was closed for this batch):** the utility layer and the pure recipes
+(`text_and_tables` / `pick_colors` / `random_order` / `cooldowns` / `remember_this_session`) were verified by
+EXECUTION against the real source via lupa — correctness-checked, not merely built. The two engine-touching
+recipes (`watch_a_vehicle`, `a_custom_hud`) compose only confirmed calls and pass the syntax gate, but were
+NOT smoke-run in-engine — run `python tools/smoke.py` to confirm them before relying on them.
 
 ## [0.1.1]
 

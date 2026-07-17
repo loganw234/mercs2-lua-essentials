@@ -16,6 +16,7 @@ handler.
 | Recipe | Achieves | Namespaces |
 |---|---|---|
 | `spawn_and_control` | spawn a thing in front of you, then move / face / heal / remove it | Object, Math, Player |
+| `watch_a_vehicle` | react when the player enters/exits any vehicle | Object, Player |
 | `command_a_squad` | spawn a group of units and order them | Object, AIOrders |
 | `command_a_helicopter` | spawn a crewed helicopter and fly it in (AI-piloted) | Vehicle, Object |
 | `make_them_fight` | set two factions at war and confirm the stance took | Relations |
@@ -26,11 +27,14 @@ handler.
 | `find_whats_around` | scan for nearby objects | Probe |
 | `mark_things` | put objective / zone markers down, then clear them | Mark |
 | `do_it_later` | run something after a delay, and on a repeating timer | Triggers, Loop, Time |
+| `cooldowns` | rate-limit an action; get a per-frame delta | Time |
 | `slow_motion` | a slow-motion finisher beat | Time |
 | `attach_effects` | particle FX at a point / attached to an object | Easy.Spawn |
 | `speed_boost` | launch / boost / knockback with mass-scaled impulses | Easy.Impulse |
 | `notify_the_player` | toast / banner / objective line / radio subtitle | Hud, UI |
+| `a_custom_hud` | a live-updating panel + progress bar | UI, Loop |
 | `persistent_vars` | remember a value across save/reload | SaveVar |
+| `remember_this_session` | keep state across an OnKey script's re-runs | State |
 | `give_weapons` | give the player a weapon + infinite ammo | Human |
 | `an_arena` | run a save-safe ephemeral "arena" / minigame mode | Sandbox |
 | `world_tweaks` | clear heat / lift the map walls / recolour the sky | Easy.World |

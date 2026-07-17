@@ -1099,3 +1099,14 @@ VERSION intentionally held at `0.1.1`: not auto-cutting a release of a batch tha
 and (more importantly) not publishing a release that includes any later engine-touching code no one has
 smoke-tested. When ready, bump `Ess.VERSION` and rename the CHANGELOG `[Unreleased]` section to the new
 version — the release workflow does the rest.
+
+Continued (same session): an on-ramp + more recipes. Added **GETTING_STARTED.md** — the single most useful
+thing for a scene this new is a clear "install → your first keypress mod" path, so this walks the
+OnLoad/OnKey model, the `_G.Ess` guard, the OnKey re-run gotcha (and the Ess.State/Ess.Loop that solve it),
+and the build loop. Linked from the README as the newcomer entry point (CAPABILITIES.md stays the reference).
+Plus four engine-pattern recipes: `cooldowns` and `remember_this_session` (both still pure enough to
+execute-verify with stubbed `Sys` — done, both PASS), and `watch_a_vehicle` (the poll-don't-hook vehicle
+transition) + `a_custom_hud` (Panel + Bar driven from a Loop tick) which are composed strictly from confirmed
+APIs and pass the syntax gate but are the first things in this session that genuinely need an in-game
+smoke run to confirm — flagged as such in the CHANGELOG. The lupa execute-harness earned its keep again:
+it caught the off-by-a-few-chars `truncate` assertion, and confirmed cooldown/state behavior without the game.

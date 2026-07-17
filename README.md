@@ -14,9 +14,10 @@ needed again. `WaveDefense.lua` (the gamemode that motivated this whole project)
 exception — it stays its own file, flagged for an eventual, not-yet-started refactor to *consume* `Ess.*`
 helpers rather than being absorbed itself.
 
-**Start here:** [CAPABILITIES.md](CAPABILITIES.md) — a clean, current-state reference of everything `Ess`
-does, organized by what you reach for and tier-aware. For the design rationale and full build history
-(every bug found, every pivot), see [FEATURE_SHEET.md](FEATURE_SHEET.md).
+**New here?** [GETTING_STARTED.md](GETTING_STARTED.md) — install Ess and write your first keypress mod in a
+few minutes. **Full reference:** [CAPABILITIES.md](CAPABILITIES.md) — a clean, current-state map of
+everything `Ess` does, organized by what you reach for and tier-aware. For the design rationale and full
+build history (every bug found, every pivot), see [FEATURE_SHEET.md](FEATURE_SHEET.md).
 
 ## Layout
 
