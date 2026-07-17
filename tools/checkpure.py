@@ -64,6 +64,9 @@ eq(M.dist2D(0,0,3,4),5,'dist2D'); eq(M.dist2DSq(0,0,3,4),25,'dist2DSq'); eq(M.di
 assert(M.within2D(0,0,3,4,5) and not M.within2D(0,0,3,4,4),'within2D')
 assert(M.within3D(0,0,0,1,2,2,3) and not M.within3D(0,0,0,1,2,2,2),'within3D')
 eq(M.angleTo(0,0,0,1),0,'angleTo fwd')   -- facing +Z is yaw 0 in the engine convention
+-- edges
+eq(M.clamp(-5,0,3),0,'clamp lo'); eq(M.remap(150,0,100,0,1),1.5,'remap extrapolates')
+assert(M.within2D(0,0,3,4,5) and not M.within2D(0,0,3,4,4.9),'within2D boundary'); eq(M.lerpAngle(10,350,0.5),0,'lerpAngle short way')
 return true
 """,
     "Str": r"""
@@ -76,6 +79,10 @@ eq(S.count('aaaa','aa'),2,'count nonoverlap')
 eq(S.padLeft('5',3,'0'),'005','padLeft'); eq(S.capitalize('hi'),'Hi','cap'); eq(S.title('a b'),'A B','title')
 eq(#S.lines('a\nb\nc'),3,'lines'); eq(#S.lines('a\nb\n'),2,'lines trailing')
 eq(S.truncate('hello world',8),'hello...','truncate')
+-- edges
+eq(#S.split(',a,',','),3,'split leading/trailing'); eq(S.split('a','x')[1],'a','split no-match'); eq(S.trim('   '),'','trim all-ws')
+assert(S.endsWith('x','') and S.startsWith('x',''),'affix empty'); eq(S.truncate('hello',5),'hello','trunc exact'); eq(S.padLeft('hello',3),'hello','pad already-longer')
+eq(S.count('abc',''),0,'count empty needle'); eq(#S.lines(''),1,'lines empty')
 return true
 """,
     "Color": r"""
@@ -86,6 +93,9 @@ assert(C.hex('xyz')==nil and C.hex('12345')==nil,'hex invalid')
 eq(s(C.hsv,0,1,1),'255,0,0','hsv red'); eq(s(C.hsv,120,1,1),'0,255,0','hsv green'); eq(s(C.hsv,0,0,1),'255,255,255','hsv white')
 eq(s(C.lerp,{0,0,0},{255,255,255},0.5),'128,128,128','lerp'); eq(s(C.of,'red'),'255,0,0','of')
 assert(C.of('nope')==nil,'of nil')
+-- edges
+eq(s(C.hsv,360,1,1),'255,0,0','hsv wrap'); eq(s(C.hex,'#FF8800'),'255,136,0','hex uppercase')
+eq(s(C.lerp,{0,0,0},{100,0,0},2),'100,0,0','lerp clamps t>1'); eq(s(C.of,'RED'),'255,0,0','of case-insensitive')
 return true
 """,
     "Table": r"""
@@ -101,6 +111,11 @@ local h={10,20,30}; h[2]=nil; T.compact(h); eq(#h,2,'compact len'); eq(h[2],30,'
 local sl=T.slice({10,20,30,40},2,3); eq(#sl,2,'slice len'); eq(sl[1],20,'slice start'); eq(T.slice({1,2,3},2)[2],3,'slice default j')
 local rv=T.reverse({1,2,3}); eq(rv[1],3,'reverse head'); eq(rv[3],1,'reverse tail')
 eq(T.reduce({1,2,3,4},function(a,v) return a+v end,0),10,'reduce sum')
+-- edges
+eq(#T.slice({1,2,3},3,1),0,'slice reversed=empty'); eq(#T.slice({1,2,3},0,99),3,'slice clamps')
+eq(T.reduce({1,2},function(a,v) return a..v end,'x'),'x12','reduce init'); eq(#T.filter({1,3},function(v) return v>10 end),0,'filter none')
+assert(T.find({1,2},function(v) return v>9 end)==nil,'find none'); eq(T.merge({a=1},nil).a,1,'merge nil src')
+assert(T.reverse({})[1]==nil and T.map({},function() end)[1]==nil,'empty-array ops')
 return true
 """,
     "RNG": r"""
@@ -114,6 +129,9 @@ eq(#g:pickN({1,2,3},9),3,'pickN clamp'); eq(#g:pickN({1,2,3},0),0,'pickN zero')
 -- weighted pick with a zero-weight entry should never return it
 local picked={} for _=1,100 do picked[g:pick({{id='a',w=1},{id='z',w=0}}).id]=true end
 assert(not picked['z'],'weighted skips w=0')
+-- edges
+assert(g:chance(1)==true and g:chance(0)==false,'chance edges'); eq(g:int(0),1,'int guards n<1')
+assert(g:pick({{w=1,id='x'}}).id=='x','pick single'); assert(#g:shuffle({})==0,'shuffle empty')
 return true
 """,
     "Vec": r"""
@@ -127,6 +145,7 @@ v('normalize',0.6,0.8,0, V.normalize(3,4,0)); v('normalize0',0,0,0, V.normalize(
 v('scale',2,4,6, V.scale(1,2,3,2)); v('add',5,7,9, V.add(1,2,3,4,5,6)); v('sub',4,5,6, V.sub(5,7,9,1,2,3))
 assert(c(V.dot(1,0,0,0,1,0),0) and c(V.dot(1,2,3,1,2,3),14),'dot')
 v('dir',0,0,1, V.dir(0,0,0,0,0,5)); v('toward',0,0,3, V.toward(0,0,0,0,0,10,3)); v('lerp',5,5,5, V.lerp(0,0,0,10,10,10,0.5))
+v('sub',1,0,0, V.sub(5,3,2,4,3,2)); assert(c(V.dot(2,0,0,3,0,0),6),'dot parallel')
 return true
 """,
     "State": r"""
