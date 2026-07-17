@@ -67,3 +67,28 @@ function Ess.Easy.Spawn.fxOn(sTemplate, uGuid, sBone)
     if not x then return nil end
     return Ess.Object.spawn(sTemplate, x, y, z)
 end
+
+-- Ess.Easy.Spawn.enemies(nCount, opts) -> { guid, ... } -- drop a squad of hostiles a short way in front of
+-- you and set them ON you: an instant firefight in one line. opts: template ("VZ Soldier"), dist (14 ahead),
+-- spread (3), attack (default true -- order them to attack you; false = just spawn them), target (default you).
+-- Returns the spawned guids so you can order/track them further. CONFIRMED enemy template "VZ Soldier"
+-- (command_a_squad recipe); swap opts.template once the spawn catalog lands.
+function Ess.Easy.Spawn.enemies(nCount, opts)
+    opts = opts or {}
+    local n, tmpl = nCount or 3, opts.template or "VZ Soldier"
+    local px, py, pz, yaw = Ess.Player.pose(0)
+    if not px then return {} end
+    local sx, sz = Ess.Math.pointAhead(px, pz, yaw or 0, opts.dist or 14)   -- a spot ahead of you (hides the yaw math)
+    local spread = opts.spread or 3
+    local squad = {}
+    for i = 1, n do
+        local ox, oz = ((i - 1) % 3 - 1) * spread, math.floor((i - 1) / 3) * spread
+        local g = Ess.Object.spawn(tmpl, sx + ox, py, sz + oz)
+        if g then squad[#squad + 1] = g end
+    end
+    if #squad > 0 and opts.attack ~= false then
+        local target = opts.target or Ess.Player.character(0)
+        if target then Ess.Easy.AIOrders.attack(squad, target) end    -- send them at you
+    end
+    return squad
+end

@@ -31,7 +31,7 @@ each is one guessable call:
 | Verb | Does |
 |---|---|
 | `Ess.Easy.Vehicle.summon(template)` | spawn a vehicle in front + drop you in the driver seat |
-| `Ess.Easy.Spawn.explosion(type)` / `.crate(type)` / `.weapon(name)` / `.airstrike(round)` | a boom in front / a supply drop / a weapon pickup / a shell on your own head |
+| `Ess.Easy.Spawn.explosion(type)` / `.crate(type)` / `.weapon(name)` / `.airstrike(round)` / `.enemies(n)` | a boom in front / a supply drop / a weapon pickup / a shell on your own head / a squad of hostiles sent at you |
 | `Ess.Easy.World.removeMapBoundary()` / `.clearWanted()` | roam the whole map / lose all heat |
 | `Ess.Easy.World.hellscape()` / `.tint(r,g,b)` / `.brightness(n)` / `.resetAtmosphere()` | recolor/darken the world (region-gated — only shows when you're standing in a real map region, not the HQ) |
 | `Ess.Easy.Player.giveGrapplingHook()` / `.unlockFastTravel()` / `.unlockAllHQs()` / `.giveAllRewards()` / `.freeSupport()` / `.skin(code)` | the game's own cheat-menu unlocks + whole-figure skin swap, one call each |
@@ -63,7 +63,7 @@ in-game.
 
 | Namespace | What it's for | Key calls |
 |---|---|---|
-| `Ess.Player` | Player/character identity without the 8-getter sprawl | `.character(i)` (0 local, 1 co-op partner), `.slot(i)`, `.camera(i)`, `.pose(i)`, `.giveCash(n)`, `.giveFuel(n)`, `.targetUnderReticle(i)`, `.rumble(i, len)`, `.removeBoundaries()`, `.setInputEnabled(on, i)` (freeze/restore gameplay input for a modal UI/cutscene), `.teleport(x,y,z, yaw, onDone)` (co-op-safe warp) |
+| `Ess.Player` | Player/character identity without the 8-getter sprawl | `.character(i)` (0 local, 1 co-op partner), `.slot(i)`, `.camera(i)`, `.pose(i)`, `.giveCash(n)`, `.giveFuel(n)`, `.targetUnderReticle(i)`, `.rumble(i, len)`, `.removeBoundaries()`, `.setInputEnabled(on, i)` (freeze/restore gameplay input for a modal UI/cutscene), `.teleport(x,y,z, yaw, onDone)` (co-op-safe warp), `.inVehicle(i)/.onFoot(i)` |
 | `Ess.Object` | The everyday object-manipulation namespace | **spawn:** `.spawn(template, x,y,z, yaw)` (guarded), `.spawnAhead(template, dist, height, i)` (in front of the player, hides the yaw/trig); **transform:** `.pos/.setPos`, `.yaw/.setYaw`, `.faceToward(g,x,y,z)/.faceObject(g,target)` (turn to face), `.distance`; **life:** `.health/.setHealth/.maxHealth/.heal`, `.kill/.revive/.remove`, `.alive/.valid`, `.setInvincible`; **state:** `.visible/.setVisible`, `.hasLabel/.addLabel/.removeLabel`, `.displayName`, `.playerControlled`; **physics:** `.enablePhysics/.disablePhysics`, `.impulse`; **vehicle watch:** `.vehicleOf`, `.pollVehicleChange` |
 | `Ess.Vehicle` | Seats/riders/entry | `.driver(veh)`, `.riders(veh)`, `.seatOf(char)`, `.enterBestSeat(char, veh)`, `.enterSeatExcluding(char, veh, excl)`, `.exit(veh, char)`, `.followGhost(template, x,y,z)`, `.flyTo(heli, x,y,z, {onReady=})` (send an AI heli to a point — driver-wait + `Ai.Deliver`); **`Ess.Easy.Vehicle.summon(template)`** — spawn a vehicle in front + hop in the driver seat (the "I want a helicopter" → flying-it one-liner) |
 | `Ess.Probe` | Nearby-object collection, one dispatcher | `.nearby(...)` (**excludes the player by default**), `.nearest(...)` (closest match), `.getFaction(guid)`, `.describeSafe(guid)` |

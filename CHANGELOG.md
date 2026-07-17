@@ -24,6 +24,8 @@ calls + offline-verified where pure); test in a live game, then bump to `0.3.0` 
 - **`Ess.Keys`** — bind several hotkeys inside one script (the OnKey loader gives you one key; this lets that
   script own a whole panel): `Ess.Keys.on("F6", fn)` plus off/clear/isBound and a name→VK map. Edge-triggered
   dispatch on one shared loop; resolution + dispatch execute-verified offline. Recipe: `hotkey_toolkit`.
+- **`Ess.Easy.Spawn.enemies(n, opts)`** — drop a squad of hostiles ahead and send them at you, one line (an
+  instant firefight). Plus `Ess.Player.inVehicle(i)` / `.onFoot(i)` state getters. Recipe: `instant_firefight`.
 
 ## [0.2.1]
 

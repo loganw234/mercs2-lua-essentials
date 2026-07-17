@@ -14,6 +14,7 @@
 --   Ess.Player.rumble(i, fLength)                Pg.Rumble -- controller haptic feedback
 --   Ess.Player.teleport(x, y, z, yaw, onDone)    warp the player(s) to a world spot -- the CONFIRMED
 --                                                MrxUtil.TeleportHeroesToLocations idiom (NOT raw SetPosition)
+--   Ess.Player.inVehicle(i) -> uVehicleGuid|nil / .onFoot(i) -> bool    what the player is doing right now
 
 import("MrxPmc")
 import("MrxUtil")
@@ -171,4 +172,18 @@ end
 function Ess.Player.teleport(x, y, z, yaw, onDone)
     local locs = { { x, y, z, yaw or 0 } }
     pcall(MrxUtil.TeleportHeroesToLocations, locs, onDone or function() end)
+end
+
+-- Ess.Player.inVehicle(i) -> uVehicleGuid | nil -- the vehicle the player is in right now (driver OR
+-- passenger), nil on foot. Just Ess.Object.vehicleOf on the player's character, surfaced here because "am I
+-- driving?" is a question mods ask constantly (gate a boost/horn, a car-only menu, a "get out first" prompt).
+function Ess.Player.inVehicle(i)
+    local char = Ess.Player.character(i)
+    if not char then return nil end
+    return Ess.Object.vehicleOf(char)
+end
+
+-- Ess.Player.onFoot(i) -> bool -- the complement: true when the player isn't in any vehicle.
+function Ess.Player.onFoot(i)
+    return Ess.Player.inVehicle(i) == nil
 end
