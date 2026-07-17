@@ -1329,3 +1329,42 @@ Verification: all offline gates green — build, `luac5.1` syntax, `checkpure` 1
 behavior changed for anything that was already passing; the two fixes are a new guard (reject-path only) and a
 scan-rate change (same displayed values, computed less often). VERSION still `0.2.1` — this hardens the same
 `[Unreleased]` batch; still bump to `0.3.0` after Logan's one live pass.
+
+---
+
+## Session note — in-game creator toolkit + a browser mod console (autonomous, 2026-07-17)
+
+Logan asked for in-game dev/creator tools (Mercs2 never shipped an editor) and, separately, a sample HTML page
+that makes Ess calls from a webpage over the REPL socket. Delivered both; all offline-composed from confirmed
+calls + compile-checked (no live game this session).
+
+**`samples/OnKey/CreatorToolkit.lua` (F8)** — one menu hub, eight tools, because F1–F12 were already full and a
+hub is the right UX anyway: object inspector (WAILA for anything under the reticle — `targetUnderReticle` +
+`Probe.describeSafe`), an **AI-cap meter** counting nearby AI vs the ~200 soft cap (the documented CTD ceiling
+— genuinely protective while spawn-testing), a nearby-object scanner (`UI.List`), **persistent teleport
+bookmarks** (`SaveVar` → survives reload), a prop placer (spawn-at-reticle + `setYaw` rotate + delete), a dev
+panel (invincible / infinite-ammo / `Time.scale` / freeze-nearby-AI via `Raw.AIOrders.enable` / clear-heat /
+heal / cash), a photo mode, and a **camera-path → cinematic recorder** (drop pose keyframes, play back through
+`Camera.beginCinematic`/`placeCamera`/`lookAtPoint`/`blend`). **Consolidation:** this folds in and REPLACES the
+standalone `DebugOverlay.lua` demo (deleted) — the overlay is now a toolkit entry, freeing F8 for the hub;
+`Ess.Easy.Debug.overlay()` the namespace is unchanged and still callable directly.
+
+**`tools/webrepl.py` + `tools/webrepl.html`** — a browser "mod console." Browsers can't open raw TCP and the
+lua-bridge is raw TCP (27050), so `webrepl.py` is a tiny local HTTP relay that **imports `lua_repl` and reuses
+its `execute()`** (one protocol, one place): serves the page, and `POST /exec` forwards a Lua snippet to the
+bridge + reads the log-tagged result back. The page has a live bridge-status dot, a grid of one-click Ess
+actions, and a free-form Lua box (`return X` → shown on-page). **Verified end-to-end offline:** started the
+server, `GET /` → 200, `/probe` → `{up:false}` (game off, correct), `/exec` → the correct bridge-unreachable
+error. The whole HTTP↔bridge path works; only live *results* need the game running. (Browser-pane preview is
+blocked by policy for localhost/file, so no screenshot — the curl round-trip is the proof.)
+
+**Honest first-pass limits (per Logan's "drafts are fine / note hard walls"):** the two camera tools park and
+blend the camera through the confirmed cinematic API but do NOT implement a **WASD freecam** — you author by
+positioning your character and dropping keyframes (a real freecam wants per-frame `Ess.Input` + camera
+translation, a bigger piece). There's **no native "hide the whole HUD" call** in the corpus, so photo mode
+hides player markers only. Both are noted in the file header. Everything else is straight composition of
+live-verified Ess functions.
+
+Verification: every `samples/OnKey/*.lua` compiles under `luac`-equivalent (lupa `load`); `webrepl.py`/
+`lua_repl.py` byte-compile; the zip ships `CreatorToolkit` (12 OnKey scripts, F1–F12 all uniquely bound,
+DebugOverlay removed). VERSION stays `0.2.1` — this joins the `[Unreleased]` batch for the one live pass.

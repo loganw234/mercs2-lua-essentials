@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ess Web Mod Console</title>
+<style>
+  :root { --bg:#0f1216; --panel:#171b21; --edge:#2a313b; --ink:#d6dde6; --dim:#8a95a3;
+          --accent:#5ac8fa; --ok:#5ad48b; --err:#ff6b6b; --warn:#ffcc66; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  .wrap { max-width:900px; margin:0 auto; padding:20px 16px 60px; }
+  header { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+  header h1 { font-size:19px; margin:0; letter-spacing:.3px; }
+  header h1 b { color:var(--accent); }
+  .status { display:flex; align-items:center; gap:7px; margin-left:auto; font-size:12px; color:var(--dim); }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--dim); box-shadow:0 0 0 0 rgba(0,0,0,0); }
+  .dot.up { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+  .dot.down { background:var(--err); box-shadow:0 0 8px var(--err); }
+  p.lead { color:var(--dim); margin:.2em 0 1.2em; font-size:13px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.12em; color:var(--dim);
+       margin:22px 0 10px; font-weight:600; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:9px; }
+  button.act { text-align:left; background:var(--panel); color:var(--ink); border:1px solid var(--edge);
+        border-radius:9px; padding:10px 12px; cursor:pointer; transition:border-color .12s, transform .05s; }
+  button.act:hover { border-color:var(--accent); }
+  button.act:active { transform:translateY(1px); }
+  button.act .t { font-weight:600; display:block; }
+  button.act .h { color:var(--dim); font-size:11px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .editor { display:flex; flex-direction:column; gap:8px; }
+  textarea { width:100%; min-height:96px; resize:vertical; background:#0b0e12; color:var(--ink);
+        border:1px solid var(--edge); border-radius:9px; padding:11px 12px;
+        font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  textarea:focus { outline:none; border-color:var(--accent); }
+  .runrow { display:flex; align-items:center; gap:12px; }
+  button.run { background:var(--accent); color:#04222f; border:none; border-radius:9px; font-weight:700;
+        padding:9px 20px; cursor:pointer; }
+  button.run:disabled { opacity:.5; cursor:default; }
+  .runrow small { color:var(--dim); }
+  #out { margin-top:14px; background:#0b0e12; border:1px solid var(--edge); border-radius:9px;
+        padding:10px 12px; min-height:120px; max-height:340px; overflow:auto;
+        font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; }
+  .line { padding:1px 0; }
+  .line .tag { display:inline-block; min-width:52px; }
+  .sent .tag { color:var(--dim); }  .sent { color:var(--dim); }
+  .ok   .tag { color:var(--ok); }
+  .err  .tag { color:var(--err); }
+  .note .tag{ color:var(--warn); } .note { color:var(--warn); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><b>Ess</b> Web Mod Console</h1>
+    <div class="status"><span id="dot" class="dot"></span><span id="stat">checking bridge…</span></div>
+  </header>
+  <p class="lead">A mod UI in your browser. Every button and the box below run a Lua snippet in the
+    <b>live game</b> through <code>Ess</code> — the page POSTs to a local relay that talks to the lua-bridge.
+    Start the game with Ess loaded, run <code>python tools/webrepl.py</code>, and click away.</p>
+
+  <h2>Quick actions</h2>
+  <div class="grid" id="actions"></div>
+
+  <h2>Run any Ess call</h2>
+  <div class="editor">
+    <textarea id="code" spellcheck="false">-- `return X` sends the value back to this console.
+-- Try anything from CAPABILITIES.md, e.g.:
+return "Ess " .. Ess.VERSION .. " — " .. tostring(select(4, Ess.Player.pose(0))) .. " yaw"</textarea>
+    <div class="runrow">
+      <button class="run" id="runBtn">Run  ▸</button>
+      <small>Ctrl+Enter to run</small>
+    </div>
+  </div>
+
+  <div id="out"></div>
+</div>
+
+<script>
+// Curated one-liners that show off the framework's breadth. Each runs in the live game.
+const ACTIONS = [
+  { t:"Ess version",   h:"return Ess.VERSION", code:`return "Ess " .. Ess.VERSION` },
+  { t:"Where am I?",   h:"Ess.Player.pose(0)", code:`local x,y,z=Ess.Player.pose(0); return string.format("%.1f, %.1f, %.1f", x or 0, y or 0, z or 0)` },
+  { t:"Give $100,000", h:"Ess.Player.giveCash", code:`Ess.Player.giveCash(100000)` },
+  { t:"Toast a hello", h:"Ess.UI.Toast", code:`Ess.UI.Toast("Hello from the browser!")` },
+  { t:"Heal to full",  h:"Ess.Object.heal", code:`Ess.Object.heal(Ess.Player.character(0))` },
+  { t:"Spawn a Veyron",h:"Ess.Object.spawnAhead", code:`return tostring(Ess.Object.spawnAhead("Veyron", 10))` },
+  { t:"Drop 3 enemies",h:"Ess.Easy.Spawn.enemies", code:`Ess.Easy.Spawn.enemies(3)` },
+  { t:"Airstrike on me",h:"Ess.Easy.Airstrike.onMe", code:`Ess.Easy.Airstrike.onMe(0)` },
+  { t:"Slow-mo 3s",    h:"Ess.Easy.Time.slowmo", code:`Ess.Easy.Time.slowmo(0.3, 3)` },
+  { t:"Camera shake",  h:"Ess.Easy.Camera.shake", code:`Ess.Easy.Camera.shake(0)` },
+  { t:"Clear heat",    h:"Ess.Easy.World.clearWanted", code:`Ess.Easy.World.clearWanted()` },
+  { t:"Remove map walls",h:"Ess.Player.removeBoundaries", code:`return tostring(Ess.Player.removeBoundaries()) .. " boundaries lifted"` },
+];
+
+const out = document.getElementById("out");
+function log(cls, tag, text) {
+  const d = document.createElement("div");
+  d.className = "line " + cls;
+  d.innerHTML = '<span class="tag">' + tag + '</span>' + escapeHtml(text);
+  out.appendChild(d); out.scrollTop = out.scrollHeight;
+}
+function escapeHtml(s){ return String(s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+async function run(code) {
+  const label = code.replace(/\s+/g," ").slice(0, 70);
+  log("sent", "run", label);
+  try {
+    const res = await fetch("/exec", { method:"POST", headers:{"Content-Type":"application/json"},
+                                       body: JSON.stringify({ code }) });
+    const j = await res.json();
+    if (j.ok)        log("ok",  "ok",  j.value === undefined || j.value === null || j.value === "" ? "(ran)" : j.value);
+    else             log("err", "err", j.error || "unknown error");
+  } catch (e) {
+    log("err", "err", "relay unreachable — is webrepl.py running? (" + e.message + ")");
+  }
+}
+
+// build the action buttons
+const grid = document.getElementById("actions");
+for (const a of ACTIONS) {
+  const b = document.createElement("button");
+  b.className = "act";
+  b.innerHTML = '<span class="t">' + escapeHtml(a.t) + '</span><span class="h">' + escapeHtml(a.h) + '</span>';
+  b.onclick = () => run(a.code);
+  grid.appendChild(b);
+}
+
+// free-form runner
+const codeEl = document.getElementById("code"), runBtn = document.getElementById("runBtn");
+runBtn.onclick = () => run(codeEl.value);
+codeEl.addEventListener("keydown", e => { if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); run(codeEl.value); }});
+
+// live bridge status
+async function poll() {
+  const dot = document.getElementById("dot"), stat = document.getElementById("stat");
+  try {
+    const j = await (await fetch("/probe")).json();
+    dot.className = "dot " + (j.up ? "up" : "down");
+    stat.textContent = j.up ? "bridge up · game connected" : "bridge down · start the game + lua-bridge";
+  } catch { document.getElementById("dot").className = "dot down";
+            document.getElementById("stat").textContent = "relay offline"; }
+}
+poll(); setInterval(poll, 4000);
+log("note", "info", "Ready. Click a quick action, or write your own Ess call and hit Run.");
+</script>
+</body>
+</html>

@@ -145,3 +145,23 @@ reference) was found and fixed. Further live verification (driving it with real 
 `xpad.py`) was deliberately not pursued past that fix -- continuous-controller-input hijacking is a niche
 capability most mods don't need, not worth more session time. `xpad.py` remains available and fully
 functional if a future need for it comes up.
+
+## `webrepl.py` + `webrepl.html` -- a browser "mod page" that drives the live game
+
+A tiny local relay so a **web page can make Ess calls in the running game**. Browsers can't open a raw TCP
+socket and the lua-bridge is raw TCP on `127.0.0.1:27050`, so `webrepl.py` serves `webrepl.html` and exposes
+`POST /exec`, which forwards a Lua snippet to the bridge and reads the result back the *same* log-tagged way
+`lua_repl.py` does (it imports `lua_repl` and reuses `execute()` -- one protocol, one place).
+
+```
+python tools/webrepl.py                 # serve http://127.0.0.1:8770 , bridge 127.0.0.1:27050
+python tools/webrepl.py --web-port 9000 --game-dir "C:/Games/Mercenaries 2 World in Flames"
+```
+
+Open the URL with the game running (Ess + lua-bridge loaded). The page has a live bridge-status dot, a grid
+of one-click Ess actions (spawn a car, airstrike on me, give cash, slow-mo, ...), and a free-form box that
+runs any Lua -- `return X` sends the value back to the on-page console. It's a working demo of "a mod UI in a
+browser," and a template for building richer web tools on top of the bridge.
+
+**Binds to `127.0.0.1` only** -- it executes arbitrary Lua in your game, so it's a local dev tool, never
+something to expose on a public interface.

@@ -42,10 +42,10 @@ calls + offline-verified where pure); test in a live game, then bump to `0.3.0` 
   `a_quick_mission`.
 - **`Ess.Easy.Debug.overlay()`** — a live on-screen **dev overlay** for mod authors: your exact position +
   yaw, what you're aiming at (name/faction/distance), on-foot/vehicle, health, nearby counts. Toggle it to
-  read a spawn/teleport position off the screen instead of logging it. Bound to F8 via the new `DebugOverlay`
-  OnKey demo (shipped in the zip). Line-building + toggle verified offline; panel render needs an in-game
-  pass. Recipe: `dev_overlay`. (Deliberately shows no "FPS" — the refresh is a timer, so any framerate would
-  be the tick rate, not the real one.)
+  read a spawn/teleport position off the screen instead of logging it. Callable as `Ess.Easy.Debug.overlay()`
+  and surfaced in the `CreatorToolkit` hub (below). Line-building + toggle verified offline; panel render needs
+  an in-game pass. Recipe: `dev_overlay`. (Deliberately shows no "FPS" — the refresh is a timer, so any
+  framerate would be the tick rate, not the real one.)
 - **`Ess.Hud.objective(text, nSlot)`** now takes an optional tray slot (default 1), so `Ess.Objective`/`Quest`
   can show a goal on a line other than a running Contract's. Backward-compatible.
 - **`Ess.Safe.template(name)`** — the canonical "is this a spawnable template" check (non-blank string),
@@ -66,6 +66,20 @@ calls + offline-verified where pure); test in a live game, then bump to `0.3.0` 
   - **`EncounterDirector`** (F1) — a weighted-random encounter roller (ambush / bounty / supply drop /
     dodge-the-artillery / a 3-checkpoint time trial). (`RNG:pick` + `Easy.Objective.destroy` + `Quest` +
     `Support`)
+- **`CreatorToolkit` OnKey demo** (F8) — a **hub of in-game dev/creator tools** behind one menu (the editor
+  Mercs2 never shipped): object inspector (WAILA for anything under your reticle), an **AI-cap meter** vs the
+  ~200 soft cap, a nearby-object scanner, the debug overlay (folded in — this supersedes the standalone
+  `DebugOverlay` demo), **persistent teleport bookmarks** (`SaveVar`), a prop placer (spawn-at-reticle +
+  rotate/delete), a dev panel (invincible / infinite ammo / time-scale / freeze nearby AI / clear heat / cash),
+  a photo mode, and a **camera-path → cinematic recorder** (drop keyframes, play them back as a fly-through).
+  First-pass draft, compile-clean; the two camera tools use the confirmed cinematic API but don't implement a
+  WASD freecam yet (you author by positioning your character), and there's no native full-HUD-hide, so photo
+  mode hides player markers only. Needs the in-game pass.
+- **`tools/webrepl.py` + `tools/webrepl.html`** — a browser **"mod console"**: a tiny local HTTP relay (reusing
+  `lua_repl.py`'s protocol) serves a page that makes `Ess.*` calls in the **live game** — a grid of one-click
+  actions plus a free-form Lua box, with a live bridge-status indicator. Browsers can't open raw TCP, so the
+  relay bridges HTTP → the lua-bridge (127.0.0.1:27050). Binds to localhost only. The whole HTTP↔bridge path is
+  verified end-to-end (page serves, `/probe`/`/exec` respond correctly); live results need the game running.
 
 ### Hardening (pre-release audit of the unreleased batch, offline)
 
