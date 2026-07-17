@@ -1153,3 +1153,72 @@ Full session inventory (what shipped, ~14 commits, all on `master`, CI-validated
 
 Still-open (unchanged): the two engine recipes `watch_a_vehicle`/`a_custom_hud` need a `smoke.py` run; then
 bump to `0.2.0`. Nothing this session touched existing engine code.
+
+---
+
+## Session note — the "creativity gaps" expansion (autonomous, 2026-07-16 → 07-17)
+
+Framing (Logan's brief): the framework was strong on *how* to do a thing but thinner on *what you can do* and
+on *reacting to the player* — the places a brand-new modder feels the ceiling first. This session closes those
+Tier-1/Tier-2 gaps. All additive; nothing here changes existing engine code. In-game testing deferred to Logan
+(a majority of the surface already exists), so this note carries the honest ledger of what's verified vs. what
+still needs a live `smoke.py` / keypress pass.
+
+### What shipped (each is a new public namespace + a recipe + docs, one commit apiece)
+
+- **`Ess.Support`** + **`Ess.Easy.Airstrike`** *(src/58_support.lua)* — the iconic call-ins (airstrike /
+  artillery / gunship / bombing run / reinforcements) lifted OUT of the Contract system so a modder can fire
+  one from anywhere in one line. `Ess.Easy.Airstrike.at(x,y,z)` / `.onTarget()` / `.onMe()` for the one-tap
+  case. Composed from the exact `Airstrike.SpawnOrdnance` / `Airstrike.Flyby` / `MrxCopterDrop.Create` calls
+  the WaveDefense + Contract code already proves in-engine (same confirmed template strings, same HELO_FACTION
+  map). Recipe: `call_in_support`. **Engine-touching — needs a live pass.**
+- **`Ess.On`** *(src/32_on.lua)* — intent-named reactive hooks so a mod responds to the world without wiring
+  raw events: `death(guid)`, `enterArea`/`exitArea`/`insideArea(x,y,z,r)`, `healthBelow(guid,pct)`,
+  `playerHurt()`, `vehicle()`, `tick(interval)`. Each returns a `stop()`. Built on `Ess.Loop` + the confirmed
+  `Ess.Object.health` / `pollVehicleChange` + `Ess.Math.within2D`. The area/health/edge-trigger LOGIC is
+  execute-verified offline against a stubbed loop (enter fires once on crossing, not every tick; stop() unhooks
+  cleanly). Honest in the docs about the one gap the engine won't give cleanly (no "player scored a kill"
+  event). Recipe: `react_to_things`. **Pure logic verified; the engine reads it wraps need a live pass.**
+- **`Ess.Keys`** *(src/25_keys.lua)* — bind a WHOLE PANEL of hotkeys from one script. The OnKey loader hands a
+  script a single key; this lets that script own F6/F7/F8/… itself: `Ess.Keys.on("F6", fn)` + off / clear /
+  isBound, and a name→VK map (F1-F12, a-z, 0-9, space/enter/arrows/…). Edge-triggered dispatch on ONE shared
+  self-arming `Ess.Loop` (0.05s) that idles to nothing when no keys are bound. Name→VK resolution + the
+  press-edge dispatch are execute-verified offline. Recipe: `hotkey_toolkit`. **Dispatch verified; live
+  keypress read needs a pass.**
+- **`Ess.Easy.Spawn.enemies(n, opts)`** + **`Ess.Player.inVehicle(i)` / `.onFoot(i)`** *(src/92_easy_spawn.lua,
+  src/10_player.lua)* — "drop a hostile squad ahead of me and send them at me" in one line (the instant
+  firefight a new modder always wants first), plus the two player-state getters that were conspicuously
+  missing next to `Ess.Player.pose`. Built from `Ess.Math.pointAhead` + `Ess.Object.spawn` + the confirmed
+  `Ess.Easy.AIOrders.attack`. Recipe: `instant_firefight`. **Engine-touching — needs a live pass.**
+- **`Ess.Easy.Console.play()`** — the headline. The Console was a *reference* (a browsable API list); `play()`
+  turns it into a *tool*. It's a drill-down menu (by topic → function) that **runs each `Ess.Easy.*` one-liner
+  live on demand** and **cycles that function's parameters through confirmed presets** — so a newcomer sees
+  EXACTLY what `Explosion (MOAB)` vs `Explosion (Grenade)` does, in-game, without reading or writing a line.
+  20 curated demos across Spawn / World / Player / Support / Juice. Reachable from a pinned row in `.open()` or
+  bound to **F3** via the new `Playground` OnKey demo (ships in the release zip). Menu construction, the
+  parameter-cycler, and the run-dispatch (cycle a param twice → picking "Run it" fires the right variant) are
+  all execute-verified offline against a stubbed `Ess.UI.Menu`. **UI RENDERING needs an in-game pass.**
+
+### Verification ledger for the next in-engine session (honest)
+
+- **Verified offline, no re-check needed:** the reactive/dispatch/menu LOGIC of `Ess.On`, `Ess.Keys`, and the
+  `Console.play()` playground (stubbed-harness lupa runs), plus the four new recipes' pure control flow.
+- **Composed-from-confirmed-calls, syntax-clean, NOT yet smoke-run — do a live pass before relying on them:**
+  every place these touch the engine — `Ess.Support` / `Ess.Easy.Airstrike` (the ordnance + copter-drop
+  spawns), `Ess.Easy.Spawn.enemies` (spawn + AI-order), the `Ess.On` engine *reads* (health / vehicle poll /
+  hurt), the `Ess.Keys` live keypress read, and the `Console.play()` UI render. Run `python tools/smoke.py`
+  (with the game up) for the recipes; press **F3** for the playground; press the panel keys for `hotkey_toolkit`.
+- **Unchanged:** existing engine code was not touched, so all previously-passing recipes/namespaces are
+  unaffected. `checkpure.py` still green (this session added no new *pure* namespace, so its 10 groups stand).
+
+### Release posture
+
+**`Ess.VERSION` stays `0.2.1` — deliberately NOT released.** The engine-touching additions are unproven
+in-game and I don't auto-release unverified engine code. The work sits under CHANGELOG `[Unreleased]`. Once
+Logan confirms the live pass above: bump `Ess.VERSION` to `0.3.0`, rename `[Unreleased]` → `## [0.3.0]`, push
+to `master`, and `release.yml` cuts it automatically.
+
+Commits this session (all on `master`, each CI-validated: build + luac5.1 + checkpure):
+`Ess.Support` → `Ess.On` → `Ess.Keys` → `Ess.Easy.Spawn.enemies`/player-state → `Console.play()` playground,
+plus their recipes and the doc/CHANGELOG/package updates. `smoke.py` gained `--delay` (default 2.5) + `--only`
+earlier so the full catalog stops CTD-ing from stacked spawns; run it at `--delay 3` for the whole suite.

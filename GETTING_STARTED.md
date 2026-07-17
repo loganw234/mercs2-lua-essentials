@@ -158,3 +158,6 @@ every recipe as a self-test — a fast way to confirm a change didn't break a pu
   authoring tool.
 - **[CAPABILITIES.md](CAPABILITIES.md)** — the full, current API surface, grouped by what you reach for.
 - **`Ess.Easy.Console.open()`** — the same surface, browsable in-game.
+- **`Ess.Easy.Console.play()`** — the interactive **playground**: drill into the `Ess.Easy.*` one-liners by
+  topic, *run* one live, and cycle its parameters to see exactly what each does — without writing any code.
+  Bind the `Playground` OnKey demo to a key (it ships in the release zip on **F3**) and press it in-game.
