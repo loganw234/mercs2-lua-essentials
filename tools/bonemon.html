@@ -207,9 +207,9 @@ function resize(){ var w=$("wrap").clientWidth,h=$("wrap").clientHeight; cv.widt
 window.addEventListener("resize",resize);
 
 function project(p,view,geo){
-  var vert=(p[calib.up]-calib.center[calib.up])*geo.s;
+  var vert=(p[calib.up]-geo.center[calib.up])*geo.s;   // geo.center is the LIVE hips (per frame), not a snapshot
   var haxis=view===0?calib.wide:calib.deep;
-  var horiz=(p[haxis]-calib.center[haxis])*geo.s;
+  var horiz=(p[haxis]-geo.center[haxis])*geo.s;
   return [ (view===0?geo.cxF:geo.cxS)+horiz, geo.cy-vert ];
 }
 function draw(){
@@ -221,9 +221,15 @@ function draw(){
   if(!latest||!latest.got){ ctx.fillStyle="#7d8ba5"; ctx.font=(13*DPR)+"px ui-monospace"; ctx.fillText(connected?"waiting for bone data — press Start":"not connected",W/2-90*DPR,H/2); return; }
   if(!calib) calibrate();
   if(!calib) return;
-  var zoom=+$("zoom").value;
-  var geo={ s:(0.42*H/calib.span)*zoom, cxF:W*0.25, cxS:W*0.75, cy:H*0.62 };
   var pos=latest.pos;
+  var zoom=+$("zoom").value;
+  // ANCHOR: re-center on the LIVE hips each frame so the rig stays put on-canvas and only the POSE moves.
+  // (calibration fixes the SCALE only; the center must track the character or the whole rig slides as it walks.)
+  var center=pos[IDX["bone_hips"]]||pos[IDX["bone_root"]];
+  if(!center){ var sx=0,sy=0,sz=0,nc=0,pp;
+    for(var ci=0;ci<pos.length;ci++){ pp=pos[ci]; if(pp){sx+=pp[0];sy+=pp[1];sz+=pp[2];nc++;} }
+    if(!nc) return; center=[sx/nc,sy/nc,sz/nc]; }
+  var geo={ s:(0.42*H/calib.span)*zoom, cxF:W*0.25, cxS:W*0.75, cy:H*0.62, center:center };
   for(var view=0;view<2;view++){
     // edges
     ctx.lineWidth=1.6*DPR;
