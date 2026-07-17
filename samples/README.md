@@ -89,6 +89,7 @@ the game's `scripts/OnKey/` and bind them in `lua_loader.ini` (e.g. `MissionForg
 
 | Script | Key | What it is |
 |---|---|---|
+| `StarterMod` | F5 | **copy-me starter** — the three patterns every OnKey mod needs (guard / state / action), as a god-mode toggle. Gut the action block and drop your own in. |
 | `MissionForge` | F7 | **the mission-authoring tool** — walk (or fly) around and drop-at-your-position placement of units / objectives / support / triggers / AI-orders / **cinematic camera shots**, then export a `MISSIONFORGE_EXPORT` block for the web tool (or hand-authoring) to turn into an `Ess.Contract`. A full tool, not a demo (~1100 lines); consumes Ess throughout. |
 | `CustomMenu` | F4 | **make your own menu of cool stuff** — a beginner template: Ess.UI.Menu wired to the Ess.Easy.* one-liners (spawn / effects / unlocks / world tweaks). Copy it and swap in your own entries. |
 | `CoopChat` | F2 | co-op text chat — per-player username over the wire, auto-fade (Net + UI.Chat) |
