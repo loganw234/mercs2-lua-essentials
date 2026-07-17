@@ -5,18 +5,22 @@
  * WHY RESULTS WORK THE WAY THEY DO (read this -- it's the whole design):
  *   The bridge runs your Lua whenever the engine next drives its pump -- and the pump rides on the game's own
  *   (noop'd) native debug-print, which every stock script calls constantly, so chunks run promptly and
- *   reliably (it's been driven overnight at 200-300k executed calls/sec). What's NOT reliable is the DIRECT
- *   socket return -- it's one-execution-behind (buffering). So the robust channel is the LOG: Loader.Printf
- *   lines are ordered and unambiguous, and the bridge forwards them over WS as a live feed. This client,
- *   exactly like tools/lua_repl.py, WRAPS each chunk to Loader.Printf a nonce-tagged result and matches that
- *   tag on the stream -- reliable + ordered, and no correlation plumbing in the bridge's C (the id lives in
- *   Lua). Note it forwards Loader.Printf (the dedicated CLEAN log), not the game's spammy native print.
+ *   reliably (driven overnight at 200-300k executed calls/sec). Results ride a tagged line back to us, exactly
+ *   like tools/lua_repl.py -- but over a HIDDEN channel, not the log: this client wraps each chunk to
+ *   `Loader.WsSend("<tag>"..result)`. Loader.WsSend is a bridge global that broadcasts to WS clients ONLY and
+ *   never writes the log file, so result/plumbing traffic stays invisible to lua_loader_printf.log. The bridge
+ *   delivers two feeds: {type:"ws"} (Loader.WsSend -- hidden, carries our tagged results + any mod telemetry)
+ *   and {type:"log"} (Loader.Printf -- the real log, mirrored as the live console). No correlation plumbing in
+ *   the bridge's C either -- the id lives in Lua.
  *
  *   You get TWO signals per run():
  *     * ACK    -- the bridge received + queued your chunk (immediate, reliable).
- *     * RESULT -- the tagged log line came back. Reliable in practice (the pump fires constantly). If no line
- *                 arrives within resultTimeout, run() resolves with { timedOut:true } instead of hanging --
- *                 a rare safety net (a dropped/slow line), not the norm; the chunk almost certainly ran.
+ *     * RESULT -- the tagged {type:"ws"} line came back. Reliable in practice (the pump fires constantly). If
+ *                 none arrives within resultTimeout, run() resolves { timedOut:true } instead of hanging -- a
+ *                 rare safety net (a dropped/slow line), not the norm; the chunk almost certainly ran.
+ *
+ *   Set onData for un-tagged {type:"ws"} pushes (a mod streaming telemetry via Loader.WsSend), and onLog for
+ *   the {type:"log"} console feed.
  *
  * USAGE
  *   const bridge = new EssBridge("ws://127.0.0.1:27050");
@@ -34,12 +38,13 @@
   var _seq = 0;
   function nextId() { return "q" + (++_seq).toString(36) + Date.now().toString(36); }
 
-  // Wrap user code so it prints a single, nonce-tagged result line. Mirrors tools/lua_repl.py's _wrap:
-  // pcall the body, then Loader.Printf("<tag>OK\t<value>") or "<tag>ERR\t<error>". Single line only --
-  // a tostring() with its own newline truncates at the first, fine for scalars / coords / short strings.
+  // Wrap user code so it emits a single, nonce-tagged result line on the HIDDEN channel (Loader.WsSend --
+  // WS-only, never logged), so result plumbing doesn't pollute lua_loader_printf.log. pcall the body so the
+  // line ALWAYS fires (success OR error). Single line only -- a tostring() with its own newline truncates at
+  // the first, fine for scalars / coords / short strings.
   function wrap(code, tag) {
     return "local __ok, __r = pcall(function()\n" + code + "\nend)\n" +
-           "Loader.Printf('" + tag + "' .. (__ok and 'OK\\t' or 'ERR\\t') .. tostring(__r))\n";
+           "Loader.WsSend('" + tag + "' .. (__ok and 'OK\\t' or 'ERR\\t') .. tostring(__r))\n";
   }
 
   function EssBridge(url, opts) {
@@ -52,7 +57,8 @@
     this.state = "closed";
     this._pending = {};        // id -> { tag, resolve, timer, acked, onAck }
     this._reconnectDelay = 1000;
-    this.onLog = opts.onLog || function () {};       // (line) live Loader.Printf feed (result lines filtered out)
+    this.onLog = opts.onLog || function () {};       // (line) the {type:"log"} console feed (Loader.Printf)
+    this.onData = opts.onData || function () {};     // (line) un-tagged {type:"ws"} pushes (mod telemetry)
     this.onStatus = opts.onStatus || function () {}; // (state)
   }
 
@@ -118,14 +124,14 @@
       return;
     }
 
-    if (msg.type === "log") {
-      var line = msg.line == null ? "" : String(msg.line);
-      // Is this line one of our tagged RESULT lines? If so, resolve that request and DON'T echo it as log.
+    if (msg.type === "ws") {
+      // the HIDDEN channel (Loader.WsSend). Our tagged RESULT lines ride here; everything else is a mod push.
+      var wline = msg.line == null ? "" : String(msg.line);
       for (var id in this._pending) {
         var p = this._pending[id];
-        var at = line.indexOf(p.tag);
+        var at = wline.indexOf(p.tag);
         if (at !== -1) {
-          var rest = line.slice(at + p.tag.length);
+          var rest = wline.slice(at + p.tag.length);
           var ok = rest.indexOf("OK\t") === 0;
           var value = rest.slice(rest.indexOf("\t") + 1);
           clearTimeout(p.timer); delete this._pending[id];
@@ -133,10 +139,14 @@
           return;
         }
       }
-      try { this.onLog(line); } catch (x) {}   // an ordinary game log line -> the live feed
+      try { this.onData(wline); } catch (x) {}   // un-tagged -> a mod streaming telemetry
       return;
     }
-    // {type:"result"} (if a bridge also sends the direct return) is ignored here -- the log tag is authoritative.
+
+    if (msg.type === "log") {   // the real Loader.Printf log, mirrored as the live console feed
+      try { this.onLog(msg.line == null ? "" : String(msg.line)); } catch (x) {}
+      return;
+    }
   };
 
   EssBridge.prototype._failAll = function (why) {

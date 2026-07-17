@@ -170,9 +170,10 @@ something to expose on a public interface.
 
 For when the bridge learns to speak **WebSocket** (so a web page connects directly, no relay at all).
 `ess-bridge.js` is a tiny, dependency-free reference client implementing the two-tier protocol: an **ack**
-(the bridge received your chunk) plus a **result** delivered over a live `Loader.Printf` feed -- the chunk
-tags its result in Lua and the client matches the tag on the feed, the same log-authoritative trick
-`lua_repl.py` uses, so results are reliable + ordered with zero correlation plumbing in the bridge's C.
-`BRIDGE_WEBSOCKET.md` specs exactly what the bridge needs (handshake, framing, ack, and forwarding
-`Loader.Printf` over WS -- a ~3-line add since the bridge owns that function). Neither ships in the game;
-they're the reference for building browser (or any-language) tools once WS lands.
+(the bridge received your chunk) plus a **result** delivered over a **hidden channel** -- the chunk tags its
+result in Lua via `Loader.WsSend` (a WS-only emit that never writes the log), and the client matches the tag,
+so results are reliable + ordered, correlation lives in Lua (no C plumbing), and the real log stays clean.
+`BRIDGE_WEBSOCKET.md` specs exactly what the bridge needs: handshake, framing, an ack, mirroring `Loader.Printf`
+to WS as the live console, and adding `Loader.WsSend` (the hidden channel -- a ~5-line copy of the log function
+minus the file write). Neither ships in the game; they're the reference for building browser (or any-language)
+tools once WS lands.
