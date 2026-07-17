@@ -51,6 +51,7 @@ in-game.
 | `Ess.Table` | Dense-array repair + collection helpers | `.compact(t)` (rebuild after a nil hole); `.keys/.values/.count/.isEmpty/.contains/.indexOf`, `.map/.filter/.find/.reduce/.slice/.reverse` (array), `.copy/.merge` (shallow) |
 | `Ess.Str` | The string helpers Lua 5.1 omits (all LITERAL, not patterns) | `.split/.join/.trim`, `.startsWith/.endsWith/.contains/.count`, `.padLeft/.padRight`, `.capitalize/.title/.lines/.truncate` |
 | `Ess.Color` | RGB for the `rgb = {r,g,b}` params (Ess.Mark / Ess.UI) | `.hex(s)`, `.hsv(h,s,v)`, `.lerp(c1,c2,t)`, `.of(name)`, `.NAMES` (preset table) |
+| `Ess.Vec` | 3D vector math on flat x,y,z (aim / offset / knockback) | `.length/.normalize/.scale/.add/.sub/.dot`, `.dir(from,to)`, `.toward(from,to,dist)`, `.lerp` |
 | `Ess.Math` | Geometry/number helpers in the engine's yaw convention | `.clamp/.lerp/.sign/.round/.approach`, `.dist2D/.dist3D`, `.angleTo(fx,fz,tx,tz)` (yaw facing a point), `.pointAhead(x,z,yaw,dist)` (the spawn-ahead projection), `.normDeg`; `.clamp01/.remap/.smoothstep/.lerpAngle/.wrap`; `.dist2DSq/.dist3DSq`, `.within2D/.within3D` (range tests, no sqrt) |
 | `Ess.Guid` / `Ess.Name` | Name↔guid, pcall-wrapped | `Ess.Guid(name)`, `Ess.Name(guid)` |
 | `Ess.Log` | One line to the bridge log | `Ess.Log(msg)` |

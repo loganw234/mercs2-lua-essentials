@@ -20,6 +20,8 @@ version? It still releases, with auto-generated commit notes.) See the README's 
   find / reduce / slice / reverse / copy / merge.
 - **`Ess.Math`** — clamp01 / remap / smoothstep / lerpAngle (shortest-path angle lerp) / wrap; plus
   dist2DSq / dist3DSq and within2D / within3D (the `dx*dx+dz*dz <= r*r` range test, named — no sqrt).
+- **`Ess.Vec`** — 3D vector math on flat x,y,z (length / normalize / scale / add / sub / dot / dir / toward
+  / lerp) — the spatial helpers spawn / aim / knockback code otherwise open-codes.
 - **`Ess.RNG`** — `:shuffle` (in-place, unbiased Fisher-Yates) and `:pickN` (distinct sample without
   replacement).
 - **GETTING_STARTED.md** — an install-to-first-mod on-ramp (linked from the README) for a game that never

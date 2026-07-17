@@ -29,7 +29,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 
 # the pure (or deterministically-stubbable) src files, in load order
-SRC_FILES = ["00_core.lua", "01_math.lua", "02_str.lua", "03_color.lua",
+SRC_FILES = ["00_core.lua", "01_math.lua", "02_str.lua", "03_color.lua", "04_vec.lua",
              "22_state.lua", "23_time.lua", "53_rng.lua"]
 
 # deterministic stubs for the handful of engine globals these files touch at call time
@@ -114,6 +114,19 @@ eq(#g:pickN({1,2,3},9),3,'pickN clamp'); eq(#g:pickN({1,2,3},0),0,'pickN zero')
 -- weighted pick with a zero-weight entry should never return it
 local picked={} for _=1,100 do picked[g:pick({{id='a',w=1},{id='z',w=0}}).id]=true end
 assert(not picked['z'],'weighted skips w=0')
+return true
+""",
+    "Vec": r"""
+local V = Ess.Vec
+-- compare numerically, not by string: lupa's Lua 5.5 prints a float zero as "0.0" (5.1 prints "0"), so a
+-- string compare would spuriously fail on exact components like a normalized 0.
+local function c(a,b) return math.abs(a-b) < 1e-9 end
+local function v(m,ex,ey,ez,x,y,z) assert(c(x,ex) and c(y,ey) and c(z,ez), m..' got '..x..','..y..','..z) end
+assert(c(V.length(3,4,0),5),'length'); assert(c(V.length(0,0,0),0),'length0')
+v('normalize',0.6,0.8,0, V.normalize(3,4,0)); v('normalize0',0,0,0, V.normalize(0,0,0))
+v('scale',2,4,6, V.scale(1,2,3,2)); v('add',5,7,9, V.add(1,2,3,4,5,6)); v('sub',4,5,6, V.sub(5,7,9,1,2,3))
+assert(c(V.dot(1,0,0,0,1,0),0) and c(V.dot(1,2,3,1,2,3),14),'dot')
+v('dir',0,0,1, V.dir(0,0,0,0,0,5)); v('toward',0,0,3, V.toward(0,0,0,0,0,10,3)); v('lerp',5,5,5, V.lerp(0,0,0,10,10,10,0.5))
 return true
 """,
     "State": r"""

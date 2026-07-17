@@ -34,6 +34,7 @@ MANIFEST = [
     "01_math.lua",
     "02_str.lua",
     "03_color.lua",
+    "04_vec.lua",
     "10_player.lua",
     "11_object.lua",
     "12_vehicle.lua",
