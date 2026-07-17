@@ -46,6 +46,7 @@ MANIFEST = [
     "22_state.lua",
     "23_time.lua",
     "24_save.lua",
+    "25_keys.lua",
     "30_track.lua",
     "31_mark_raw.lua",
     "31_mark.lua",

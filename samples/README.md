@@ -24,6 +24,7 @@ handler.
 | `persistent_vars` | remember a value across save/reload | SaveVar |
 | `track_lifecycles` | bundle spawns/events/timers on one handle, tear it all down at once | Track, Event |
 | `react_to_things` | hooks: when something dies / you enter an area / you get hurt | On |
+| `hotkey_toolkit` | bind a panel of hotkeys from one script (F6/F7/F8) | Keys |
 
 **Text, numbers, colour, vectors & randomness** (pure utilities — no engine needed)
 

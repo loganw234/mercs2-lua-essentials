@@ -76,6 +76,7 @@ in-game.
 | `Ess.Time` | All wall-clock timing (survives world-pause) | `.stamp()`/`.elapsed(s)`/`.mark(s)` (explicit), `.cooldown(seconds)` → `ready()`, `.clock(maxDelta)` → `:delta()` (auto-advancing per-frame dt), `.scale(n)`/`.restoreScale()`, `.format(sec, tenths)`; `Ess.Easy.Time.slowmo(n, seconds)` |
 | `Ess.Loop` | The one shared reload-safe heartbeat | `.start(id, interval, tickFn)`, `.stop(id)`, `.isRunning(id)` |
 | `Ess.Input` | The only correct key-polling shape + device query | `.poll()` → `{pressed, down(vk)}`, `.clear()` (flush the key buffer), `.VkToChar(vk, shift)`, `.usingController()`, `.hijackController(onInput)` |
+| `Ess.Keys` | Bind several hotkeys in ONE script (a toolkit) | `.on(key, fn)` (key = VK or name `"F5"`/`"space"`/`"a"`; `fn(bShift)`), `.off/.clear/.isBound`, `.vk(name)` — edge-triggered dispatch on one shared loop |
 | `Ess.TextConsole` | A typed-input console, no `.gfx` asset needed | `.open{ onSubmit=, … }`, `.close()`, `.isOpen()` |
 
 ## Tracking & cleanup

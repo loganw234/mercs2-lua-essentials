@@ -21,6 +21,9 @@ calls + offline-verified where pure); test in a live game, then bump to `0.3.0` 
   `death(guid)`, `enterArea` / `exitArea` / `insideArea`, `healthBelow`, `playerHurt`, `vehicle`, `tick`
   (each returns `stop()`). The area/health/hurt logic is execute-verified offline (stubbed loop). Honest
   about engine limits (no clean "player got a kill" event). Recipe: `react_to_things`.
+- **`Ess.Keys`** — bind several hotkeys inside one script (the OnKey loader gives you one key; this lets that
+  script own a whole panel): `Ess.Keys.on("F6", fn)` plus off/clear/isBound and a name→VK map. Edge-triggered
+  dispatch on one shared loop; resolution + dispatch execute-verified offline. Recipe: `hotkey_toolkit`.
 
 ## [0.2.1]
 
