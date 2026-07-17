@@ -98,6 +98,9 @@ local v,i=T.find({1,2,3},function(v) return v>1 end); eq(v,2,'find'); eq(i,2,'fi
 local mg=T.merge({a=1},{b=2,a=9}); eq(mg.a,9,'merge'); eq(mg.b,2,'merge add')
 -- compact: rebuild a hole (a[2]=nil) into a dense array
 local h={10,20,30}; h[2]=nil; T.compact(h); eq(#h,2,'compact len'); eq(h[2],30,'compact shift')
+local sl=T.slice({10,20,30,40},2,3); eq(#sl,2,'slice len'); eq(sl[1],20,'slice start'); eq(T.slice({1,2,3},2)[2],3,'slice default j')
+local rv=T.reverse({1,2,3}); eq(rv[1],3,'reverse head'); eq(rv[3],1,'reverse tail')
+eq(T.reduce({1,2,3,4},function(a,v) return a+v end,0),10,'reduce sum')
 return true
 """,
     "RNG": r"""

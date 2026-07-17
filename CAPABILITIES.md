@@ -48,7 +48,7 @@ in-game.
 | Namespace | What it's for | Key calls |
 |---|---|---|
 | `Ess.Safe` | The `pcall`-and-log idiom, once | `.call(fn, ...)`, `.quiet(fn, ...)`, `.string(ok, val, fallback)` |
-| `Ess.Table` | Dense-array repair + collection helpers | `.compact(t)` (rebuild after a nil hole); `.keys/.values/.count/.isEmpty/.contains/.indexOf`, `.map/.filter/.find` (array), `.copy/.merge` (shallow) |
+| `Ess.Table` | Dense-array repair + collection helpers | `.compact(t)` (rebuild after a nil hole); `.keys/.values/.count/.isEmpty/.contains/.indexOf`, `.map/.filter/.find/.reduce/.slice/.reverse` (array), `.copy/.merge` (shallow) |
 | `Ess.Str` | The string helpers Lua 5.1 omits (all LITERAL, not patterns) | `.split/.join/.trim`, `.startsWith/.endsWith/.contains/.count`, `.padLeft/.padRight`, `.capitalize/.title/.lines/.truncate` |
 | `Ess.Color` | RGB for the `rgb = {r,g,b}` params (Ess.Mark / Ess.UI) | `.hex(s)`, `.hsv(h,s,v)`, `.lerp(c1,c2,t)`, `.of(name)`, `.NAMES` (preset table) |
 | `Ess.Math` | Geometry/number helpers in the engine's yaw convention | `.clamp/.lerp/.sign/.round/.approach`, `.dist2D/.dist3D`, `.angleTo(fx,fz,tx,tz)` (yaw facing a point), `.pointAhead(x,z,yaw,dist)` (the spawn-ahead projection), `.normDeg`; `.clamp01/.remap/.smoothstep/.lerpAngle/.wrap`; `.dist2DSq/.dist3DSq`, `.within2D/.within3D` (range tests, no sqrt) |

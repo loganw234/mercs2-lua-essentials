@@ -17,6 +17,8 @@
 --   Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d       same, but never logs (for expected-to-sometimes-fail calls)
 --   Ess.Safe.string(ok, val, fallback) -> s         only trust a native return as a string if it really is one
 --   Ess.Table.compact(t) -> t                       rebuild a numeric array densely (fixes nil-hole #/ipairs desync)
+--   Ess.Table collection helpers                    .keys/.values/.count/.isEmpty/.contains/.indexOf,
+--                                                    .map/.filter/.find/.reduce, .slice/.reverse, .copy/.merge
 --   Ess.Guid(name) -> uGuid | nil                   Pg.GetGuidByName, pcall-wrapped, one canonical name
 --   Ess.Name(uGuid) -> sHash | nil                  Sys.GuidToString, pcall-wrapped (confirmed to throw on some objects)
 
@@ -137,6 +139,25 @@ end
 function Ess.Table.merge(dst, src) -- shallow-copy src's keys onto dst (src wins), mutating + returning dst
     for k, v in pairs(src or {}) do dst[k] = v end
     return dst
+end
+function Ess.Table.slice(t, i, j)  -- new array of elements [i..j], 1-based inclusive (defaults 1..#t), clamped
+    local n = #t
+    i = i or 1; j = j or n
+    if i < 1 then i = 1 end
+    if j > n then j = n end
+    local o = {}
+    for k = i, j do o[#o + 1] = t[k] end
+    return o
+end
+function Ess.Table.reverse(t)      -- new array with the order flipped
+    local o, n = {}, #t
+    for k = 1, n do o[k] = t[n - k + 1] end
+    return o
+end
+function Ess.Table.reduce(t, fn, init)  -- fold the array to one value: acc = fn(acc, value, index) from init
+    local acc = init
+    for i, v in ipairs(t) do acc = fn(acc, v, i) end
+    return acc
 end
 
 -- ============================================================

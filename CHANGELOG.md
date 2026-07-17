@@ -17,7 +17,7 @@ version? It still releases, with auto-generated commit notes.) See the README's 
   colours, long or short form), `hsv` (rainbows and evenly-spaced team tints), `lerp` (health-bar
   gradients), and a `NAMES` preset table.
 - **`Ess.Table`** collection helpers — keys / values / count / isEmpty / contains / indexOf / map / filter /
-  find / copy / merge.
+  find / reduce / slice / reverse / copy / merge.
 - **`Ess.Math`** — clamp01 / remap / smoothstep / lerpAngle (shortest-path angle lerp) / wrap; plus
   dist2DSq / dist3DSq and within2D / within3D (the `dx*dx+dz*dz <= r*r` range test, named — no sqrt).
 - **`Ess.RNG`** — `:shuffle` (in-place, unbiased Fisher-Yates) and `:pickN` (distinct sample without
