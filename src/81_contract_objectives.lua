@@ -219,8 +219,11 @@ C.tHandlers.interact = function(inst, task, obj, onDone)
     elseif obj.tSpawn then local s = obj.tSpawn; local ok, uu = safeSpawn(s[1], s[2], s[3], s[4]); if ok then u = track(task, uu) end end
     if u then local ok, x, y, zz = pcall(Object.GetPosition, u); if ok and x then z = { x = x, y = y, z = zz } end end
     if not z or not z.x then Ess.Log("interact has no target/location"); return onDone(true) end
-    if u then mark(task, u, "action") end
     local r, need, held, step = obj.nRadius or 4, obj.nTime or 0, 0, 0.5
+    if u then mark(task, u, "action")                       -- a physical target: mark it on all surfaces
+    elseif z.x then markZone(task, z.x, z.y, z.z, r) end    -- a bare POINT (plant/hack/sabotage a spot): draw a
+                                                            -- ground ring so the objective is findable, matching
+                                                            -- reach/hold/extract (which all markZone their point)
     local function poll()
         if not inst.bActive or task.done then return end
         local uc = Player.GetLocalCharacter()
@@ -266,28 +269,64 @@ C.tHandlers.verify = function(inst, task, obj, onDone)
     end
 end
 
+-- victory-lap outro: seat the player in the (crewed) extraction heli -- via EnterBySeatGuid, WITHOUT the
+-- native transit UI (that's a separate MrxTransit opt-in, per oilcon002.lua) -- then fly a couple of laps
+-- around the LZ while a chase camera watches, and complete when the laps finish. `vl` is the tVictoryLap
+-- table (radius/height/orbits/... forwarded to Ess.Vehicle.orbitFlight, plus cam*/line for the shot).
+local function extractVictoryLap(inst, task, obj, z, vl, heli, onDone)
+    vl = type(vl) == "table" and vl or {}
+    local pc = Ess.Player.character(0)
+    if pc and heli then Ess.Vehicle.enterSeatExcluding(pc, heli, { "d" }) end   -- passenger seat, no transit UI
+    local pilot = heli and Ess.Vehicle.driver(heli)
+    local cx, cy, cz = z.x, vl.centerY or z.y, z.z
+    Ess.Log("  extraction: victory lap")
+    local total = 8
+    if heli then
+        total = Ess.Vehicle.orbitFlight(heli, cx, cy, cz, {
+            radius = vl.radius or 90, height = vl.height or 45, orbits = vl.orbits or 2,
+            points = vl.points, secPerLeg = vl.secPerLeg, startAngle = vl.startAngle, tracker = task,
+        })
+    end
+    if Ess.Cinematic then
+        local steps = {
+            { type = "subtitle", text = vl.line or "Good work. Let's take her home.", hold = 0 },
+            { type = "chase", target = heli, look = pilot or heli, bone = pilot and "Bone_Chest" or nil,
+              dist = vl.camDist or 22, height = vl.camHeight or 10, angle = vl.camAngle or 200, hold = total + 1 },
+        }
+        Ess.Cinematic.play(steps, { onDone = function() if inst.bActive and not task.done then onDone(true) end end })
+    else
+        addEv(task, Event.Create(Event.TimerRelative, { total + 1 }, function()
+            if inst.bActive and not task.done then onDone(true) end end))
+    end
+end
+
 -- extract: reach an LZ. nBoardTime = 0 (or nil<=0) -> INSTANT (reach the LZ = extracted, no heli).
 -- nBoardTime > 0 -> HOLD the LZ that many seconds (a heli optionally spawns in; leaving resets).
+-- obj.tVictoryLap set (needs a crewed obj.sHeli) -> on reaching+holding the LZ, board that heli and fly a
+-- couple of laps before completing, instead of an instant finish (see extractVictoryLap above).
 C.tHandlers.extract = function(inst, task, obj, onDone)
     local z = obj.tZone or {}
     if not z.x then Ess.Log("extract has no zone"); return onDone(true) end
     local r, step, need = z.r or 15, 0.5, obj.nBoardTime or 3
     markZone(task, z.x, z.y, z.z, r)
-    local boarding, held = false, 0
+    local boarding, held, heli = false, 0, nil
     local function poll()
         if not inst.bActive or task.done then return end
         local inzone = false
         local uc = Player.GetLocalCharacter()
         if uc then local x, _, zz = Object.GetPosition(uc); local dx, dz = x - z.x, zz - z.z; inzone = dx * dx + dz * dz <= r * r end
         if inzone then
-            if need <= 0 then return onDone(true) end   -- INSTANT: reach the LZ and you're extracted
+            if need <= 0 and not obj.tVictoryLap then return onDone(true) end   -- INSTANT: reach the LZ and you're extracted
             if not boarding then
                 boarding = true
-                if obj.sHeli then local ok, h = safeSpawn(obj.sHeli, z.x, z.y + 4, z.z); if ok then track(task, h) end end
+                if obj.sHeli then local ok, h = safeSpawn(obj.sHeli, z.x, z.y + 2, z.z); if ok and h then heli = track(task, h) end end
                 Ess.Log("  extraction inbound - hold the LZ")
             end
             held = held + step
-            if held >= need then return onDone(true) end
+            if held >= need then
+                if obj.tVictoryLap then return extractVictoryLap(inst, task, obj, z, obj.tVictoryLap, heli, onDone) end
+                return onDone(true)
+            end
         else
             boarding, held = false, 0
         end

@@ -11,8 +11,15 @@
 -- MODDER API (unchanged from ContractFramework.lua, just under Ess.Contract now):
 --   Ess.Contract.Register{ id=, title=, briefing=, reward={cash=,fuel=}, start={x,y,z,yaw},
 --                          cinematic = { <Ess.Cinematic steps> } | { steps=, opts= },  -- intro cutscene
+--                          sandbox = true | { providers={"layers",...}, opts={} },      -- see def.sandbox below
 --                          objectives = { Ess.Contract.Destroy{...}, Ess.Contract.Reach{...}, ... },
 --                          onComplete=fn, onFail=fn }
+--   def.sandbox -- wrap the whole contract in an Ess.Sandbox (63_sandbox.lua): saves are GATED for its
+--   whole duration and restored on finish. Use it for a mission that destroys a major, persistent set
+--   piece (e.g. the oil rig collapsing) -- the destruction lives only in memory, never serializes, so the
+--   world is pristine on the next load. `true` = the "layers" provider (save-gate + a layer snapshot/
+--   restore); a table picks providers ("layers"/"economy"/"supports"/"relations") + opts. Begun at Accept
+--   (before the intro), finished when the contract completes/fails/aborts.
 --   def.cinematic -- inline Ess.Cinematic steps, {steps=,opts=}, OR a "named-id" string from Ess.Cinematic.
 --   define -- plays a cutscene AFTER heroes are placed (def.start) and relations are set; the objectives
 --   don't begin until it finishes (or is skipped with ESC). A mid-mission trigger-fired cutscene is a
@@ -235,6 +242,7 @@ function C._finish(inst, bWin)
     end
     if C._restoreRelations then C._restoreRelations(inst) end   -- put faction stances back the way we found them
     C._CleanupAll(inst)
+    if inst._sandboxId and Ess.Sandbox then Ess.Sandbox.finish(inst._sandboxId); inst._sandboxId = nil end  -- restore layers + un-gate saves
     C.active = nil
 end
 
@@ -330,6 +338,17 @@ function C.Accept(idOrDef)
     local inst = { def = def, bActive = true, tasks = {}, objDone = {}, startStamp = Sys.RealTimeStamp(),
                    _id = "c" .. C._nextInstId }
     C.active = inst
+    -- def.sandbox: gate saves + isolate providers for the mission's whole duration (finished in C._finish).
+    -- Begun HERE (before def.start / relations / the intro) so the save-gate is up before anything the
+    -- mission does -- a set piece destroyed later can never serialize. Finish any stale same-id sandbox
+    -- first so re-accepting the contract can't strand a save-gate holder.
+    if def.sandbox and Ess.Sandbox then
+        local sbId = "contract:" .. tostring(def.id)
+        if Ess.Sandbox.isActive(sbId) then Ess.Sandbox.finish(sbId) end
+        local providers = (type(def.sandbox) == "table" and def.sandbox.providers) or { "layers" }
+        local sbopts = (type(def.sandbox) == "table" and def.sandbox.opts) or {}
+        if Ess.Sandbox.begin(sbId, providers, sbopts) then inst._sandboxId = sbId end
+    end
     Ess.Log("accepted '" .. (def.title or def.id) .. "'" .. (def.mode == "parallel" and " [parallel]" or ""))
     local function begin()
         if not inst.bActive then return end
@@ -407,7 +426,7 @@ function C.Group(t)    return ob({ sType = "group",    sDesc = t.desc, sMode = t
 function C.Interact(t) local z; if t.at then local x, y, zz = xyz(t.at); z = { x = x, y = y, z = zz } end
                        return ob({ sType = "interact", sDesc = t.desc, sTarget = t.target, tSpawn = t.spawn, tZone = z, nRadius = t.radius or 4, nTime = t.time }, t) end
 function C.Verify(t)   return ob({ sType = "verify",   sDesc = t.desc, sTarget = t.target, tSpawn = t.spawn, bCapture = t.capture, nCaptureHealth = t.captureHealth, nRadius = t.radius }, t) end
-function C.Extract(t)  return ob({ sType = "extract",  sDesc = t.desc, tZone = zone(t.at, t.radius, 15), nBoardTime = t.boardTime, sHeli = t.heli }, t) end
+function C.Extract(t)  return ob({ sType = "extract",  sDesc = t.desc, tZone = zone(t.at, t.radius, 15), nBoardTime = t.boardTime, sHeli = t.heli, tVictoryLap = t.victoryLap }, t) end
 function C.Race(t)     return ob({ sType = "race",     sDesc = t.desc, tCheckpoints = t.checkpoints, nRadius = t.radius, nTime = t.time }, t) end
 function C.Survive(t)  return ob({ sType = "survive",  sDesc = t.desc, nTime = t.time, sTarget = t.target }, t) end
 function C.Chase(t)    return ob({ sType = "chase",    sDesc = t.desc, tSpawns = t.spawns, tObjects = t.objects, tWhere = t.where, tZone = zone(t.escapeAt, t.escapeRadius, 15), nTime = t.time, nHaste = t.haste }, t) end

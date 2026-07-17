@@ -30,6 +30,61 @@ turn the export into a running `Ess.Contract`, and build the intro cutscene as `
 
 ---
 
+## 1b. SESSION 3 PROGRESS (mission BUILT + tested once, reworked; staged for a re-test)
+
+The mission is authored + live-ran once, end-to-end (`prog` reached 0.67 — interact→survive worked; the
+extract leg + cutscene surfaced fixes). It is **generated** from Logan's MissionForge export:
+- `samples/missions/refinery_assault.export.txt` — Logan's raw export (84 units etc.).
+- `tools/mkmission_refinery.py` — turns the export → `samples/missions/refinery_assault.lua` (the runnable
+  `Ess.Contract`). The bulky `def.units` (70, cinematic-owned 14 excluded, faction-regrouped ALLIED/
+  ALLIED_NAVY/CHINA) are machine-generated; the intro cinematic + objective/trigger/FX wiring are
+  hand-authored constants in the script. **Re-place in MissionForge → re-export → re-run the script to
+  keep coords in sync.** (This is the first real piece of the export→Ess.Contract pipeline the friction
+  log wants; the web tool still emits old `Contract.Register`.)
+- **Run it:** `python tools/lua_repl.py --file samples/missions/refinery_assault.lua` (registers + accepts).
+
+**TEST #1 FINDINGS (Logan watched) + what I fixed this session (all built + loadcheck-clean + deployed,
+NOT yet live-verified — game was closed to reset the rig):**
+1. Only 2 helis flew + the downing fired instantly, before the flight read → **reworked cutscene**: spawn
+   the WHOLE wave first (5 helis) so the establish shot frames them massing, `fly` all 5 fanned in, a **12s
+   trailing `chase`** on the lead (watch them cross the rig), THEN frame the pad, THEN the downing + arty.
+2. The strike destroys the landing pad → **extract point MOVED** to the original transport-landing spot
+   (`-455.63, 9.85, 2635.81`, back where you start) — you retreat there.
+3. All proximity FX triggers fired on the INBOUND path (they sit between spawn z2636 and the objective
+   z2737) → **FX re-gated behind the charge arming**: a `{kind="objective", index=2}` trigger fires the
+   arty/vfx/flybys when the SURVIVE objective completes (the "rig comes down as you fall back" cascade),
+   not raw proximity.
+4. **The rig genuinely COLLAPSES** under the explosions/RPGs (Logan: "very visually pleasing") — that's why
+   the player ended at y=-36 (in the sea). → mission now uses **`sandbox = true`** (new framework feature)
+   so saves are gated + the destruction never serializes.
+5. Logan wants "extract = done" replaced with **board the transport (no transit UI) + a couple victory-lap
+   orbits, THEN finalize** → built as a framework feature (see §5). The extract objective now uses it.
+
+**NEW FRAMEWORK FEATURES built this session (in `dist`, deployed):**
+- **`def.sandbox`** on `Ess.Contract` (`true` | `{providers=,opts=}`) — wraps the whole contract in an
+  `Ess.Sandbox` (save-gate + `layers` provider), begun at Accept, finished at complete/fail/abort. For a
+  mission that destroys a persistent set piece. `Ess.Layers.begin` only snapshots+gates (no geometry
+  change) so it's safe. **The save-gate is the guaranteed win (destroyed rig never serializes → pristine
+  next load). The IN-SESSION visual restore (swapping the pristine layer live) is UNVERIFIED — a flagged
+  live experiment (the rig is the Merida oil rig, layers `vz_state_mer_oilrig_pristine`, dynamic/toggleable
+  per the [[layer-framework-project]] work).**
+- **`Ess.Contract.Extract{ ..., heli=, victoryLap={orbits,radius,height,line,cam*} }`** — on reaching+
+  holding the LZ, seats the player in the crewed heli via `Ess.Vehicle.enterSeatExcluding(pc,heli,{"d"})`
+  (**EnterBySeatGuid, NOT MrxTransit → no transit UI**, the pattern from `src/vz/oilcon002.lua`), then
+  `Ess.Vehicle.orbitFlight(heli, cx,cy,cz, {...})` flies a couple laps while an `Ess.Cinematic` chase
+  watches, then completes. New helper **`Ess.Vehicle.orbitFlight`** (12_vehicle.lua).
+- **interact objective now draws a ground ring** when it's a bare point (81_contract_objectives.lua) — was
+  invisible for a plant/hack/sabotage-a-spot objective.
+
+**RE-TEST NEXT (game must be relaunched fresh — Logan closed it to reset the collapsed rig):** relaunch →
+`python tools/lua_repl.py --file samples/missions/refinery_assault.lua` → watch the reworked cutscene (does
+the wave fly + pan for ~12s? does the downing land after? does the arty clear the pad?), then play through
+interact→survive→**the FX cascade + rig collapse on charge-arm**→retreat to the transport→**victory-lap
+orbits**→complete. Then judge: cutscene polish, does the victory lap read well, does the sandbox save-gate
+hold (and optionally try a live `Ess.Layers.swap` of the pristine rig layer to restore geometry in-session).
+
+---
+
 ## 2. DEPLOYED SETUP (NEW — no more hot-reloading Ess each session)
 
 The game now boots with everything deployed:

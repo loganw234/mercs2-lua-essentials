@@ -9,6 +9,8 @@
 --   Ess.Vehicle.exit(uVeh, uChar) -> ok
 --   Ess.Vehicle.flyTo(uHeli, x, y, z, opts) -> cancel()               send an AI heli to a point (driver-wait
 --                                        + Ai.Deliver); opts.onReady(driver) fires when the order is issued
+--   Ess.Vehicle.orbitFlight(uHeli, cx,cy,cz, opts) -> totalSeconds    fly a crewed heli a few laps around a
+--                                        point (the "victory lap" flight); opts.radius/height/orbits/...
 --   Ess.Vehicle.followGhost(template, x, y, z) -> ghost | nil         ghost.guid, ghost:update(x,y,z), ghost:remove()
 --   Ess.Easy.Vehicle.summon(sTemplate, opts) -> uVeh | nil            spawn a vehicle in front + hop in the
 --                                        driver seat -- the whole "give me a <vehicle>" thought in ONE line
@@ -114,6 +116,34 @@ function Ess.Vehicle.flyTo(uHeli, x, y, z, opts)
         return false                                    -- done
     end)
     return function() Ess.Loop.stop(id) end
+end
+
+-- Ess.Vehicle.orbitFlight(uHeli, cx, cy, cz, opts) -> totalSeconds
+-- Fly a CREWED heli (one with a pilot -- a "(Driver)"/"(Full)" template) a few circular laps around a
+-- centre point: issues a ring of timed Ess.Vehicle.flyTo waypoints (each flyTo re-targets the same per-heli
+-- flight loop, so they chain into a rough orbit). Camera-agnostic -- pair it with a chase/orbit camera. The
+-- first leg is above ground, so the heli climbs into the orbit (no separate takeoff order needed). Returns
+-- the total flight time in seconds so a caller can time the camera + the finish.
+--   opts: radius(90), height(45), orbits(2), points(6 per orbit), secPerLeg(2.2), startAngle(deg),
+--         tracker(an Ess.Track -- registers the timer events for cleanup), onDone=fn (after the last leg)
+function Ess.Vehicle.orbitFlight(uHeli, cx, cy, cz, opts)
+    opts = opts or {}
+    local R      = opts.radius    or 90
+    local h      = opts.height    or 45
+    local orbits = opts.orbits    or 2
+    local per    = opts.points    or 6
+    local secLeg = opts.secPerLeg or 2.2
+    local a0     = math.rad(opts.startAngle or 0)
+    local legs   = math.max(1, math.floor(per * orbits))
+    local function ev(delay, fn) local e = Event.Create(Event.TimerRelative, { delay }, fn); if opts.tracker then opts.tracker:event(e) end end
+    for i = 0, legs - 1 do
+        local a = a0 + (2 * math.pi) * (i / per)
+        local wx, wz = cx + math.cos(a) * R, cz + math.sin(a) * R
+        ev(secLeg * i, function() Ess.Vehicle.flyTo(uHeli, wx, cy + h, wz, { height = h }) end)
+    end
+    local total = secLeg * legs
+    if opts.onDone then ev(total, function() pcall(opts.onDone) end) end
+    return total
 end
 
 -- Ess.Vehicle.followGhost(template, x, y, z) -> ghost | nil
