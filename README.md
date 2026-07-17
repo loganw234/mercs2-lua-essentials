@@ -32,7 +32,12 @@ does, organized by what you reach for and tier-aware. For the design rationale a
   "Tiered access model" section.
 - `build/merge.py` — concatenates `src/*.lua` (in an explicit dependency order, not alphabetical) into
   one deployable `dist/Ess.lua`. Run `python build/merge.py` from anywhere; it resolves its own paths.
-- `dist/` — the generated file. **Gitignored, not committed** — build it yourself before deploying.
+- `build/package.py` — the **release build action**: runs `merge.py`, then zips a fresh `1_Ess.lua`, the
+  `data/vz-patch.wad` UI patch, the `samples/OnKey/` demos, and the recipe catalog into
+  `dist/Ess-<version>.zip`, laid out in the game's own folder structure (`scripts/OnLoad/` + `scripts/OnKey/`
+  + `data/`) so a user just extracts it over their Mercenaries 2 install. `Ess-README.txt` inside carries the
+  `lua_loader.ini` lines. Attach the zip to a GitHub Release (`gh release create v<version> dist/Ess-<version>.zip`).
+- `dist/` — the generated file(s). **Gitignored, not committed** — build/package them yourself before shipping.
 - `tools/` — testing infrastructure (not part of the `Ess` library itself). `xpad.py` is a virtual
   Xbox 360 controller (ViGEmBus + `vgamepad`), driven over a local TCP socket — must be started before the
   game launches. `launch.py` chains build → deploy → virtual-controller → launch → menu-navigation into
