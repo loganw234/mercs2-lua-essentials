@@ -34,6 +34,12 @@ handler.
 | `player_powers` | grappling hook / fast travel / free support unlocks | Easy.Player |
 | `for_fun` | swap your look + play a fanfare | Easy.Player, Easy.Fun |
 | `a_simple_mission` | author a whole 2-objective mission with a reward | Contract |
+| `a_richer_mission` | a mission where a trigger fires mid-mission support call-ins | Contract |
+| `a_cutscene` | play a declarative cutscene — camera shots + an actor + narration | Cinematic |
+| `direct_the_camera` | take over the camera for an orbit shot, then hand control back | Easy.Camera, Camera |
+| `attach_to_bones` | pin an effect to a named bone; handle a fresh spawn's startup delay | Bones |
+| `track_lifecycles` | bundle spawns/events/timers on one handle, tear it all down at once | Track, Event |
+| `override_safely` | change game logic without the tail-call crash; merge into a live table | Override |
 
 ## Interactive scripts (`samples/OnKey/`)
 
