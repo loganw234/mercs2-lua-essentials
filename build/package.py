@@ -32,13 +32,15 @@ SAMPLES = ROOT / "samples"
 
 # the bind-to-a-key demos to ship (deployable into scripts/OnKey/). Kept as an explicit list, not a glob,
 # so adding a WIP demo to samples/OnKey/ doesn't silently ship it in a release.
-ONKEY = ["StarterMod.lua", "Playground.lua", "DebugOverlay.lua", "VehicleInspector.lua", "CustomMenu.lua", "CoopChat.lua", "MissionForge.lua", "CinematicDemo.lua", "CarStunt.lua"]
+ONKEY = ["StarterMod.lua", "Playground.lua", "DebugOverlay.lua", "VehicleInspector.lua", "CustomMenu.lua",
+         "CoopChat.lua", "MissionForge.lua", "CinematicDemo.lua", "CarStunt.lua",
+         "WaveSurvival.lua", "BossFight.lua", "EncounterDirector.lua"]
 
 # the suggested key bindings shown in the install notes (must match samples/README.md's OnKey table).
 ONKEY_KEYS = {
     "StarterMod.lua": "F5", "Playground.lua": "F3", "DebugOverlay.lua": "F8", "VehicleInspector.lua": "F6",
     "CustomMenu.lua": "F4", "CoopChat.lua": "F2", "MissionForge.lua": "F7", "CinematicDemo.lua": "F9",
-    "CarStunt.lua": "F10",
+    "CarStunt.lua": "F10", "WaveSurvival.lua": "F11", "BossFight.lua": "F12", "EncounterDirector.lua": "F1",
 }
 
 

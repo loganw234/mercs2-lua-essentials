@@ -55,6 +55,17 @@ calls + offline-verified where pure); test in a live game, then bump to `0.3.0` 
 - **`VehicleInspector` OnKey demo** (F6) — a WAILA-style "what vehicle am I in" inspector (poll-detect the
   vehicle you enter, dump its guid + details to the log, live HUD panel). Ships in the zip; a compact showcase
   of `Ess.Player`/`Object`/`Vehicle`/`UI`/`Loop`.
+- **Three "complete mini-mode" OnKey demos** (ship in the zip) — larger playable examples that each compose
+  the framework into something that *does* something:
+  - **`WaveSurvival`** (F11) — a horde mode: escalating waves rush you, clear one to heal (+ a crate every
+    3rd), G for a danger-close airstrike, HUD tracks wave/kills. (`Easy.Spawn.enemies` + `On.death` +
+    `Support` + `UI.Panel` + `Keys` + `Time.cooldown`)
+  - **`BossFight`** (F12) — a mini-boss with a live `UI.Bar` health bar that regenerates until 50%, then
+    enrages (adds + screen shake); cash reward on kill. (`On.healthBelow` + `On.death` + `Camera.shake` +
+    `Loop`)
+  - **`EncounterDirector`** (F1) — a weighted-random encounter roller (ambush / bounty / supply drop /
+    dodge-the-artillery / a 3-checkpoint time trial). (`RNG:pick` + `Easy.Objective.destroy` + `Quest` +
+    `Support`)
 
 ### Hardening (pre-release audit of the unreleased batch, offline)
 

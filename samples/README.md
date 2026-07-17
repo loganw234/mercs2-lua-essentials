@@ -105,6 +105,9 @@ the game's `scripts/OnKey/` and bind them in `lua_loader.ini` (e.g. `MissionForg
 | `CoopChat` | F2 | co-op text chat — per-player username over the wire, auto-fade (Net + UI.Chat) |
 | `CinematicDemo` | F9 | a 12-step showcase cutscene — camera / spawn / fly-in / orbit / narration (Cinematic) |
 | `CarStunt` | F10 | get in a car, rocket down the runway, launch + do aerial tricks, watch yourself fly (Impulse + Camera) |
+| `WaveSurvival` | F11 | **a horde mode** — escalating enemy waves rush you; clear one to heal (+ a crate every 3rd), press G for a danger-close airstrike. A HUD tracks wave/kills. (Spawn.enemies + On.death + Support + UI + Keys) |
+| `BossFight` | F12 | **a mini-boss** with a live health bar that regenerates until 50%, then enrages (adds + screen shake); beat it for cash. (UI.Bar + On.healthBelow + On.death + Camera + Loop) |
+| `EncounterDirector` | F1 | **a random-encounter roller** — each press spawns a different beat: ambush / bounty / guarded supply drop / dodge-the-artillery / 3-checkpoint time trial. (RNG:pick + Objective + Quest + Support) |
 
 ## Running the smoke test
 
