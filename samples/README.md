@@ -24,12 +24,13 @@ handler.
 | `persistent_vars` | remember a value across save/reload | SaveVar |
 | `track_lifecycles` | bundle spawns/events/timers on one handle, tear it all down at once | Track, Event |
 
-**Text, colour & randomness** (pure utilities — no engine needed)
+**Text, colour, vectors & randomness** (pure utilities — no engine needed)
 
 | Recipe | Achieves | Namespaces |
 |---|---|---|
 | `text_and_tables` | split/trim/join text; map/filter/find over tables | Str, Table |
 | `pick_colors` | build marker/UI colours — hex, HSV, gradients, presets | Color |
+| `vector_math` | 3D directions, offsets, and knockback shoves | Vec |
 | `random_selection` | pick things at random the engine-safe way | RNG |
 | `random_order` | shuffle a list / sample distinct entries | RNG |
 

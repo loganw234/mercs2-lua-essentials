@@ -6,7 +6,12 @@
 -- passes positions (Ess.Object.pos returns x,y,z; Ess.Object.setPos takes x,y,z) and Ess.Color's own
 -- three-value convention. So results drop straight into those calls:
 --   Ess.Object.setPos(u, Ess.Vec.toward(px,py,pz, tx,ty,tz, 5))    -- move it 5 units toward the target
---   Ess.Object.impulse(u, Ess.Vec.scale(Ess.Vec.dir(fx,fy,fz, tx,ty,tz), 8000))   -- shove it that way
+--   local dx,dy,dz = Ess.Vec.dir(fx,fy,fz, tx,ty,tz)               -- ...or shove it that way:
+--   Ess.Object.impulse(u, Ess.Vec.scale(dx,dy,dz, 8000))
+--
+-- MULTI-RETURN CAVEAT: Lua truncates a multi-value call to ONE value unless it's the LAST item in a list --
+-- so a Vec call expands fully as the LAST argument of an engine call (setPos/impulse above), but to NEST two
+-- Vec calls (scale a dir) capture the inner one into locals first; scale(dir(...), s) would pass only dir's x.
 --
 -- (Ess.Math holds the 2D/ground-plane + angle helpers -- angleTo, pointAhead, dist2D, within2D. Ess.Vec is
 -- the full-3D vector companion to those.)
