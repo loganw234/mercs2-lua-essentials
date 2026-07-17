@@ -30,7 +30,7 @@ SRC = ROOT / "src"
 
 # the pure (or deterministically-stubbable) src files, in load order
 SRC_FILES = ["00_core.lua", "01_math.lua", "02_str.lua", "03_color.lua", "04_vec.lua",
-             "22_state.lua", "23_time.lua", "53_rng.lua"]
+             "22_state.lua", "23_time.lua", "53_rng.lua", "52_points.lua"]
 
 # deterministic stubs for the handful of engine globals these files touch at call time
 STUBS = """
@@ -53,6 +53,15 @@ _G.Junk = { FormatTime = function(n, b) return "0:00" end }
 PRELUDE = "local function eq(a,b,m) assert(a==b, (m or '')..' got '..tostring(a)) end\n"
 
 TESTS = {
+    "Safe": r"""
+local S = Ess.Safe
+local ok,a,b = S.call(function(x) return x, x+1 end, 5); assert(ok==true and a==5 and b==6,'call success')
+assert(S.call(function() error('boom') end)==false,'call failure -> false (logs via Ess.Log)')
+assert(S.quiet(function() error('x') end)==false,'quiet failure -> false (no log)')
+eq(S.string(true,'hi','fb'),'hi','string ok'); eq(S.string(true,123,'fb'),'fb','string non-string')
+eq(S.string(false,'hi','fb'),'fb','string not-ok'); eq(S.string(true,nil),'?','string default fallback')
+return true
+""",
     "Math": r"""
 local M = Ess.Math
 eq(M.clamp(5,0,3),3,'clamp'); eq(M.clamp01(1.5),1,'clamp01'); eq(M.sign(-2),-1,'sign')
@@ -146,6 +155,22 @@ v('scale',2,4,6, V.scale(1,2,3,2)); v('add',5,7,9, V.add(1,2,3,4,5,6)); v('sub',
 assert(c(V.dot(1,0,0,0,1,0),0) and c(V.dot(1,2,3,1,2,3),14),'dot')
 v('dir',0,0,1, V.dir(0,0,0,0,0,5)); v('toward',0,0,3, V.toward(0,0,0,0,0,10,3)); v('lerp',5,5,5, V.lerp(0,0,0,10,10,10,0.5))
 v('sub',1,0,0, V.sub(5,3,2,4,3,2)); assert(c(V.dot(2,0,0,3,0,0),6),'dot parallel')
+return true
+""",
+    "Points": r"""
+local P = Ess.Points
+-- bucket by radius tier (r<=5 inf, r<=15 veh, else heli)
+local b = P.bucket({{0,0,0,3},{0,0,0,10},{0,0,0,20}})
+eq(#b.inf,1,'bucket inf'); eq(#b.veh,1,'bucket veh'); eq(#b.heli,1,'bucket heli')
+local b2 = P.bucket({{0,0,0,20}})   -- no infantry-tier point -> inf falls back to the whole list
+eq(#b2.inf,1,'bucket inf fallback'); eq(#b2.heli,1,'bucket heli2')
+-- ideal: nearest-first within [minDist,maxDist] (Y ignored; points are {x,y,z,r})
+local pts = {{0,0,60,3},{0,0,20,3},{0,0,40,3},{0,0,30,3},{0,0,50,3}}   -- z-dists 60,20,40,30,50 unsorted
+local id = P.ideal(pts, 0,0, {minDist=10, maxDist=100, maxCount=24})
+eq(#id,5,'ideal count'); eq(id[1][3],20,'ideal nearest first')
+-- windowing + tier-2 fallback: [10,80] leaves {20,50} (<4), so drop the ceiling -> {20,50,200}
+local id2 = P.ideal({{0,0,5,3},{0,0,20,3},{0,0,50,3},{0,0,200,3}}, 0,0, {minDist=10, maxDist=80})
+eq(#id2,3,'ideal tier-2'); eq(id2[1][3],20,'ideal tier-2 nearest')
 return true
 """,
     "State": r"""
