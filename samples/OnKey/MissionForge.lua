@@ -267,6 +267,192 @@ local CATALOG = {
         L("Veyron"), L("Supply Drop (Blueprints)"), L("Supply Drop (Treasure)"),
         L("Cover (Barrel)"), L("Cover (Box)"), L("Cover (Sandbag)"),
     }},
+    -- COMMUNITY SPAWN STRINGS (contributed): PMC heroes/vehicles, civilians, weapon pickups, and
+    -- support aircraft. WEAPONS spawn as pickups (prop); SUPPORT AIRCRAFT + all vehicles are empty-variant.
+    { label = "PMC", children = {
+        { label = "INFANTRY", children = {
+            L("Mattias"),
+            L("MattiasV2"),
+            L("MattiasV3"),
+            L("MattiasChickensuit"),
+            L("Chris"),
+            L("ChrisV2"),
+            L("ChrisV3"),
+            L("ChrisChickensuit"),
+            L("Jen"),
+            L("JenV2"),
+            L("JenV3"),
+            L("JenV4"),
+            L("JenV5"),
+            L("JenChickensuit"),
+            L("Fiona"),
+            L("Fiona Tayor"),
+            L("UnlockableFiona"),
+            L("Recruit Ewen Garret"),
+            L("Recruit Ewen Garret (Invincible)"),
+            L("UnlockableEwan"),
+            L("Recruit Eva Navarro"),
+            L("Eva"),
+            L("UnlockableEva"),
+            L("Recruit Misha Milanich"),
+            L("UnlockableMisha"),
+            L("UnlockableAbel"),
+            L("UnlockableBlanco"),
+            L("UnlockableCarlos"),
+            L("UnlockableDiablo"),
+            L("UnlockableFire"),
+            L("UnlockableGauge"),
+            L("UnlockableGhost"),
+            L("UnlockableHoang"),
+            L("UnlockableVasquez"),
+            L("UnlockableWingman"),
+        }},
+        { label = "VEHICLES", children = {
+            L("Veyron (Assault)"),
+            L("Veyron (Cannon)"),
+            L("Veyron (Assault) (Driver)"),
+        }},
+        { label = "HELICOPTERS", children = {
+            L("UH1 Attack (PMC)"),
+            L("UH1 Transport (PMC)"),
+            L("Mi26 (PMC)"),
+            L("UH1 Attack (PMC) (Driver)"),
+            L("UH1 Attack (PMC) (Driver) (Railshooter)"),
+            L("UH1 Transport (PMC) (Driver)"),
+            L("UH1 Transport (PMC) (Extraction)"),
+            L("UH1 Transport (PMC) (Ghost)"),
+            L("Mi26 (PMC) (Driver)"),
+        }},
+        { label = "BOATS", children = {
+            L("Patrol Boat (PMC)"),
+            L("Patrol Boat (PMC) (Driver)"),
+        }},
+    }},
+    { label = "CIVILIANS", children = {
+        { label = "INFANTRY", children = {
+            L("Civ Beach A (Female)"),
+            L("Civ Beach B (Female)"),
+            L("Civ Beach C (Female)"),
+            L("Civ Beach D (Female)"),
+            L("Civ Business (male)"),
+            L("Civ Business B (male)"),
+            L("Civ Casual (female)"),
+            L("Civ Casual with hat (female)"),
+            L("Civ Casual (male)"),
+            L("Civ Cowboy (male)"),
+        }},
+        { label = "VEHICLES", children = {
+            L("Austin (Civ)"),
+            L("Austin (Civ) (Full)"),
+        }},
+    }},
+    { label = "WEAPONS", children = {
+        { label = "Pistols", children = {
+            L("pistol"),
+            L("Covert Pistol"),
+            L("Pistol (silver)"),
+            L("Hunting Pistol"),
+        }},
+        { label = "Machine Pistols", children = {
+            L("Machine Pistol (Uzi)"),
+            L("Machine Pistol (TMP)"),
+            L("machine pistol"),
+            L("Machine Pistol (PP2000)"),
+        }},
+        { label = "Assault Rifles", children = {
+            L("assault rifle"),
+            L("assault rifle (vz)"),
+            L("Bullpup Rifle"),
+            L("combat rifle"),
+            L("carbine"),
+        }},
+        { label = "Automatic Rifles", children = {
+            L("Light MG"),
+            L("Automatic Rifle"),
+            L("Automatic Rifle (Chinese)"),
+        }},
+        { label = "SMGs", children = {
+            L("sMG"),
+            L("Covert SMG"),
+        }},
+        { label = "Sniper Rifles", children = {
+            L("Sniper Rifle (SVD)"),
+            L("Sniper Rifle"),
+            L("Anti-Material Rifle"),
+            L("Anti-Material Rifle (KSVK)"),
+        }},
+        { label = "Heavy", children = {
+            L("AT Rocket"),
+            L("Stinger"),
+            L("RPG"),
+            L("Fuel-Air RPG"),
+            L("Grenade Launcher"),
+            L("Grenade Launcher PEP"),
+        }},
+        { label = "Special", children = {
+            L("Minigun"),
+            L("Minigun 900"),
+            L("minigun 1800"),
+            L("minigun 1000"),
+            L("Riot Gun"),
+            L("Coilgun"),
+            L("Cheat RPG"),
+        }},
+        { label = "EMPLACEMENTS", children = {
+            L("Emplaced MG"),
+            L("Emplaced MG (AL)"),
+            L("Emplaced MG (CH)"),
+            L("Emplaced MG (OC)"),
+            L("Emplaced MG (Guerilla)"),
+            L("Emplaced MG (PR)"),
+            L("Emplaced MG (VZ)"),
+            L("Emplaced MG (NO Physics)"),
+            L("Emplaced MG DB"),
+            L("Emplaced MG3 (OC)"),
+            L("Emplaced GL"),
+            L("Emplaced GL (NO Physics)"),
+            L("Emplaced TOW"),
+            L("Emplaced Recoiless Rifle"),
+            L("Emplaced Recoiless Rifle (China)"),
+            L("Emplaced Recoiless Rifle (OC)"),
+            L("Emplaced Recoiless Rifle (GR)"),
+            L("Emplaced Recoiless Rifle (VZ)"),
+            L("Emplaced Quad50 (Driver)"),
+            L("Emplaced Quad50 (GR)"),
+            L("Emplaced M101A1 (Base)"),
+            L("Emplaced M101A1 (GR)"),
+            L("Emplaced M101A1 (VZ)"),
+            L("Emplaced Tripod Weapon"),
+            L("Emplaced Weapon"),
+            L("Emplaced ZU23"),
+        }},
+    }},
+    { label = "SUPPORT AIRCRAFT", children = {
+            L("Support Vehicle (Mig27)"),
+            L("Support Vehicle (Mig27) low altitude"),
+            L("Support Vehicle (OV10)"),
+            L("Support Vehicle (OV10) low altitude"),
+            L("Support Vehicle (A10)"),
+            L("Support Vehicle (A10) low altitude"),
+            L("Support Vehicle (F35)"),
+            L("Support Vehicle (F35) low altitude"),
+            L("Support Vehicle (AC130)"),
+            L("Support Vehicle (C130)"),
+            L("Support Vehicle (C130) low altitude"),
+            L("Support Vehicle (F117)"),
+            L("Support Vehicle (F117) low altitude"),
+            L("Support Vehicle (B2)"),
+            L("Support Vehicle (B2) low altitude"),
+            L("Support Vehicle (Q5)"),
+            L("Support Vehicle (Q5) low altitude"),
+            L("Support Vehicle (Tucano)"),
+            L("Support Vehicle (Tucano) low altitude"),
+            L("Support Vehicle (Cessna)"),
+            L("Support Vehicle (Cessna) low altitude"),
+            L("Support Vehicle (727)"),
+            L("Support Vehicle (727) low altitude"),
+    }},
+
     { label = "OBJECTIVES", children = {
         { label = "Player Spawn",        obj = "spawn" },
         { label = "Destroy (mark area)", obj = "destroy" },
@@ -344,6 +530,10 @@ local FACTION_RGB = {
     ["OC (OIL)"] = { 255, 180, 40 },
     ["PIRATE"]   = { 200, 120, 255 },
     ["VZ"]       = { 235, 235, 235 },
+    ["PMC"]      = { 60, 210, 255 },      -- the player's own faction (bright cyan)
+    ["CIVILIANS"]= { 230, 220, 120 },     -- civilians (pale yellow)
+    ["WEAPON"]   = { 255, 90, 160 },      -- weapon pickups (pink)
+    ["AIRCRAFT"] = { 150, 190, 255 },     -- support aircraft (pale blue)
 }
 local DEFAULT_RGB = { 200, 200, 200 }
 local SPAWN_RGB   = { 0, 230, 200 }   -- player-spawn marker colour (teal, distinct from objectives)
@@ -503,8 +693,12 @@ local function prepare_catalog()
         if top.children and top.label ~= "OBJECTIVES" then
             if top.label == "PROPS / MISC" then
                 stampNode(top, "PROP", "prop")
+            elseif top.label == "WEAPONS" then
+                stampNode(top, "WEAPON", "prop")            -- weapon pickups spawn as the item itself
+            elseif top.label == "SUPPORT AIRCRAFT" then
+                stampNode(top, "AIRCRAFT", "vehicle")       -- jets/planes = empty-variant vehicles
             else
-                stampNode(top, top.label, "infantry")
+                stampNode(top, top.label, "infantry")       -- factions (incl. PMC / CIVILIANS)
             end
         end
     end
