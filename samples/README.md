@@ -62,6 +62,7 @@ handler.
 | `command_a_helicopter` | spawn a crewed helicopter and fly it in (AI-piloted) | Vehicle, Object |
 | `make_them_fight` | set two factions at war and confirm the stance took | Relations |
 | `find_whats_around` | scan for nearby objects | Probe |
+| `call_in_support` | airstrike / artillery / gunship / reinforcements, no contract | Support |
 
 **Markers, HUD & camera**
 

@@ -7,6 +7,17 @@ Releases are automatic: **bump `Ess.VERSION`, add a matching `## [x.y.z]` sectio
 zip, and publishes a GitHub Release tagged `v<version>` using that section as the notes. (No section for the
 version? It still releases, with auto-generated commit notes.) See the README's "Releasing" section.
 
+## [Unreleased]
+
+Closing "creativity gaps" for new modders — the framework is strong on *how* to do things, thinner on *what
+you can do* and on reacting to the player. All additive. **Not yet in-game smoke-run** (built from confirmed
+calls + offline-verified where pure); test in a live game, then bump to `0.3.0` to release.
+
+### Added
+- **`Ess.Support`** + **`Ess.Easy.Airstrike`** — the iconic combat call-ins (airstrike / artillery /
+  gunship / bombing run / reinforcements) as standalone one-liners, lifted out of the Contract system so you
+  can fire one anywhere. `Ess.Easy.Airstrike.at(x,y,z)` / `.onTarget()` for one-tap. Recipe: `call_in_support`.
+
 ## [0.2.1]
 
 ### Changed

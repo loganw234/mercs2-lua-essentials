@@ -91,6 +91,7 @@ in-game.
 | Namespace | What it's for | Key calls |
 |---|---|---|
 | `Ess.Human` | Weapon/inventory/action control for a character | `.equipWeapon/.dropWeapon/.primaryWeapon/.secondaryWeapon/.allWeapons/.setAllWeapons`, `.ammo/.setAmmo/.maxAmmo/.refillAmmo/.setInfiniteAmmo`, `.reloadAll/.doAction/.knockdown/.disableWeapons/.enableWeapons`; `Ess.Easy.Human.giveWeapon(char, templateName)` |
+| `Ess.Support` | The iconic combat call-ins, standalone (no contract) | `.airstrike/.artillery/.bombingrun/.gunship/.reinforce/.shell` (world x,y,z + opts; `owner=` faction attributes it); **`Ess.Easy.Airstrike.at(x,y,z)` / `.onTarget(i)` / `.onMe(i)`** |
 
 ## Markers
 
