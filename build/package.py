@@ -56,7 +56,8 @@ def install_notes(ver):
         "  data/vz-patch.wad          the UI .gfx movies Ess.UI renders through (menus/toasts/board/chat)\n"
         "  scripts/OnLoad/1_Ess.lua   the framework itself (one merged file)\n"
         "  scripts/OnKey/*.lua        optional demos you bind to keys (see below)\n"
-        "  Ess-samples/               short \"how do I X?\" recipe scripts + docs (reference; also the smoke test)\n\n"
+        "  Ess-samples/               short \"how do I X?\" recipe scripts + docs (reference; also the smoke test)\n"
+        "  Ess-GETTING_STARTED.md     install -> your first keypress mod (start here); Ess-CAPABILITIES.md = full API\n\n"
         "INSTALL\n"
         "  1. Extract this zip INTO your Mercenaries 2 folder (the one with Mercenaries2.exe). The data/\n"
         "     and scripts/ folders merge into the game's existing ones; nothing here touches a save.\n"
@@ -106,6 +107,12 @@ def main():
         # a glob so a new sample doc is shipped automatically instead of silently left out of the zip.
         for p in sorted(SAMPLES.glob("*.md")):
             z.write(p, "Ess-samples/" + p.name); files += 1
+
+        # the top-level guides, so a downloaded zip is self-contained for LEARNING, not just installing
+        for doc in ("GETTING_STARTED.md", "CAPABILITIES.md"):
+            p = ROOT / doc
+            if p.exists():
+                z.write(p, "Ess-" + doc); files += 1
 
     print("[package] wrote %s (%d files, %d bytes)" % (out, files, out.stat().st_size))
     print("[package] extract it into your Mercenaries 2 folder; install steps are in Ess-README.txt.")
