@@ -50,6 +50,7 @@ MANIFEST = [
     "31_mark_raw.lua",
     "31_mark.lua",
     "31_mark_easy.lua",
+    "32_on.lua",
     "40_gfx.lua",
     "41_scrolllog.lua",
     "42_ui_engine.lua",

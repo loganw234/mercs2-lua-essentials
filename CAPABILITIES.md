@@ -84,6 +84,7 @@ in-game.
 |---|---|---|
 | `Ess.Track` | One registry for every leak-prone Add/Remove pair | `Ess.Track.new()` → `:event/:guid/:marker/:radar/:pda/:qualityRef/:disposer/:contextAction/:add`, then `:closeAll()` |
 | `Ess.Event` | `Event.Create` that logs failures + auto-tracks | `.on(type, args, cb, tracker)`, `.off(handle)` |
+| `Ess.On` | Intent-named REACTIVE hooks (respond to the world) | `.death(guid, fn)`, `.enterArea/.exitArea/.insideArea(x,y,z,r, fn)`, `.healthBelow(guid, pct, fn)`, `.playerHurt(fn)`, `.vehicle(fn)`, `.tick(iv, fn)` — each → `stop()` |
 | `Ess.Save` | The **one** shared save-gate (suppress saves during an ephemeral mode) | `.gate(key)`, `.ungate(key)`, `.isGated()` — saves suppressed while ≥1 holder; used internally by Layers + Sandbox |
 
 ## Humans & combat

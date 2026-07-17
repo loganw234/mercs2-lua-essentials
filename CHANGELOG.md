@@ -17,6 +17,10 @@ calls + offline-verified where pure); test in a live game, then bump to `0.3.0` 
 - **`Ess.Support`** + **`Ess.Easy.Airstrike`** — the iconic combat call-ins (airstrike / artillery /
   gunship / bombing run / reinforcements) as standalone one-liners, lifted out of the Contract system so you
   can fire one anywhere. `Ess.Easy.Airstrike.at(x,y,z)` / `.onTarget()` for one-tap. Recipe: `call_in_support`.
+- **`Ess.On`** — intent-named reactive hooks so mods respond to the world without wiring raw events:
+  `death(guid)`, `enterArea` / `exitArea` / `insideArea`, `healthBelow`, `playerHurt`, `vehicle`, `tick`
+  (each returns `stop()`). The area/health/hurt logic is execute-verified offline (stubbed loop). Honest
+  about engine limits (no clean "player got a kill" event). Recipe: `react_to_things`.
 
 ## [0.2.1]
 
