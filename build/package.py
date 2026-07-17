@@ -102,9 +102,10 @@ def main():
 
         for p in sorted((SAMPLES / "recipes").glob("*.lua")):
             z.write(p, "Ess-samples/recipes/" + p.name); files += 1
-        samples_readme = SAMPLES / "README.md"
-        if samples_readme.exists():
-            z.write(samples_readme, "Ess-samples/README.md"); files += 1
+        # every top-level doc under samples/ (README.md, PORTING_MENUS.md, and anything added later) --
+        # a glob so a new sample doc is shipped automatically instead of silently left out of the zip.
+        for p in sorted(SAMPLES.glob("*.md")):
+            z.write(p, "Ess-samples/" + p.name); files += 1
 
     print("[package] wrote %s (%d files, %d bytes)" % (out, files, out.stat().st_size))
     print("[package] extract it into your Mercenaries 2 folder; install steps are in Ess-README.txt.")
