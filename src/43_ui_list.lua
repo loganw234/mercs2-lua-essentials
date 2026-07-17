@@ -100,6 +100,9 @@ function Ess.UI.List(opts)
         if k == "up" or k == "down" then
             local d = (k == "up") and -1 or 1
             local t = nearest(o._sel + d, d)
+            -- rolled off an end -> wrap around to the other end (down at the bottom jumps to the top, up at
+            -- the top jumps to the bottom). nearest() skips section headers, so the wrap target is real too.
+            if not t then t = (d == 1) and nearest(1, 1) or nearest(#o._items, -1) end
             if t and t ~= o._sel then
                 o._sel = t; o:paint()
                 if o.onSelect then pcall(o.onSelect, o._items[o._sel], o._sel, o) end

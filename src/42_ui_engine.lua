@@ -36,6 +36,11 @@ Ess.UI.TOAST_TTL = Ess.UI.TOAST_TTL or 4
 
 local TICK = 0.05
 Ess.UI._WARMUP = 8
+-- held-arrow auto-repeat pacing (the Ess.UI.KEYS scroll axis): wait REPEAT_DELAY seconds before the first
+-- auto-move, then fire one every REPEAT_RATE while the key stays physically down. Overridable like the
+-- other Ess.UI.* tunables above.
+Ess.UI.REPEAT_DELAY = Ess.UI.REPEAT_DELAY or 0.35
+Ess.UI.REPEAT_RATE  = Ess.UI.REPEAT_RATE  or 0.06
 
 -- ============================ utilities ==============================
 function Ess.UI.wrap(s, width)
@@ -150,6 +155,29 @@ local function service(dt)
             if S.focus ~= f then break end          -- an action changed focus mid-drain: stop feeding the old widget
             f:_keyvk(vk, shift)
         end
+        -- HELD-KEY AUTO-REPEAT (scroll axis only): hold Up/Down to keep moving through a list after a short
+        -- initial delay, like an OS text cursor. Only up/down repeat -- enter/esc/left/right stay discrete
+        -- (you never want "pick"/"back" to machine-gun off a stuck key). The first move already fired above
+        -- via the edge buffer; this re-fires _keyvk while the key stays physically down.
+        if S.focus == f then
+            local dnK, upK = Ess.UI.KEYS.down, Ess.UI.KEYS.up
+            local heldVk = (input.down(dnK) and dnK) or (input.down(upK) and upK) or nil
+            if heldVk then
+                if S._repVk ~= heldVk then
+                    S._repVk, S._repCd = heldVk, Ess.UI.REPEAT_DELAY    -- newly held: arm the initial delay
+                else
+                    S._repCd = S._repCd - dt
+                    if S._repCd <= 0 then
+                        f:_keyvk(heldVk, shift)
+                        S._repCd = Ess.UI.REPEAT_RATE
+                    end
+                end
+            else
+                S._repVk = nil
+            end
+        end
+    else
+        S._repVk = nil
     end
     if S.live then
         for i = #S.live, 1, -1 do
