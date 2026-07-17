@@ -148,8 +148,9 @@ C.tHandlers.escort = function(inst, task, obj, onDone)
     if z.x then markZone(task, z.x, z.y, z.z, r) end
     local function poll()
         if not inst.bActive or task.done or not z.x then return end
-        local ex, _, ez = Object.GetPosition(u); local dx, dz = ex - z.x, ez - z.z
-        if dx * dx + dz * dz <= r * r then return onDone(true) end
+        local ok, ex, _, ez = pcall(Object.GetPosition, u)   -- pcall'd: u is killable and GetPosition throws on a dead guid
+        if ok and ex then local dx, dz = ex - z.x, ez - z.z
+            if dx * dx + dz * dz <= r * r then return onDone(true) end end
         addEv(task, Event.Create(Event.TimerRelative, { 0.5 }, poll))
     end
     poll()

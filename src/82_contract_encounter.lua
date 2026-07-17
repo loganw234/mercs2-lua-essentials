@@ -279,11 +279,19 @@ function C._startSupport(inst)
         end
         for _, ev in ipairs(d.support or {}) do
             local tr = ev.trigger
-            if type(tr) == "table" and tr.ref == t.id and not already[ev.id] then already[ev.id] = true; fireSupport(ev) end
+            -- an id-less ref-support can't be named by any fires{} list, so it needs no dedup key --
+            -- writing already[nil] would throw "table index is nil"; only track entries that HAVE an id.
+            if type(tr) == "table" and tr.ref == t.id and not (ev.id and already[ev.id]) then
+                if ev.id then already[ev.id] = true end
+                fireSupport(ev)
+            end
         end
         for _, wp in ipairs(d.waypoints or {}) do
             local tr = wp.trigger
-            if type(tr) == "table" and tr.ref == t.id and not already[wp.id] then already[wp.id] = true; fireOrder(wp) end
+            if type(tr) == "table" and tr.ref == t.id and not (wp.id and already[wp.id]) then
+                if wp.id then already[wp.id] = true end
+                fireOrder(wp)
+            end
         end
     end
     for _, t in ipairs(d.triggers or {}) do

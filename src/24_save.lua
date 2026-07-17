@@ -21,7 +21,10 @@
 
 local Ess = _G.Ess
 Ess.Save = Ess.Save or {}
-Ess.Save._holders   = Ess.Save._holders   or {}     -- set of active holder keys ({key=true})
+-- _holders (the active holder-key set, {key=true}) is (re)initialized by the boot reset at the END of this
+-- file: it MUST clear on every world reload, so that's an unconditional `= {}` there -- deliberately NOT an
+-- `or {}` that would preserve stale holders across a load and could strand saves gated forever. _installed,
+-- by contrast, DOES persist across reloads (the Pg.SaveGame wrap survives; only the holder record resets).
 Ess.Save._installed = Ess.Save._installed or false  -- persists: the wrap is installed once for the process
 
 local function anyHolders()

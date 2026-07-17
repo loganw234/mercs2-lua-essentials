@@ -280,9 +280,8 @@ end
 function Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i)
     local px, py, pz, yaw = Ess.Player.pose(i or 0)
     if not px then return nil end
-    nDist = nDist or 18
-    local yr = math.rad(yaw or 0)
-    local x = px - math.sin(yr) * nDist
-    local z = pz + math.cos(yr) * nDist
+    -- forward projection lives in exactly one place now: Ess.Math.pointAhead (the same sin/cos this used
+    -- to inline). Keeps spawnAhead and pointAhead from drifting apart if the yaw convention is ever retuned.
+    local x, z = Ess.Math.pointAhead(px, pz, yaw or 0, nDist or 18)
     return Ess.Object.spawn(sTemplate, x, py + (nHeight or 0), z, yaw)
 end
