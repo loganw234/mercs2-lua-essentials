@@ -4,6 +4,7 @@
 --   Ess.RNG.new(seed) -> generator
 --     generator:next() -> [0,1)     generator:int(n) -> [1,n]     generator:chance(p) -> bool
 --     generator:pick(list, weightKey) -> element of list, weighted
+--     generator:shuffle(list) -> list (in-place)   generator:pickN(list, n) -> { n distinct elements }
 
 local Ess = _G.Ess
 Ess.RNG = {}
@@ -74,4 +75,27 @@ function Ess.RNG:pick(list, weightKey)
         if r <= acc then return e end
     end
     return list[#list]
+end
+
+-- :shuffle(list) -> list -- in-place Fisher-Yates shuffle of the array part, using this generator (returns
+-- the same list, for chaining). This is the engine-safe way to randomize order: `table.sort` with a random
+-- comparator is biased AND undefined behavior (an inconsistent comparator can error in some Lua builds).
+function Ess.RNG:shuffle(list)
+    for i = #list, 2, -1 do
+        local j = self:int(i)                     -- uniform in [1, i]
+        list[i], list[j] = list[j], list[i]
+    end
+    return list
+end
+
+-- :pickN(list, n) -> { ... } -- n DISTINCT random elements (sample without replacement), order randomized.
+-- n >= #list returns a shuffled copy of the whole list; n <= 0 returns {}. Never mutates `list`.
+function Ess.RNG:pickN(list, n)
+    local pool = {}
+    for i = 1, #list do pool[i] = list[i] end
+    self:shuffle(pool)
+    n = math.min(math.max(0, math.floor(tonumber(n) or 0)), #pool)
+    local out = {}
+    for i = 1, n do out[i] = pool[i] end
+    return out
 end

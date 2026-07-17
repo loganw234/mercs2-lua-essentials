@@ -7,6 +7,25 @@ Releases are automatic: **bump `Ess.VERSION`, add a matching `## [x.y.z]` sectio
 zip, and publishes a GitHub Release tagged `v<version>` using that section as the notes. (No section for the
 version? It still releases, with auto-generated commit notes.) See the README's "Releasing" section.
 
+## [Unreleased]
+
+### Added
+- **`Ess.Str`** — the string helpers Lua 5.1's thin `string` lib omits: split / join / trim / startsWith /
+  endsWith / contains / count / padLeft / padRight / capitalize / title / lines / truncate. Separators are
+  LITERAL text, not Lua patterns (so `split(s, ".")` splits on a real dot).
+- **`Ess.Color`** — RGB helpers for the `rgb = {r,g,b}` params across `Ess.Mark` / `Ess.UI`: `hex` (web
+  colours, long or short form), `hsv` (rainbows and evenly-spaced team tints), `lerp` (health-bar
+  gradients), and a `NAMES` preset table.
+- **`Ess.Table`** collection helpers — keys / values / count / isEmpty / contains / indexOf / map / filter /
+  find / copy / merge.
+- **`Ess.Math`** — clamp01 / remap / smoothstep / lerpAngle (shortest-path angle lerp) / wrap.
+- **`Ess.RNG`** — `:shuffle` (in-place, unbiased Fisher-Yates) and `:pickN` (distinct sample without
+  replacement).
+- Recipes: `text_and_tables`, `pick_colors`, `random_order`.
+
+All of the above is pure Lua (no engine calls) and was verified by execution against the real source (via
+lupa), not just built — so it's correctness-checked despite the game being closed.
+
 ## [0.1.1]
 
 ### Fixed

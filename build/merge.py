@@ -32,6 +32,8 @@ DIST = ROOT / "dist"
 MANIFEST = [
     "00_core.lua",
     "01_math.lua",
+    "02_str.lua",
+    "03_color.lua",
     "10_player.lua",
     "11_object.lua",
     "12_vehicle.lua",

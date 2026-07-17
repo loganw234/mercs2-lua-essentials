@@ -16,6 +16,8 @@
 --   Ess.Math.angleTo(fromX,fromZ, toX,toZ) -> yawDegrees   -- the yaw that FACES from->to
 --   Ess.Math.pointAhead(x, z, yawDeg, dist) -> x2, z2      -- project (x,z) forward by a yaw (spawnAhead math)
 --   Ess.Math.normDeg(deg) -> n in [-180, 180)             -- normalize an angle (shortest-turn friendly)
+--   Ess.Math.clamp01(v) -> n                  Ess.Math.remap(v, inLo,inHi, outLo,outHi) -> n  (linear rescale)
+--   Ess.Math.smoothstep(t) -> n (ease 0..1)   Ess.Math.lerpAngle(a,b,t) -> deg (shortest path)   Ess.Math.wrap(v,lo,hi) -> n
 
 local Ess = _G.Ess
 Ess.Math = Ess.Math or {}
@@ -75,4 +77,34 @@ function M.normDeg(deg)
     deg = deg % 360
     if deg >= 180 then deg = deg - 360 end
     return deg
+end
+
+-- clamp to the unit range [0,1] -- the common case for a lerp/ease parameter.
+function M.clamp01(v) if v < 0 then return 0 elseif v > 1 then return 1 else return v end end
+
+-- linear rescale: map v from [inLo,inHi] onto [outLo,outHi] ("a 0..maxHealth into a 0..1 bar," "a distance
+-- into an alpha"). A degenerate input range (inLo == inHi) returns outLo rather than dividing by zero.
+function M.remap(v, inLo, inHi, outLo, outHi)
+    if inHi == inLo then return outLo end
+    return outLo + (outHi - outLo) * ((v - inLo) / (inHi - inLo))
+end
+
+-- smoothstep ease of a 0..1 t -> 0..1 with zero slope at both ends (3t^2 - 2t^3). Feed it to lerp for an
+-- ease-in-out: Ess.Math.lerp(a, b, Ess.Math.smoothstep(t)). Clamps t first.
+function M.smoothstep(t)
+    t = M.clamp01(t)
+    return t * t * (3 - 2 * t)
+end
+
+-- interpolate angle a -> b (DEGREES) the SHORTEST way, so 350 -> 10 eases +20 through zero, not -340 the
+-- long way round. t in [0,1]; result normalized to [-180,180). The right lerp for a turning yaw.
+function M.lerpAngle(a, b, t)
+    return M.normDeg(a + M.normDeg(b - a) * t)
+end
+
+-- wrap v into the half-open range [lo, hi) -- keep an index, an angle, or a cursor in-band. hi <= lo -> lo.
+function M.wrap(v, lo, hi)
+    local span = hi - lo
+    if span <= 0 then return lo end
+    return lo + ((v - lo) % span)
 end

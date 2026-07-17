@@ -20,6 +20,9 @@ handler.
 | `command_a_helicopter` | spawn a crewed helicopter and fly it in (AI-piloted) | Vehicle, Object |
 | `make_them_fight` | set two factions at war and confirm the stance took | Relations |
 | `random_selection` | pick things at random the engine-safe way | RNG |
+| `random_order` | shuffle a list / sample distinct entries | RNG |
+| `text_and_tables` | split/trim/join text; map/filter/find over tables | Str, Table |
+| `pick_colors` | build marker/UI colours — hex, HSV, gradients, presets | Color |
 | `find_whats_around` | scan for nearby objects | Probe |
 | `mark_things` | put objective / zone markers down, then clear them | Mark |
 | `do_it_later` | run something after a delay, and on a repeating timer | Triggers, Loop, Time |

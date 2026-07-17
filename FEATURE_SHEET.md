@@ -1052,3 +1052,50 @@ explicit ordered file list for exactly this reason rather than globbing and sort
    Group G.
 6. `Ess.Override` (Group J) can land any time after step 1 — it has no dependents yet, it's just a safety
    primitive waiting to be used by whichever later group needs it first.
+
+---
+
+## Autonomous session (2026-07-16/17 overnight, game closed): a pure-Lua utility layer, verified by execution
+
+Context: an unsupervised session with the game NOT running, tasked with making Ess a better on-ramp for
+modders (goal: a comprehensive reference collection + genuinely useful framework, for a game that has never
+had mod support before). Because nothing could be smoke-tested in-engine, the work is deliberately weighted
+toward things that CAN be verified without the game; anything engine-touching is composed only from
+already-confirmed primitives and flagged as not-live-verified.
+
+**New capability this session: verification by execution.** `lupa` (Python's embedded Lua, here Lua 5.5) is
+installed, so pure-Lua code can be *run*, not just eyeballed. The loop for a pure namespace is now: write it
+→ load the real `src/*.lua` into a LuaRuntime → assert its behavior. This already caught a real bug — a
+recipe's expected-string assertion for `Ess.Str.truncate` was off by a few characters, which inspection had
+missed. Caveat: lupa here is 5.5, a superset of 5.1 syntax, so it is NOT a substitute for CI's `luac5.1 -p`
+gate — it's a behavioral check layered on top. (Kept as a scratchpad harness, not committed: the 5.5-vs-5.1
+mismatch makes it too caveated to add as a repo tool; CI's luac stays the authoritative syntax gate.)
+
+**Added — a pure-Lua utility layer** (`02_str.lua`, `03_color.lua`, plus extensions to `00_core` / `01_math`
+/ `53_rng`). Rationale: Lua 5.1's stdlib is thin — no split/trim/map/filter/colour math — so every mod
+re-implements these, which is exactly the "re-derived in file after file" waste Ess exists to end. These are
+the safest possible additions (no engine surface at all) and among the most reached-for.
+- `Ess.Str` — split/join/trim/startsWith/endsWith/contains/count/padLeft/padRight/capitalize/title/lines/
+  truncate. Deliberate call: every separator/needle is LITERAL (`string.find(..., true)`), because
+  `split(s, ".")` silently splitting on every character (`.` as a pattern) is a classic Lua footgun; Ess's
+  job is to remove footguns, so patterns are opt-out (use the stdlib) rather than opt-in.
+- `Ess.Color` — hex (long+short) / hsv / lerp / of / NAMES. Returns three values (r,g,b) rather than a
+  table, so `rgb = { Ess.Color.hex("#f80") }` captures all three as the sole braces element — dropping
+  straight into the `rgb = {r,g,b}` slots Mark/UI already expect; NAMES presets are ready-made tables for
+  the same slots.
+- `Ess.Table` — keys/values/count/isEmpty/contains/indexOf/map/filter/find/copy/merge, placed in `00_core`
+  next to `.compact` (it owns Ess.Table and these are dependency-free).
+- `Ess.RNG` — `:shuffle` (in-place Fisher-Yates) + `:pickN` (distinct sample). Kept WITH the RNG rather than
+  in Table, so `00_core` stays strictly dependency-free. (`table.sort` with a random comparator is both
+  biased and undefined behavior, so an explicit shuffle is the right primitive to hand modders.)
+- `Ess.Math` — clamp01/remap/smoothstep/lerpAngle (shortest-path)/wrap: the easing + remap kit for HUD bars
+  and turning yaws.
+
+Every function above was executed with assertions (Str, Color, Math, Table, RNG — all green), and the three
+new recipes (`text_and_tables`, `pick_colors`, `random_order`) were run to PASS in lupa. So this batch is
+correctness-verified in behavior, not merely built — despite the closed game.
+
+VERSION intentionally held at `0.1.1`: not auto-cutting a release of a batch that later commits will extend,
+and (more importantly) not publishing a release that includes any later engine-touching code no one has
+smoke-tested. When ready, bump `Ess.VERSION` and rename the CHANGELOG `[Unreleased]` section to the new
+version — the release workflow does the rest.

@@ -100,6 +100,45 @@ function Ess.Table.compact(t)
     return t
 end
 
+-- ---- collection helpers (pure Lua, the basics the stdlib omits). map/filter/find/indexOf work on the
+-- ARRAY part (ipairs); keys/values/count/isEmpty/contains/copy/merge work on the whole table (pairs), since
+-- `#t` only ever sees the array part and silently misses map keys. All non-mutating except merge. ----
+function Ess.Table.keys(t)   local o = {} for k in pairs(t) do o[#o + 1] = k end return o end
+function Ess.Table.values(t) local o = {} for _, v in pairs(t) do o[#o + 1] = v end return o end
+function Ess.Table.count(t)  local n = 0  for _ in pairs(t) do n = n + 1 end return n end
+function Ess.Table.isEmpty(t) return next(t) == nil end
+function Ess.Table.contains(t, val)
+    for _, v in pairs(t) do if v == val then return true end end
+    return false
+end
+function Ess.Table.indexOf(t, val)
+    for i, v in ipairs(t) do if v == val then return i end end
+    return nil
+end
+function Ess.Table.map(t, fn)
+    local o = {}
+    for i, v in ipairs(t) do o[i] = fn(v, i) end
+    return o
+end
+function Ess.Table.filter(t, fn)   -- densely packed result, never a hole
+    local o = {}
+    for i, v in ipairs(t) do if fn(v, i) then o[#o + 1] = v end end
+    return o
+end
+function Ess.Table.find(t, fn)     -- first array element where fn(value,index) is truthy -> value, index
+    for i, v in ipairs(t) do if fn(v, i) then return v, i end end
+    return nil
+end
+function Ess.Table.copy(t)         -- SHALLOW copy (nested tables are shared, not cloned)
+    local o = {}
+    for k, v in pairs(t) do o[k] = v end
+    return o
+end
+function Ess.Table.merge(dst, src) -- shallow-copy src's keys onto dst (src wins), mutating + returning dst
+    for k, v in pairs(src or {}) do dst[k] = v end
+    return dst
+end
+
 -- ============================================================
 -- Ess.Guid / Ess.Name -- Pg.GetGuidByName and Sys.GuidToString each have both a namespaced form and a
 -- bare-global alias on this engine, a confusing duplicate surface -- use these instead of remembering
