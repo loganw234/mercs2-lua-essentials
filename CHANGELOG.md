@@ -48,6 +48,18 @@ calls + offline-verified where pure); test in a live game, then bump to `0.3.0` 
   be the tick rate, not the real one.)
 - **`Ess.Hud.objective(text, nSlot)`** now takes an optional tray slot (default 1), so `Ess.Objective`/`Quest`
   can show a goal on a line other than a running Contract's. Backward-compatible.
+- **`Ess.Safe.template(name)`** — the canonical "is this a spawnable template" check (non-blank string),
+  centralising the blank-`Pg.Spawn`-hard-crash guard that was re-inlined in ~6 spawn paths, so a new spawn
+  path is one call from safe. Covered by `tools/checkpure.py`.
+
+### Hardening (pre-release audit of the unreleased batch, offline)
+
+- **`Ess.Support.reinforce`**'s `deliver="copter"` path now validates the template before `MrxCopterDrop.Create`
+  (via `Ess.Safe.template`) — the direct-spawn path was already guarded, the copter path wasn't, and a blank
+  template can hard-CTD through the internal spawn (pcall can't catch a native crash).
+- **`Ess.Easy.Debug.overlay`** now throttles its nearby world-scan (two native `FastCollect` passes) to ~1×/s
+  and caches it, instead of running it on every fast pos/aim tick — a dev overlay should stay light enough not
+  to perturb what you're measuring.
 
 ## [0.2.1]
 

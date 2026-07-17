@@ -154,6 +154,9 @@ Ess.Probe = {
     getFaction = function(g) return "VZ" end }
 Ess.Object = { distance=function(g,x,y,z) return 12.3 end, health=function(c) return W.hp end }
 Ess.Name = function(g) return (g==W.aimGuid) and W.aim or "Car" end
+-- the overlay throttles its nearby scan through Ess.Time.cooldown(1) -- stub it so the FIRST call (the
+-- immediate paint) scans and later ticks reuse the cache, matching real cooldown() behaviour sub-second.
+Ess.Time = { cooldown = function(s) local first=true; return function() if first then first=false; return true end return false end end }
 _G.Object = { GetMaxHealth = function(c) return 120 end }
 
 local function eq(a,b,msg) if a~=b then error((msg or "").." : expected ["..tostring(b).."] got ["..tostring(a).."]",2) end end

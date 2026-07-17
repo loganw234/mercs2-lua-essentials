@@ -1293,3 +1293,39 @@ any other intent-bundle opportunities found along the way.
 
 **Release posture unchanged: `Ess.VERSION` stays `0.2.1`.** After Logan's one live pass, bump to `0.3.0`,
 rename CHANGELOG `[Unreleased]` → `## [0.3.0]`, push → `release.yml` cuts it.
+
+---
+
+## Session note — pre-release hardening audit of the unreleased batch (autonomous, 2026-07-17)
+
+Logan away for hours, asked what to do next. Honest call: raw access is at the ceiling and there's a large
+engine-touching batch parked at 0.2.1 awaiting his live pass — so the highest-leverage offline-safe work is
+HARDENING that batch (reading code for defects against this project's known bug-classes) rather than piling on
+more unverified surface. Read every new/edited unreleased file with fresh eyes against the checklist (missing
+file-scoped `import("Mrx*")`; un-guarded blank `Pg.Spawn`; `not 0 == false`; `tostring(table)` field-dump;
+multi-return truncation; nil-index; loop-leak/reload-safety; return-value-vs-doc).
+
+**Result — mostly clean, two real items fixed:**
+- `32_on.lua`, `25_keys.lua` (verified `Ess.Input.poll()` really returns `{pressed={vk},down=fn}` as it
+  assumes), `92_easy_spawn.lua`, `57_hud.lua`, `10_player.lua`, `59_objective.lua`, `96_console.lua` — all
+  clean. (`Ess.Support`'s `ownerGuid` `X and Y or Z` is safe: `Ess.Guid` returns guid-or-nil, never `false`.)
+- **FIX 1 — copter blank-template guard.** `Ess.Support.reinforce`'s `deliver="copter"` path called
+  `MrxCopterDrop.Create` with a modder-supplied template with NO blank-template guard, while the direct-spawn
+  path right beside it was guarded by `Ess.Object.spawn`. Same failure mode as the original Contract Pg.Spawn
+  gap (Known Bug #8) — a blank template hard-CTDs through the internal spawn, uncatchable by pcall. Guarded it.
+- **FIX 2 — overlay scan throttle.** `Ess.Easy.Debug.overlay` ran two native `FastCollect` passes on EVERY
+  0.2s tick (10 world-scans/sec) for the nearby-counts line; the rest of the panel is cheap. Now gated to
+  ~1×/sec via `Ess.Time.cooldown(1)` and cached, so the fast pos/aim refresh doesn't drag a world scan with it.
+
+**New shared helper: `Ess.Safe.template(name)`** (`00_core.lua`) — the canonical non-blank-string check that
+the blank-`Pg.Spawn` guard has been re-inlined ~6 times to compute (Object.spawn / Vehicle.followGhost /
+Bones.attachFX / UI.Menu ctx:spawn / Contract._safeSpawn). Added as the one place to reach for it; used by the
+new copter guard; covered by `checkpure.py`. **NOTED follow-up (deliberately NOT done in an untested pass):**
+migrate those ~6 existing inline guards to call `Ess.Safe.template` — pure DRY, but it touches live-verified
+code, so it wants a smoke pass, not a blind refactor.
+
+Verification: all offline gates green — build, `luac5.1` syntax, `checkpure` 10/10 (now asserts
+`Safe.template`), `test_bundles` 10+4 (overlay throttle exercised via a stubbed `Ess.Time.cooldown`). No
+behavior changed for anything that was already passing; the two fixes are a new guard (reject-path only) and a
+scan-rate change (same displayed values, computed less often). VERSION still `0.2.1` — this hardens the same
+`[Unreleased]` batch; still bump to `0.3.0` after Logan's one live pass.

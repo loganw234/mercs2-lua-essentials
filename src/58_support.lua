@@ -87,7 +87,11 @@ function Ess.Support.reinforce(x, y, z, opts)
     local fac, units, deliver = HELO_FACTION[opts.faction] or opts.faction or "VZ", opts.units or {}, opts.deliver
     local function spawnOne(i, tmpl)
         local ox, oz = ((i - 1) % 3 - 1) * 4, math.floor((i - 1) / 3) * 4
-        if deliver == "copter" then pcall(MrxCopterDrop.Create, fac, tmpl, x + ox, y, z + oz, false)
+        if deliver == "copter" then
+            -- MrxCopterDrop.Create spawns internally, so a blank template here can hard-CTD the same way a
+            -- raw Pg.Spawn would (pcall won't save us). The direct path below is guarded by Ess.Object.spawn;
+            -- guard the copter path the same way up front.
+            if Ess.Safe.template(tmpl) then pcall(MrxCopterDrop.Create, fac, tmpl, x + ox, y, z + oz, false) end
         else Ess.Object.spawn(tmpl, x + ox, y, z + oz) end           -- guarded spawn (blank template safe)
     end
     if deliver == "paradrop" then

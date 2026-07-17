@@ -60,6 +60,9 @@ assert(S.call(function() error('boom') end)==false,'call failure -> false (logs 
 assert(S.quiet(function() error('x') end)==false,'quiet failure -> false (no log)')
 eq(S.string(true,'hi','fb'),'hi','string ok'); eq(S.string(true,123,'fb'),'fb','string non-string')
 eq(S.string(false,'hi','fb'),'fb','string not-ok'); eq(S.string(true,nil),'?','string default fallback')
+assert(S.template('VZ Soldier')==true,'template valid'); assert(S.template('')==false,'template empty')
+assert(S.template('   ')==false,'template whitespace'); assert(S.template(nil)==false,'template nil')
+assert(S.template(5)==false,'template non-string')
 return true
 """,
     "Math": r"""

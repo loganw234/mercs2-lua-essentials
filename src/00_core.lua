@@ -76,6 +76,19 @@ function Ess.Safe.string(ok, val, fallback)
     return fallback or "?"
 end
 
+-- Ess.Safe.template(sTemplate) -> bool
+-- The canonical "is this actually a spawnable template name" test. A blank/whitespace/non-string template
+-- makes Pg.Spawn (and everything built on it) hard-CRASH the engine in native C++, and pcall canNOT catch a
+-- native crash -- only a Lua error. So every spawn path in Ess must validate the template BEFORE the call.
+-- That exact guard is currently re-inlined in ~6 places (Object.spawn / Vehicle.followGhost / Bones.attachFX
+-- / UI.Menu ctx:spawn / Contract._safeSpawn); centralising the shape here means a NEW spawn path is one call
+-- from safe instead of re-deriving it -- the copter-reinforce path and the original Contract Pg.Spawn gap
+-- both missed it by hand. (The existing inline guards can migrate to this opportunistically; not worth
+-- re-touching verified code in a batch.) Returns true only for a non-empty, non-whitespace string.
+function Ess.Safe.template(sTemplate)
+    return type(sTemplate) == "string" and sTemplate:gsub("%s", "") ~= ""
+end
+
 -- ============================================================
 -- Ess.Table
 -- ============================================================

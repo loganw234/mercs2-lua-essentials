@@ -78,7 +78,11 @@ local function refresh(i, r)
     p:line(0, "pos: " .. fmtCoord(px, py, pz) .. (px and string.format("  yaw %.0f", yaw or 0) or ""))
     p:line(1, aimLine(i, px, py, pz))
     p:line(2, vehLine(i) .. "   " .. healthLine(i))
-    p:line(3, nearbyLine(px, py, pz, r))
+    -- the nearby line is the one expensive part (two native FastCollect passes over the radius); the rest is
+    -- cheap. Gate it to ~1x/sec and cache the result so the panel's fast pos/aim refresh doesn't run a world
+    -- scan on every tick -- a dev overlay should stay light enough not to perturb what you're measuring.
+    if S.nearbyReady and S.nearbyReady() then S.nearbyCache = nearbyLine(px, py, pz, r) end
+    p:line(3, S.nearbyCache or "near: ...")
 end
 
 local function teardown()
@@ -95,6 +99,8 @@ function Ess.Easy.Debug.overlay(opts)
     local interval = tonumber(opts.interval) or 0.2
     S.i = i
     S.panel = Ess.UI.Panel{ x = opts.x or 20, y = opts.y or 40, w = opts.w or 360, title = "Ess Debug" }
+    S.nearbyReady = Ess.Time.cooldown(1)          -- gate the nearby world-scan to ~1x/sec (its first call is
+    S.nearbyCache = nil                           -- always ready, so the immediate paint below still scans)
     S.on = true
     refresh(i, r)                                 -- paint once immediately, don't wait a tick
     Ess.Loop.start(LOOP_ID, interval, function()
