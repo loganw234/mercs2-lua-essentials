@@ -26,6 +26,9 @@ version? It still releases, with auto-generated commit notes.) See the README's 
   shipped mod support: the OnLoad/OnKey model, the `_G.Ess` guard, the re-run gotcha, the dev loop.
 - Recipes: `text_and_tables`, `pick_colors`, `random_order` (the new utilities); `cooldowns`,
   `remember_this_session` (timing / session state); `watch_a_vehicle`, `a_custom_hud` (engine patterns).
+- **`tools/checkpure.py`** — an offline behavioral test suite (via lupa) for the pure namespaces
+  (Math / Str / Color / Table / RNG / State / Time), wired into CI alongside the syntax gate. Catches
+  pure-logic regressions with no game required — coverage `smoke.py` can't give without the game up.
 
 **Verification (game was closed for this batch):** the utility layer and the pure recipes
 (`text_and_tables` / `pick_colors` / `random_order` / `cooldowns` / `remember_this_session`) were verified by

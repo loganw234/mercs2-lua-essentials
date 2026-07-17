@@ -2,6 +2,25 @@
 
 Testing infrastructure for this repo, separate from `src/` (the actual `Ess` library).
 
+## `checkpure.py` -- offline behavioral tests (no game, no hardware)
+
+`smoke.py` proves the framework in the running game, but needs the game up. The pure-Lua utility namespaces
+(Math, Str, Color, Table, and the deterministic parts of RNG/State/Time) have no engine surface, so they can
+be *executed and asserted* anywhere -- this runs them in an embedded Lua (via `lupa`) against the real
+`src/*.lua`, so a regression in a pure helper goes red on any machine with no game required. Wired into CI
+(`.github/workflows/ci.yml`) alongside the syntax gate.
+
+```
+pip install lupa
+python tools/checkpure.py        # exit 0 iff every group passes
+```
+
+Scope: PURE logic only -- anything touching `Object`/`Pg`/`Vehicle`/`Hud` belongs in a recipe + `smoke.py`
+instead. Caveat: lupa embeds a newer Lua (5.4/5.5) than the engine's 5.1, which is fine for the *behavior* of
+the standard constructs these namespaces use but is NOT a syntax gate (CI's `luac5.1 -p` is that) -- e.g. it
+has to shim `math.atan2`, which 5.5 dropped but the engine's 5.1 still has. It caught a real off-by-a-few-
+chars bug in a `truncate` assertion the day it was written.
+
 ## `xpad.py` -- virtual Xbox 360 controller for testing controller-driven Lua
 
 Lets automated tests actually generate real XInput controller events, for exercising anything in this
