@@ -52,6 +52,10 @@ calls + offline-verified where pure); test in a live game, then bump to `0.3.0` 
   centralising the blank-`Pg.Spawn`-hard-crash guard that was re-inlined in ~6 spawn paths, so a new spawn
   path is one call from safe. Covered by `tools/checkpure.py`.
 
+- **`VehicleInspector` OnKey demo** (F6) — a WAILA-style "what vehicle am I in" inspector (poll-detect the
+  vehicle you enter, dump its guid + details to the log, live HUD panel). Ships in the zip; a compact showcase
+  of `Ess.Player`/`Object`/`Vehicle`/`UI`/`Loop`.
+
 ### Hardening (pre-release audit of the unreleased batch, offline)
 
 - **`Ess.Support.reinforce`**'s `deliver="copter"` path now validates the template before `MrxCopterDrop.Create`
