@@ -165,3 +165,14 @@ browser," and a template for building richer web tools on top of the bridge.
 
 **Binds to `127.0.0.1` only** -- it executes arbitrary Lua in your game, so it's a local dev tool, never
 something to expose on a public interface.
+
+## `ess-bridge.js` + `BRIDGE_WEBSOCKET.md` -- browser WS client + bridge spec (forward-looking)
+
+For when the bridge learns to speak **WebSocket** (so a web page connects directly, no relay at all).
+`ess-bridge.js` is a tiny, dependency-free reference client implementing the two-tier protocol: an **ack**
+(the bridge received your chunk) plus a **result** delivered over a live `Loader.Printf` feed -- the chunk
+tags its result in Lua and the client matches the tag on the feed, the same log-authoritative trick
+`lua_repl.py` uses, so results are reliable + ordered with zero correlation plumbing in the bridge's C.
+`BRIDGE_WEBSOCKET.md` specs exactly what the bridge needs (handshake, framing, ack, and forwarding
+`Loader.Printf` over WS -- a ~3-line add since the bridge owns that function). Neither ships in the game;
+they're the reference for building browser (or any-language) tools once WS lands.
