@@ -3,18 +3,20 @@
  * (see BRIDGE_WEBSOCKET.md for exactly what the bridge needs).
  *
  * WHY RESULTS WORK THE WAY THEY DO (read this -- it's the whole design):
- *   The bridge runs your Lua when the engine next drives its pump, and it hooks a messy engine function to
- *   do that -- so the DIRECT return value is delayed / one-execution-behind / sometimes never comes. The
- *   robust channel is the LOG: Loader.Printf lines are ordered and unambiguous, and the bridge forwards them
- *   over WS as a live feed. So this client, exactly like tools/lua_repl.py, WRAPS each chunk to Loader.Printf
- *   a nonce-tagged result, then matches that tag on the log stream. Reliable + ordered, and it needs no
- *   correlation plumbing in the bridge's C -- the id lives in Lua.
+ *   The bridge runs your Lua whenever the engine next drives its pump -- and the pump rides on the game's own
+ *   (noop'd) native debug-print, which every stock script calls constantly, so chunks run promptly and
+ *   reliably (it's been driven overnight at 200-300k executed calls/sec). What's NOT reliable is the DIRECT
+ *   socket return -- it's one-execution-behind (buffering). So the robust channel is the LOG: Loader.Printf
+ *   lines are ordered and unambiguous, and the bridge forwards them over WS as a live feed. This client,
+ *   exactly like tools/lua_repl.py, WRAPS each chunk to Loader.Printf a nonce-tagged result and matches that
+ *   tag on the stream -- reliable + ordered, and no correlation plumbing in the bridge's C (the id lives in
+ *   Lua). Note it forwards Loader.Printf (the dedicated CLEAN log), not the game's spammy native print.
  *
  *   You get TWO signals per run():
  *     * ACK    -- the bridge received + queued your chunk (immediate, reliable).
- *     * RESULT -- the tagged log line came back (reliable WHEN the chunk runs). If the game is in a state
- *                 where the pump never fires, the chunk never runs, so no tag ever appears -> run() resolves
- *                 with { timedOut:true } instead of hanging. Your chunk simply didn't execute.
+ *     * RESULT -- the tagged log line came back. Reliable in practice (the pump fires constantly). If no line
+ *                 arrives within resultTimeout, run() resolves with { timedOut:true } instead of hanging --
+ *                 a rare safety net (a dropped/slow line), not the norm; the chunk almost certainly ran.
  *
  * USAGE
  *   const bridge = new EssBridge("ws://127.0.0.1:27050");
@@ -96,7 +98,8 @@
       var entry = { tag: tag, acked: false, onAck: opts.onAck || null, resolve: resolve };
       entry.timer = setTimeout(function () {
         delete self._pending[id];
-        // acked but no tagged line within the window -> the pump likely never ran the chunk. Not an error.
+        // no tagged line in the window -- rare (the pump fires constantly); the chunk most likely ran, the
+        // line was just slow/lost. A never-hang safety net, not "it didn't execute".
         resolve({ ok: undefined, value: null, acked: entry.acked, timedOut: true });
       }, opts.resultTimeout || self.resultTimeout);
       self._pending[id] = entry;

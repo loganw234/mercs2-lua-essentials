@@ -59,22 +59,23 @@ local __ok, __r = pcall(function() <user code> end)
 Loader.Printf("<<<WSR:q17abc>>>" .. (__ok and "OK\t" or "ERR\t") .. tostring(__r))
 ```
 
-That tagged line rides the Tier-3 log feed back to the browser, which matches `<<<WSR:q17abc>>>` and resolves
-the request. The bridge never has to route a result to a request — the `id` lives in Lua-space. This is the
-same log-authoritative approach `lua_repl.py` switched to because the direct socket return is
-**one-execution-behind** (its own note, `lua_repl.py` header).
+That tagged line rides the log feed back to the browser, which matches `<<<WSR:q17abc>>>` and resolves the
+request. The bridge never has to route a result to a request — the `id` lives in Lua-space. This is the same
+log-authoritative approach `lua_repl.py` uses, because the direct socket return is **one-execution-behind**
+(buffering — its own header note). It is **not** about execution reliability: the pump fires *constantly*
+(below), so chunks run promptly; the log is chosen for ordering + cleanliness, not "will it run".
 
-**Honest limit — the one thing WS can't fix:** the chunk only runs when the engine drives the pump (the
-"messy hooked function"). If the game is in a state where no pump source fires, the chunk never runs, so no
-tagged line ever appears → the client resolves `{ timedOut:true }` (acked, but no result). That's a *pump*
-problem, not a *transport* problem.
+**Why the pump is not a concern:** it rides on the game's own **noop'd native debug-print**, which every stock
+script calls all the time — so it's driven continuously (proven: the bridge ran overnight at ~200–300k
+executed chunks/sec brute-forcing hashes in-game). So a client `{timedOut:true}` is a rare safety net (a
+dropped/slow line), never "the chunk didn't run," and **no "guaranteed periodic pump" is needed** — it already
+is one.
 
-### Optional deeper fix (root cause, not required for WS)
-Result delivery leans on incidental pump sources. A **guaranteed periodic pump** — a lightweight always-on
-timer/detour that drains the queue on a fixed cadence — would make Tier 2 far more reliable regardless of what
-the game happens to be doing. The watchdog (line ~443) already exists for *stuck* pumps; this would be the
-*proactive* counterpart. (The `luaB_pcall`-returns-junk quirk still makes the `ok`/value *formatting*
-best-effort — see `FormatTValue`, line 569 — but at least the chunk would run.)
+**The real design consideration — keep the feed clean:** forward **`Loader.Printf`** (the dedicated,
+uncluttered log), **not** the game's native debug-print. The native print is what the pump hooks, and stock
+scripts spam it thousands of times a frame — forwarding *that* would drown the browser in trash. `Loader.Printf`
+exists precisely as the separate clean channel (its own comment, line 1693). (Unrelated aside: the
+`luaB_pcall`-returns-junk quirk makes the `ok`/value *formatting* best-effort — see `FormatTValue`, line 569.)
 
 ## Concurrency note
 
@@ -89,8 +90,8 @@ is: many WS log subscribers + one command connection at a time.
 - [ ] Peek-and-branch after `accept()`; WS handshake (BCrypt SHA-1 + base64) → `101`.
 - [ ] `ws_recv` (unmask, handle ping/close) + `ws_send` (text frame); 1 message = 1 request.
 - [ ] Parse `{id, code}`; `InQueuePush(code)`; send `{type:"ack", id, status:"queued"}`.
-- [ ] In `LuaLoaderPrintf` (line 1751), broadcast each line to WS clients as `{type:"log", line}`.
-- [ ] (optional) guaranteed periodic pump for Tier-2 reliability.
+- [ ] In `LuaLoaderPrintf` (line 1751), broadcast each line to WS clients as `{type:"log", line}` — the
+      **clean** channel only, never the game's native debug-print the pump hooks.
 - [ ] (optional) multi-client output routing for browser + TCP at once.
 
 Everything else — the queue, pump, executor, `Loader.Printf` itself — is reused unchanged.
