@@ -8,7 +8,10 @@
 -- data) for browsing, and Ess.TextConsole (the plain no-gfx-asset console built earlier this session) for
 -- the search box -- both existing pieces composed together rather than a third UI built from scratch.
 --
--- Ess.Easy.Console.open()    -- browse everything, grouped by namespace
+-- Ess.Easy.Console.open()    -- browse everything, grouped by namespace (a read-only reference)
+-- Ess.Easy.Console.play()    -- the interactive PLAYGROUND: drill in, RUN a function live, cycle its params
+--                                to see exactly what it does in-game on demand (also reachable from the
+--                                "[ Playground... ]" row pinned at the top of the browse board)
 -- Ess.Easy.Console.search()  -- opens a TextConsole prompt; on submit, filters the registry and reopens
 --                                the board with matches (also reachable from inside the board itself, via
 --                                the pinned "[ Search... ]" row at the top of the list)
@@ -222,6 +225,7 @@ local S = { board = nil, view = nil }   -- S.view = currently-displayed (possibl
 local function buildRows(list)
     local rows, lastNs = {}, nil
     rows[1] = { label = "[ Search... ]", any = "search" }
+    rows[2] = { label = "[ Playground -- run functions live ]", any = "playground" }
     for _, e in ipairs(list) do
         if e.ns ~= lastNs then rows[#rows + 1] = { header = e.ns }; lastNs = e.ns end
         rows[#rows + 1] = { label = e.usage, any = e }
@@ -230,8 +234,8 @@ local function buildRows(list)
 end
 
 local function showDetail(board, entry)
-    if entry == "search" or not entry then
-        board:detail({ category = "Pick a row, or Enter 'Search...' to filter", objectives = {} })
+    if entry == "search" or entry == "playground" or not entry then
+        board:detail({ category = "Pick a row -- or open the Playground to RUN functions live", objectives = {} })
         return
     end
     board:detail({ category = entry.usage, objectives = Ess.UI.wrap(entry.desc, 40), rewards = { entry.ns } })
@@ -249,6 +253,8 @@ local function openBoard(list)
                 local e = it and it.any
                 if e == "search" then
                     Ess.Easy.Console.search()
+                elseif e == "playground" then
+                    Ess.Easy.Console.play()
                 elseif e then
                     Ess.Log("USAGE: " .. e.usage .. "  -- " .. e.desc)
                     Ess.UI.Toast("Logged usage -- check the log")
@@ -290,5 +296,102 @@ end
 
 function Ess.Easy.Console.close()
     if S.board then S.board:hide():blur() end
+    if S.play then S.play:close() end
     if Ess.TextConsole.isOpen() then Ess.TextConsole.close() end
+end
+
+-- ============================================================
+-- Ess.Easy.Console.play() -- the interactive PLAYGROUND. Where open() is a read-only reference, play() lets
+-- a new modder actually RUN a function live and TWEAK its parameters to see exactly what each one does in the
+-- game, on demand. Built on Ess.UI.Menu's drill-down: a category per topic, and for a function with
+-- parameters a little sub-menu with a "Run it" entry plus one cycler per parameter (pick it to cycle its
+-- value -- the same dynamic-label trick :switch uses). No parameters -> the entry just runs on pick.
+--
+-- DEMOS is the SELF-CONTAINED subset -- functions that need no guid you'd have to supply -- with CONFIRMED
+-- preset values to cycle through. (Swap/extend the presets once the in-game spawn catalog lands; this is
+-- deliberately a curated starter set, not every string.)
+-- ============================================================
+local DEMOS = {
+    -- Spawn
+    { group = "Spawn", name = "Explosion", desc = "A big boom in front of you (real, damaging).",
+      params = { { key = "type", values = { "Explosion (Grenade)", "Explosion (C4)", "Explosion (MOAB)", "fx_Explosion_Huge" } } },
+      run = function(a) Ess.Easy.Spawn.explosion(a.type) end },
+    { group = "Spawn", name = "Summon a vehicle", desc = "Spawn one in front + hop in the driver seat.",
+      params = { { key = "template", values = { "UH1 Transport", "AH1Z (Full)", "Veyron" } } },
+      run = function(a) Ess.Easy.Vehicle.summon(a.template) end },
+    { group = "Spawn", name = "Weapon pickup", desc = "Drop a weapon to walk over and grab.",
+      params = { { key = "name", values = { "RPG", "Sniper Rifle", "Minigun", "Grenade Launcher", "Shotgun", "C4" } } },
+      run = function(a) Ess.Easy.Spawn.weapon(a.name) end },
+    { group = "Spawn", name = "Supply crate", desc = "A crate parachutes down in front of you.",
+      params = { { key = "type", values = { "Supply Drop (Light MG)", "Supply Drop (Blueprints)", "Supply Drop (Treasure)" } } },
+      run = function(a) Ess.Easy.Spawn.crate(a.type) end },
+    { group = "Spawn", name = "Enemy squad", desc = "Hostiles spawn ahead and attack you.",
+      params = { { key = "count", values = { 1, 3, 5, 8 } } },
+      run = function(a) Ess.Easy.Spawn.enemies(a.count) end },
+    -- World
+    { group = "World", name = "Clear wanted level", desc = "Lose all your heat.", run = function() Ess.Easy.World.clearWanted() end },
+    { group = "World", name = "Remove map walls", desc = "Roam the whole map.", run = function() Ess.Easy.World.removeMapBoundary() end },
+    { group = "World", name = "Hellscape", desc = "Recolour the world dark/red (region-gated).", run = function() Ess.Easy.World.hellscape() end },
+    { group = "World", name = "Reset atmosphere", desc = "Undo world tints.", run = function() Ess.Easy.World.resetAtmosphere() end },
+    -- Player
+    { group = "Player", name = "Grappling hook", desc = "Unlock it.", run = function() Ess.Easy.Player.giveGrapplingHook() end },
+    { group = "Player", name = "All rewards", desc = "Dispense every reward.", run = function() Ess.Easy.Player.giveAllRewards() end },
+    { group = "Player", name = "Give cash", desc = "Add to your wallet.",
+      params = { { key = "n", values = { 10000, 100000, 1000000 } } }, run = function(a) Ess.Player.giveCash(a.n) end },
+    { group = "Player", name = "Change skin", desc = "Whole-figure skin swap (reload restores).",
+      params = { { key = "code", values = { "pmc_hum_fiona", "vz_hum_solano" } } }, run = function(a) Ess.Easy.Player.skin(a.code) end },
+    -- Support
+    { group = "Support", name = "Airstrike my target", desc = "Barrage whatever your reticle is on.", run = function() Ess.Easy.Airstrike.onTarget() end },
+    { group = "Support", name = "Artillery ahead", desc = "Shells rain ~35u in front of you.",
+      run = function() local x, y, z, yaw = Ess.Player.pose(0); if x then local ax, az = Ess.Math.pointAhead(x, z, yaw or 0, 35); Ess.Support.artillery(ax, y, az, { count = 6 }) end end },
+    -- Juice
+    { group = "Juice", name = "Slow motion", desc = "Bullet-time for 3 seconds.",
+      params = { { key = "scale", values = { 0.2, 0.35, 0.5 } } }, run = function(a) Ess.Easy.Time.slowmo(a.scale, 3) end },
+    { group = "Juice", name = "Camera shake", desc = "Shake the screen.", run = function() Ess.Easy.Camera.shake(0) end },
+    { group = "Juice", name = "Speed boost", desc = "Rocket the car you're in forward.", run = function() Ess.Easy.Impulse.speedBoost(nil, 12) end },
+    { group = "Juice", name = "Dance", desc = "The technoviking dance.", run = function() Ess.Easy.Fun.dance() end },
+    { group = "Juice", name = "Victory fanfare", desc = "Play the win sting.", run = function() Ess.Easy.Fun.fanfare(true) end },
+}
+
+local function runDemo(ctx, d, args)
+    local ok, err = pcall(d.run, args or {})
+    if ok then ctx:toast("Ran: " .. d.name)
+    else ctx:toast("error (see log)"); Ess.Log("Playground '" .. d.name .. "' error: " .. tostring(err)) end
+end
+
+function Ess.Easy.Console.play()
+    if S.play and S.play:isOpen() then S.play:close(); return S.play end   -- toggle: a second call closes it
+    local menu = Ess.UI.Menu({ title = "ESS PLAYGROUND", id = "EssPlayground", key = "close" })
+    local groups, order = {}, {}
+    for _, d in ipairs(DEMOS) do
+        if not groups[d.group] then groups[d.group] = {}; order[#order + 1] = d.group end
+        groups[d.group][#groups[d.group] + 1] = d
+    end
+    for _, gname in ipairs(order) do
+        menu:category(gname, function(cat)
+            for _, d in ipairs(groups[gname]) do
+                if d.params and #d.params > 0 then
+                    cat:category(d.name, function(sub)
+                        local state = {}
+                        for _, p in ipairs(d.params) do state[p.key] = 1 end       -- current index per param
+                        sub:header(d.desc)
+                        sub:entry(">> Run it", function(ctx)
+                            local args = {}
+                            for _, p in ipairs(d.params) do args[p.key] = p.values[state[p.key]] end
+                            runDemo(ctx, d, args)
+                        end)
+                        for _, p in ipairs(d.params) do
+                            sub:entry(function() return p.key .. ": " .. tostring(p.values[state[p.key]]) .. "   (pick to cycle)" end,
+                                function() state[p.key] = state[p.key] % #p.values + 1 end)   -- cycle; menu re-renders the label
+                        end
+                    end)
+                else
+                    cat:entry(d.name, function(ctx) runDemo(ctx, d) end)
+                end
+            end
+        end)
+    end
+    S.play = menu
+    menu:open()
+    return menu
 end

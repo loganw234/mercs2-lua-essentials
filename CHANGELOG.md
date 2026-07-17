@@ -26,6 +26,11 @@ calls + offline-verified where pure); test in a live game, then bump to `0.3.0` 
   dispatch on one shared loop; resolution + dispatch execute-verified offline. Recipe: `hotkey_toolkit`.
 - **`Ess.Easy.Spawn.enemies(n, opts)`** — drop a squad of hostiles ahead and send them at you, one line (an
   instant firefight). Plus `Ess.Player.inVehicle(i)` / `.onFoot(i)` state getters. Recipe: `instant_firefight`.
+- **`Ess.Easy.Console.play()`** — the Console is no longer just a reference: an interactive **playground**
+  drills into `Ess.Easy.*` functions by topic, RUNS one live on demand, and cycles its parameters (confirmed
+  presets) so a new modder sees exactly what each does in-game. Reachable from a pinned row in `.open()`, or
+  bound to F3 via the new `Playground` OnKey demo (shipped in the zip). Construction / param-cycling /
+  run-dispatch verified offline; UI rendering needs an in-game pass.
 
 ## [0.2.1]
 

@@ -127,7 +127,7 @@ in-game.
 | `Ess.Easy` (UI) | Single-call UI | `Ess.Easy.Toast(msg)`, `Ess.Easy.Confirm(text, onYes, onNo)`, `Ess.Easy.Menu(title, entries)` |
 | `Ess.Gfx` | Raw FlashWidget primitives (the Raw tier of UI) | `.widget/.call/.onEvent/.setVisible/.warmupRerender/.menuNav` |
 | `Ess.ScrollLog` | A scrolling text log widget | `.new(name, x,y,w,h)` |
-| `Ess.Easy.Console` | An in-game browsable/searchable reference of every `Ess.Easy.*` call | `.open()`, `.search()`, `.close()` |
+| `Ess.Easy.Console` | In-game reference **AND interactive playground** | `.open()` (browse/search the reference), **`.play()` (drill in, RUN a function live + cycle its params to see what it does)**, `.close()` |
 
 `Ess.UI.Menu`'s builder (`:entry/:category/:header/:switch`) and its `ctx:` helpers
 (`:hint/:toast/:confirm/:ask/:spawn/:close`) are the one surface kept byte-for-byte backward-compatible with
