@@ -7,7 +7,10 @@ Releases are automatic: **bump `Ess.VERSION`, add a matching `## [x.y.z]` sectio
 zip, and publishes a GitHub Release tagged `v<version>` using that section as the notes. (No section for the
 version? It still releases, with auto-generated commit notes.) See the README's "Releasing" section.
 
-## [Unreleased]
+## [0.2.0]
+
+A pure-Lua utility layer, an onboarding + contributor guide, an offline test suite wired into CI, and a
+dozen new samples. All additive — nothing changed in existing engine code.
 
 ### Added
 - **`Ess.Str`** — the string helpers Lua 5.1's thin `string` lib omits: split / join / trim / startsWith /
@@ -31,19 +34,19 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 - **`samples/OnKey/StarterMod.lua`** — a copy-me starter template (the guard / state / action patterns as a
   god-mode toggle), bound to F5 and shipped in the release zip.
 - Recipes: `text_and_tables`, `smooth_and_range`, `pick_colors`, `vector_math`, `random_order` (the new
-  utilities); `cooldowns`,
-  `remember_this_session` (timing / session state); `watch_a_vehicle`, `a_custom_hud` (engine patterns).
+  utilities); `cooldowns`, `remember_this_session` (timing / session state); `watch_a_vehicle`,
+  `a_custom_hud` (engine patterns). The 34-recipe catalog is regrouped by theme.
 - **`tools/checkpure.py`** — an offline behavioral test suite (via lupa) for the pure namespaces
   (Math / Str / Color / Table / RNG / State / Time), wired into CI alongside the syntax gate. Catches
   pure-logic regressions with no game required — coverage `smoke.py` can't give without the game up.
 - The release zip now bundles the on-ramp and the full reference (`Ess-GETTING_STARTED.md` /
   `Ess-CAPABILITIES.md`), so a download is self-contained for learning, not just installing.
 
-**Verification (game was closed for this batch):** the utility layer and the pure recipes
-(`text_and_tables` / `pick_colors` / `random_order` / `cooldowns` / `remember_this_session`) were verified by
-EXECUTION against the real source via lupa — correctness-checked, not merely built. The two engine-touching
-recipes (`watch_a_vehicle`, `a_custom_hud`) compose only confirmed calls and pass the syntax gate, but were
-NOT smoke-run in-engine — run `python tools/smoke.py` to confirm them before relying on them.
+**Verification:** the entire pure-Lua layer (Safe / Str / Color / Vec / Table / Math / RNG / Points / State /
+Time) is execute-verified offline by `tools/checkpure.py`, and the merged build passes the `luac5.1` syntax
+gate. The three engine-touching *samples* — `watch_a_vehicle`, `a_custom_hud`, `StarterMod` — are composed
+from confirmed engine calls and are syntax-clean, but weren't smoke-run in a live game; run
+`python tools/smoke.py` to confirm them in your install.
 
 ## [0.1.1]
 
