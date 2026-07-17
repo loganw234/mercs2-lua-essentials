@@ -1,0 +1,35 @@
+name: CI
+
+# Validate every push/PR to master: the build merges clean, the merged Lua actually PARSES (a stock
+# luac5.1 -p syntax gate -- exactly the check that can't be run on the dev box, which has no Lua), and the
+# release zip packages without error. Uploads the zip as a short-lived artifact so a build can be grabbed
+# and tried without cutting a release.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Lua 5.1 (for the syntax gate)
+        run: sudo apt-get update && sudo apt-get install -y lua5.1
+
+      - name: Build, syntax-check, and package
+        run: |
+          python3 build/merge.py
+          luac5.1 -p dist/Ess.lua        # parse the merged chunk -- fails the build on any syntax error
+          python3 build/package.py
+
+      - name: Upload built zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ess-zip
+          path: dist/Ess-*.zip
+          retention-days: 14
+          if-no-files-found: error

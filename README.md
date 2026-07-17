@@ -56,6 +56,22 @@ off the global `_G.Ess` table — see `FEATURE_SHEET.md` for the full API, or on
 `Ess.Easy.Console.open()` in-game for a searchable, browsable reference of the `Ess.Easy.*` surface and a
 handful of standout Core-tier one-liners.
 
+## Releasing
+
+Releases are cut by GitHub Actions on a **version bump** — you never build or upload the zip by hand:
+
+1. Bump `Ess.VERSION` in [`src/00_core.lua`](src/00_core.lua) (e.g. `"0.1.0"` → `"0.2.0"`).
+2. Add a matching `## [0.2.0]` section to [`CHANGELOG.md`](CHANGELOG.md) describing the changes — this
+   becomes the release notes.
+3. Commit both and push to `master`.
+
+[`.github/workflows/release.yml`](.github/workflows/release.yml) fires (it watches `src/00_core.lua`), and
+if a `v0.2.0` tag doesn't already exist it builds a fresh `1_Ess.lua`, runs the `luac` syntax gate, packages
+`dist/Ess-0.2.0.zip` via `build/package.py`, and publishes a Release tagged `v0.2.0` with the changelog
+section as its body and the zip attached. It's idempotent — a push that doesn't change the version does
+nothing. [`.github/workflows/ci.yml`](.github/workflows/ci.yml) additionally build- and syntax-checks every
+push/PR (the stock-Lua parse check the dev box can't run), so a broken build never reaches a release.
+
 ## Related repos
 
 - `mercs2-lua-mods` — the ORIGINAL `ModNet`, `uilib`, `ContractFramework`, and the `WaveDefense` gamemode

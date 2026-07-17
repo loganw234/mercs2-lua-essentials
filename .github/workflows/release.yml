@@ -1,0 +1,91 @@
+name: Release on version bump
+
+# Cut a versioned GitHub Release automatically whenever Ess.VERSION changes.
+#
+# Flow: bump Ess.VERSION in src/00_core.lua, add a matching "## [x.y.z]" section to CHANGELOG.md, and push
+# to master. This runs on the push, reads the version, and -- only if a tag v<version> doesn't already
+# exist -- builds a fresh 1_Ess.lua, syntax-checks it, packages the zip, and publishes a Release tagged
+# v<version> with the CHANGELOG section as its notes. It runs on EVERY push to master but is fully
+# idempotent: a push that doesn't change the version finds the tag already there and stops after a quick
+# check, so "release when (and only when) the version is new" needs no extra bookkeeping.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:             # ...or trigger a release by hand
+
+permissions:
+  contents: write                # create the tag + the release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0         # full history so the changelog + commit range are available
+
+      - name: Read Ess.VERSION
+        id: ver
+        run: |
+          VERSION=$(sed -n 's/.*Ess\.VERSION[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' src/00_core.lua | head -1)
+          if [ -z "$VERSION" ]; then echo "::error::could not read Ess.VERSION from src/00_core.lua"; exit 1; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Ess.VERSION = $VERSION"
+
+      - name: Has v${{ steps.ver.outputs.version }} already been released?
+        id: check
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "Tag v${{ steps.ver.outputs.version }} exists already -- nothing to release."
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "No tag v${{ steps.ver.outputs.version }} yet -- releasing."
+          fi
+
+      - name: Install Lua 5.1 (syntax gate)
+        if: steps.check.outputs.release == 'true'
+        run: sudo apt-get update && sudo apt-get install -y lua5.1
+
+      - name: Build, syntax-check, and package
+        if: steps.check.outputs.release == 'true'
+        run: |
+          python3 build/merge.py
+          luac5.1 -p dist/Ess.lua
+          python3 build/package.py
+
+      - name: Pull the CHANGELOG section for this version
+        if: steps.check.outputs.release == 'true'
+        id: notes
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          awk -v hdr="## [$VERSION]" '
+            index($0, hdr) == 1 { flag = 1; next }
+            flag && index($0, "## [") == 1 { exit }
+            flag { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md || true
+          sed -i -e '/./,$!d' RELEASE_NOTES.md 2>/dev/null || true   # trim leading blank lines
+          if [ -s RELEASE_NOTES.md ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "Using the CHANGELOG.md [$VERSION] section as the release notes."
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::no CHANGELOG.md [$VERSION] section -- falling back to auto-generated notes."
+          fi
+
+      - name: Create the release
+        if: steps.check.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          ASSET="dist/Ess-${VERSION}.zip"
+          if [ "${{ steps.notes.outputs.found }}" = "true" ]; then
+            gh release create "v${VERSION}" "$ASSET" \
+              --title "Ess ${VERSION}" --notes-file RELEASE_NOTES.md --target "${{ github.sha }}"
+          else
+            gh release create "v${VERSION}" "$ASSET" \
+              --title "Ess ${VERSION}" --generate-notes --target "${{ github.sha }}"
+          fi
+          echo "Released v${VERSION} with dist/Ess-${VERSION}.zip"
