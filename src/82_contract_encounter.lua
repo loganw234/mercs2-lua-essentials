@@ -8,7 +8,8 @@
 --   def.waypoints = { { id=, group="A", behavior="patrol"|"move"|"defend"|"attack"|"hold"|"face"|
 --                       "follow"|"flee"|"enter"|"deploy"|"animate", points={ {x,y,z},... } | at={x,y,z},
 --                       radius=, speed=, loop=, target=, trigger= }, ... }
---   def.support   = { { id=, effect=, at={x,y,z}, radius=, owner=, <params>, trigger= }, ... }
+--   def.support   = { { id=, effect=, at={x,y,z}, radius=, owner=, delay=, <params>, trigger= }, ... }
+--                     delay= -- fire this effect N seconds AFTER its trigger (ripple a shared-trigger cascade)
 --   def.triggers  = { { id=, kind="proximity"|"recurring"|"once"|"onDestroy"|"health"|"objective"|
 --                       "cleared"|"all"|"count", ... } }
 -- triggers' fires={} and support/order trigger={ref=id} may target support ids OR waypoint ids.
@@ -225,7 +226,19 @@ function C._startSupport(inst)
         local ev = type(idOrEv) == "table" and idOrEv or inst.support[idOrEv]
         if not ev then return end
         local fx = SUPPORT_EFFECTS[ev.effect or "custom"]
-        if fx then Ess.Log("  support '" .. tostring(ev.id or ev.effect) .. "' fired"); pcall(fx, inst, task, ev) end
+        if not fx then return end
+        -- ev.delay: fire this effect N seconds AFTER its trigger fires (not at mission start). Lets a set of
+        -- supports on the SAME trigger ripple out instead of all detonating on one frame -- reads better and
+        -- avoids the per-frame spawn spike that can CTD a big simultaneous cascade (a whole rig's worth of
+        -- explosions + physics at once). 0/nil = immediate.
+        if ev.delay and ev.delay > 0 then
+            Ess.Log("  support '" .. tostring(ev.id or ev.effect) .. "' armed (+" .. tostring(ev.delay) .. "s)")
+            C._addEv(task, Event.Create(Event.TimerRelative, { ev.delay }, function()
+                if inst.bActive then pcall(fx, inst, task, ev) end
+            end))
+        else
+            Ess.Log("  support '" .. tostring(ev.id or ev.effect) .. "' fired"); pcall(fx, inst, task, ev)
+        end
     end
     local function fireOrder(idOrWp)
         local wp = type(idOrWp) == "table" and idOrWp or inst.waypoints[idOrWp]
