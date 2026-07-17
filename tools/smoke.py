@@ -7,9 +7,10 @@ recipe through the lua-bridge, then reads the game log and reports which recipes
 
 Requires the game running with the lua-bridge up (same as lua_repl.py) and dist/Ess.lua built (merge.py).
 
-Usage: python tools/smoke.py
+Usage: python tools/smoke.py [--delay 2.5] [--only <substring>]
 Exit code 0 iff every recipe reported PASS.
 """
+import argparse
 import glob
 import pathlib
 import re
@@ -29,8 +30,22 @@ def bridge(args):
 
 
 def main():
-    if not RECIPES:
-        print("[smoke] no recipes found in samples/recipes/")
+    ap = argparse.ArgumentParser(description="Run the recipes as an in-game smoke test.")
+    ap.add_argument("--delay", type=float, default=2.5,
+                    help="seconds between recipes (default 2.5). RAISE this if the game CTDs -- most recipes "
+                         "spawn things that live ~6s before self-cleaning, so firing them too fast stacks the "
+                         "load. The old 0.3 default piled ~20 recipes' spawns on screen at once.")
+    ap.add_argument("--final-wait", type=float, default=4.0,
+                    help="seconds to wait at the end for delayed (timer/loop) PASSes to land (default 4).")
+    ap.add_argument("--only", default=None,
+                    help="run only recipes whose name contains this substring (e.g. --only watch).")
+    args = ap.parse_args()
+
+    recipes = RECIPES
+    if args.only:
+        recipes = [p for p in RECIPES if args.only in pathlib.Path(p).stem]
+    if not recipes:
+        print("[smoke] no recipes found" + (" matching '%s'" % args.only if args.only else " in samples/recipes/"))
         return 2
 
     print("[smoke] reloading dist/Ess.lua (testing the current build) ...")
@@ -42,14 +57,14 @@ def main():
     bridge(["--code", 'Loader.Printf("[SMOKE] === %s ===")' % marker])
 
     names = []
-    for path in RECIPES:
+    for path in recipes:
         name = pathlib.Path(path).stem
         names.append(name)
-        print("[smoke] running %s ..." % name)
+        print("[smoke] running %s (%.1fs gap) ..." % (name, args.delay))
         bridge(["--file", path])
-        time.sleep(0.3)
+        time.sleep(args.delay)
 
-    time.sleep(4)  # let any delayed (timer/loop) PASSes land
+    time.sleep(args.final_wait)  # let any delayed (timer/loop) PASSes land
 
     try:
         with open(LOG, "r", encoding="utf-8", errors="ignore") as f:

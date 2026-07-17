@@ -43,10 +43,10 @@ dozen new samples. All additive — nothing changed in existing engine code.
   `Ess-CAPABILITIES.md`), so a download is self-contained for learning, not just installing.
 
 **Verification:** the entire pure-Lua layer (Safe / Str / Color / Vec / Table / Math / RNG / Points / State /
-Time) is execute-verified offline by `tools/checkpure.py`, and the merged build passes the `luac5.1` syntax
-gate. The three engine-touching *samples* — `watch_a_vehicle`, `a_custom_hud`, `StarterMod` — are composed
-from confirmed engine calls and are syntax-clean, but weren't smoke-run in a live game; run
-`python tools/smoke.py` to confirm them in your install.
+Time) is execute-verified offline by `tools/checkpure.py`, the merged build passes the `luac5.1` syntax gate,
+and the **full recipe suite ran 34/34 PASS in a live game** — including the two engine-touching recipes
+`watch_a_vehicle` and `a_custom_hud`. The `StarterMod` OnKey template isn't covered by `smoke.py` (it's a
+keybound script, not a recipe), but is built from the same confirmed calls those passing recipes exercise.
 
 ## [0.1.1]
 
