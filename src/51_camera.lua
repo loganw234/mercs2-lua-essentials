@@ -18,6 +18,8 @@
 --   Ess.Easy.Camera.watch(uGuid, opts) -> stop()   watch a target (e.g. a heli you spawned) fly in;
 --                                        default = static locked shot, opts.chase = follow from opts.angle
 --   Ess.Easy.Camera.orbit(uGuid, opts) -> stop()    smoothly orbit a target (radius/height/speed/startAngle)
+--     chase + orbit DAMP the follow through Ess.Vec.lerp by DEFAULT (jitter-free on a fast subject) -- pass
+--     smooth=false for the old exact-snap, or smoothFactor (0..1, higher=snappier) to tune the damping.
 --
 -- NOTE this is the Camera.* namespace (chase-cam/look-at/position/shake), not Graphics.Camera (LOD/FOV/
 -- near-far) -- confirmed cross-namespace footgun (they share only a name), keep them separate. `fov`/
@@ -278,11 +280,12 @@ end
 -- (that was the "jitter"). With Blend 0, per-tick coordinate SetPosition + a re-issued SetLookAt each tick
 -- is perfectly smooth. (The object-attach camera forms are a dead end -- they don't bind; don't chase them.)
 --
--- REMAINING quirk (accepted, not fixable here): chase/orbit read the TARGET's position each tick, so a
--- FAST-moving target (a heli at speed, a crate still falling) quantizes and the follow jitters slightly;
--- it smooths out as the target slows. Best practice: for a high-velocity subject use a STATIC watch point
--- (the default `watch` locked-off shot, which only PANS -- native and jitter-free), and save chase/orbit
--- for slower or stationary subjects.
+-- FAST targets: chase/orbit read the TARGET's position each tick, so a fast-moving target (a heli at speed,
+-- a crate still falling) has a quantized position that an EXACT follow would jitter on. That's why the
+-- moving modes now DAMP the follow through Ess.Vec.lerp by default (opts.smooth) -- confirmed live 2026-07-17
+-- to steady an orbit around a heli and a hard-launched car. The cost is a little lag on a hard juke: lower
+-- smoothFactor for glassier, raise it for snappier, smooth=false for the old exact snap. A STATIC watch
+-- point (the default locked-off shot, native pan) is still the zero-lag choice for a fast straight line.
 
 -- Ess.Easy.Camera.watch(uGuid, opts) -> stop() -- take over the camera for a cinematic shot of a target
 -- (e.g. a helicopter you spawned). Call the returned stop() (or Ess.Camera.endCinematic) to hand control back.
@@ -309,11 +312,17 @@ function Ess.Easy.Camera.watch(uGuid, opts)
         local dist, height = opts.dist or 16, opts.chaseHeight or 6
         local ar = math.rad(opts.angle or 200)                                 -- FIXED viewpoint angle
         local ox, oz = math.sin(ar) * dist, math.cos(ar) * dist
+        local smooth = opts.smooth ~= false                                    -- damping ON by default (see orbit)
+        local k = opts.smoothFactor or 0.2
         local id = "Ess.Camera.watch:" .. (i or 0)
+        local cx, cy, cz                                                       -- current (smoothed) camera pos
         Ess.Loop.start(id, 0.033, function()
             local ok, tx, ty, tz = pcall(Object.GetPosition, uGuid)
             if ok and tx then
-                Ess.Camera.placeCamera(tx + ox, ty + height, tz + oz, i)       -- fixed offset -> no heading noise
+                local dx, dy, dz = tx + ox, ty + height, tz + oz               -- ideal fixed-offset vantage
+                if smooth and cx then cx, cy, cz = Ess.Vec.lerp(cx, cy, cz, dx, dy, dz, k)
+                else cx, cy, cz = dx, dy, dz end                               -- first tick / smooth off: snap
+                Ess.Camera.placeCamera(cx, cy, cz, i)
                 Ess.Camera.lookAtObject(look, opts.bone, i)                    -- re-issue each tick
             end
             return true
@@ -345,13 +354,24 @@ function Ess.Easy.Camera.orbit(uGuid, opts)
     local radius, height = opts.radius or 12, opts.height or 4
     local speed = math.rad(opts.speed or 40)
     local start = math.rad(opts.startAngle or 0)
+    -- SMOOTHING (default ON): damp the camera toward the ideal orbit position each tick via Ess.Vec.lerp.
+    -- A fast/noisy target's per-tick GetPosition quantizes, and following it exactly makes the shot jitter;
+    -- the lerp low-passes that so the orbit glides (confirmed live against a heli and a hard-launched car).
+    -- smooth=false restores the exact-snap behavior; smoothFactor (0..1, higher = snappier/less lag, lower =
+    -- glassier/more lag) tunes it (default 0.2).
+    local smooth = opts.smooth ~= false
+    local k = opts.smoothFactor or 0.2
     local id = "Ess.Camera.orbit:" .. (i or 0)
     local t0 = Ess.Time.stamp()
+    local cx, cy, cz                                                            -- current (smoothed) camera pos
     Ess.Loop.start(id, 0.033, function()
         local ok, tx, ty, tz = pcall(Object.GetPosition, uGuid)
         if ok and tx then
             local a = start + Ess.Time.elapsed(t0) * speed
-            Ess.Camera.placeCamera(tx + math.sin(a) * radius, ty + height, tz + math.cos(a) * radius, i)
+            local dx, dy, dz = tx + math.sin(a) * radius, ty + height, tz + math.cos(a) * radius
+            if smooth and cx then cx, cy, cz = Ess.Vec.lerp(cx, cy, cz, dx, dy, dz, k)
+            else cx, cy, cz = dx, dy, dz end                                    -- first tick / smooth off: snap
+            Ess.Camera.placeCamera(cx, cy, cz, i)
             Ess.Camera.lookAtObject(look, opts.bone, i)
         end
         return true

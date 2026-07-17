@@ -7,6 +7,16 @@ Releases are automatic: **bump `Ess.VERSION`, add a matching `## [x.y.z]` sectio
 zip, and publishes a GitHub Release tagged `v<version>` using that section as the notes. (No section for the
 version? It still releases, with auto-generated commit notes.) See the README's "Releasing" section.
 
+## [0.2.1]
+
+### Changed
+- **`Ess.Easy.Camera.orbit` and `.watch(chase=true)` now damp the follow by default.** The moving camera
+  eases toward its ideal position each tick via `Ess.Vec.lerp`, low-passing the per-tick position
+  quantization that made a follow of a FAST subject jitter — confirmed live against an orbit around a heli
+  and a hard-launched car. New opts: `smooth` (default `true`; pass `false` for the old exact-snap) and
+  `smoothFactor` (0..1, default `0.2` — higher = snappier / less lag, lower = glassier / more lag). The
+  static (non-chase) `watch` is unchanged; it has no per-tick position to smooth.
+
 ## [0.2.0]
 
 A pure-Lua utility layer, an onboarding + contributor guide, an offline test suite wired into CI, and a
