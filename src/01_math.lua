@@ -18,6 +18,7 @@
 --   Ess.Math.normDeg(deg) -> n in [-180, 180)             -- normalize an angle (shortest-turn friendly)
 --   Ess.Math.clamp01(v) -> n                  Ess.Math.remap(v, inLo,inHi, outLo,outHi) -> n  (linear rescale)
 --   Ess.Math.smoothstep(t) -> n (ease 0..1)   Ess.Math.lerpAngle(a,b,t) -> deg (shortest path)   Ess.Math.wrap(v,lo,hi) -> n
+--   Ess.Math.dist2DSq/.dist3DSq(...) -> n (no sqrt)   Ess.Math.within2D(x1,z1,x2,z2,r) / .within3D(...) -> bool (range test)
 
 local Ess = _G.Ess
 Ess.Math = Ess.Math or {}
@@ -107,4 +108,26 @@ function M.wrap(v, lo, hi)
     local span = hi - lo
     if span <= 0 then return lo end
     return lo + ((v - lo) % span)
+end
+
+-- squared distances -- skip the sqrt when you only COMPARE ("which is closer", "is it within r"). dist2DSq
+-- is the horizontal (X/Z) plane; dist3DSq includes height.
+function M.dist2DSq(x1, z1, x2, z2)
+    local dx, dz = x2 - x1, z2 - z1
+    return dx * dx + dz * dz
+end
+function M.dist3DSq(x1, y1, z1, x2, y2, z2)
+    local dx, dy, dz = x2 - x1, y2 - y1, z2 - z1
+    return dx * dx + dy * dy + dz * dz
+end
+
+-- Ess.Math.within2D(x1,z1, x2,z2, r) -> bool -- is the second point within radius r of the first, on the
+-- ground plane? The `dx*dx + dz*dz <= r*r` range test, named -- no sqrt, no way to fumble the squaring.
+-- within3D includes the height term. This is the check every proximity trigger / "reached the zone" poll
+-- open-codes; here once.
+function M.within2D(x1, z1, x2, z2, r)
+    return M.dist2DSq(x1, z1, x2, z2) <= r * r
+end
+function M.within3D(x1, y1, z1, x2, y2, z2, r)
+    return M.dist3DSq(x1, y1, z1, x2, y2, z2) <= r * r
 end

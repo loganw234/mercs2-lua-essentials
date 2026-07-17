@@ -18,7 +18,8 @@ version? It still releases, with auto-generated commit notes.) See the README's 
   gradients), and a `NAMES` preset table.
 - **`Ess.Table`** collection helpers — keys / values / count / isEmpty / contains / indexOf / map / filter /
   find / copy / merge.
-- **`Ess.Math`** — clamp01 / remap / smoothstep / lerpAngle (shortest-path angle lerp) / wrap.
+- **`Ess.Math`** — clamp01 / remap / smoothstep / lerpAngle (shortest-path angle lerp) / wrap; plus
+  dist2DSq / dist3DSq and within2D / within3D (the `dx*dx+dz*dz <= r*r` range test, named — no sqrt).
 - **`Ess.RNG`** — `:shuffle` (in-place, unbiased Fisher-Yates) and `:pickN` (distinct sample without
   replacement).
 - **GETTING_STARTED.md** — an install-to-first-mod on-ramp (linked from the README) for a game that never
