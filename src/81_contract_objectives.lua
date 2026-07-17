@@ -271,15 +271,15 @@ end
 
 -- victory-lap outro: seat the player in the (crewed) extraction heli -- via EnterBySeatGuid, WITHOUT the
 -- native transit UI (that's a separate MrxTransit opt-in, per oilcon002.lua) -- then fly a couple of laps
--- around the LZ while a chase camera watches, and complete when the laps finish. `vl` is the tVictoryLap
--- table (radius/height/orbits/... forwarded to Ess.Vehicle.orbitFlight, plus cam*/line for the shot).
+-- around the LZ and complete when they finish. The player rides as a PASSENGER with FREE camera (no
+-- cinematic takeover) so they can look around at the destruction as the heli lifts off and exfils. `vl` is
+-- the tVictoryLap table (radius/height/orbits/... forwarded to Ess.Vehicle.orbitFlight, + line for a radio call).
 local function extractVictoryLap(inst, task, obj, z, vl, heli, onDone)
     vl = type(vl) == "table" and vl or {}
     local pc = Ess.Player.character(0)
-    if pc and heli then Ess.Vehicle.enterSeatExcluding(pc, heli, { "d" }) end   -- passenger seat, no transit UI
-    local pilot = heli and Ess.Vehicle.driver(heli)
+    if pc and heli then Ess.Vehicle.enterSeatExcluding(pc, heli, { "d" }) end   -- passenger seat, no transit UI, FREE cam
     local cx, cy, cz = z.x, vl.centerY or z.y, z.z
-    Ess.Log("  extraction: victory lap")
+    Ess.Log("  extraction: victory lap (free camera)")
     local total = 8
     if heli then
         total = Ess.Vehicle.orbitFlight(heli, cx, cy, cz, {
@@ -287,17 +287,9 @@ local function extractVictoryLap(inst, task, obj, z, vl, heli, onDone)
             points = vl.points, secPerLeg = vl.secPerLeg, startAngle = vl.startAngle, tracker = task,
         })
     end
-    if Ess.Cinematic then
-        local steps = {
-            { type = "subtitle", text = vl.line or "Good work. Let's take her home.", hold = 0 },
-            { type = "chase", target = heli, look = pilot or heli, bone = pilot and "Bone_Chest" or nil,
-              dist = vl.camDist or 22, height = vl.camHeight or 10, angle = vl.camAngle or 200, hold = total + 1 },
-        }
-        Ess.Cinematic.play(steps, { onDone = function() if inst.bActive and not task.done then onDone(true) end end })
-    else
-        addEv(task, Event.Create(Event.TimerRelative, { total + 1 }, function()
-            if inst.bActive and not task.done then onDone(true) end end))
-    end
+    if vl.line then C._hudSay(vl.line, 6) end   -- a radio line, not a camera-locking cinematic subtitle
+    addEv(task, Event.Create(Event.TimerRelative, { total + 1 }, function()
+        if inst.bActive and not task.done then onDone(true) end end))
 end
 
 -- extract: reach an LZ. nBoardTime = 0 (or nil<=0) -> INSTANT (reach the LZ = extracted, no heli).

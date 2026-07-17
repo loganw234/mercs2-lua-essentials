@@ -21,53 +21,58 @@ local C   = Ess.Contract
 -- standing on the rig before the camera takes over.
 -- =====================================================================================================
 local INTRO = {
-  -- set dressing spawned immediately, so it's already there during the cutscene: allied ships in the water
-  -- + the guards around the AA guns (generated from the export)
-  { type="spawn", template="MarkV (Full)", at={x=-644.02,y=-37.73,z=2440.14}, yaw=-70.486, hold=0 },
-  { type="spawn", template="MarkV (Full)", at={x=-627.21,y=-35.56,z=2439.61}, yaw=-71.053, hold=0 },
-  { type="spawn", template="MarkV (Full)", at={x=-556.41,y=-38.24,z=2675.86}, yaw=73.256, hold=0 },
-  { type="spawn", template="Omen (Full)", at={x=-476.67,y=-36.39,z=2572.67}, yaw=121.756, hold=0 },
-  { type="spawn", template="Omen (Full)", at={x=-418.53,y=-36.38,z=2449.98}, yaw=167.111, hold=0 },
-  { type="spawn", template="Omen (Full)", at={x=-514.98,y=-36.37,z=2397.84}, yaw=-113.093, hold=0 },
-  { type="spawn", template="Omen (Full)", at={x=-556.13,y=-36.32,z=2438.36}, yaw=-58.841, hold=0 },
-  { type="spawn", template="Allied Soldier", at={x=-509.54,y=-2.16,z=2601.99}, yaw=-179.037, hold=0 },
-  { type="spawn", template="Allied Soldier", at={x=-514.72,y=-2.16,z=2601.92}, yaw=-179.037, hold=0 },
-  { type="spawn", template="Allied Heavy (Light MG)", at={x=-509.45,y=-2.16,z=2596.99}, yaw=-179.037, hold=0 },
-  { type="spawn", template="Allied Soldier", at={x=-515.59,y=-2.09,z=2628.41}, yaw=-38.979, hold=0 },
-  { type="spawn", template="Allied Soldier", at={x=-511.70,y=-2.09,z=2625.26}, yaw=-38.979, hold=0 },
-  { type="spawn", template="Allied Heavy (Light MG)", at={x=-512.39,y=-2.15,z=2632.33}, yaw=-38.979, hold=0 },
+  -- ESTABLISH THE SHOT FIRST (under black): fixed vantage at Logan's placed "preview" camera point, framing
+  -- his placed look point out at the heli staging area. The look POINT is anchor-backed by the framework now
+  -- (a coord SetLookAt doesn't bind, so placeCamera would no-op) -- so the vantage actually takes effect.
+  -- NO camera movement anywhere in this intro (static vantage, only the look target changes).
+  { type="camera", at={x=-343.02,y=49.85,z=2521.36}, lookAt={x=-453.04,y=31.26,z=2240.30}, hold=0 },
 
-  -- the air wave (Chinese, hostile). A FEW persist past the cutscene (Logan: leave some helis in the fight);
-  -- wz2 is the guaranteed downing and ka2 is ephemeral, the rest stay.
-  { type="spawn", template="WZ10 (Full)",  at={x=-382.23,y=28.36,z=2237.92}, yaw=-11.342, name="wz_lead", group="airwave", hold=0 },
-  { type="spawn", template="WZ10 (Full)",  at={x=-415.39,y=28.59,z=2255.97}, yaw=-9.501,  name="wz2",     group="airwave", ephemeral=true, hold=0 },
-  { type="spawn", template="WZ10 (Full)",  at={x=-449.86,y=28.94,z=2251.63}, yaw=-7.098,  name="wz3",     group="airwave", hold=0 },
-  { type="spawn", template="Ka29b (Full)", at={x=-438.53,y=31.23,z=2101.45}, yaw=-8.939,  name="ka1",     group="airwave", hold=0 },
-  { type="spawn", template="Ka29b (Full)", at={x=-319.83,y=30.84,z=2130.35}, yaw=-18.026, name="ka2",     group="airwave", ephemeral=true, hold=0 },
+  -- set dressing, spawned STAGGERED under black (a few per frame -> no one-frame spawn spike): allied ships
+  -- in the water + the guards around the AA guns (generated from the export)
+  { type="spawn", template="MarkV (Full)", at={x=-644.02,y=-37.73,z=2440.14}, yaw=-70.486, hold=0.1 },
+  { type="spawn", template="MarkV (Full)", at={x=-627.21,y=-35.56,z=2439.61}, yaw=-71.053, hold=0.1 },
+  { type="spawn", template="MarkV (Full)", at={x=-556.41,y=-38.24,z=2675.86}, yaw=73.256, hold=0.1 },
+  { type="spawn", template="Omen (Full)", at={x=-476.67,y=-36.39,z=2572.67}, yaw=121.756, hold=0.1 },
+  { type="spawn", template="Omen (Full)", at={x=-418.53,y=-36.38,z=2449.98}, yaw=167.111, hold=0.1 },
+  { type="spawn", template="Omen (Full)", at={x=-514.98,y=-36.37,z=2397.84}, yaw=-113.093, hold=0.1 },
+  { type="spawn", template="Omen (Full)", at={x=-556.13,y=-36.32,z=2438.36}, yaw=-58.841, hold=0.1 },
+  { type="spawn", template="Allied Soldier", at={x=-509.54,y=-2.16,z=2601.99}, yaw=-179.037, hold=0.1 },
+  { type="spawn", template="Allied Soldier", at={x=-514.72,y=-2.16,z=2601.92}, yaw=-179.037, hold=0.1 },
+  { type="spawn", template="Allied Heavy (Light MG)", at={x=-509.45,y=-2.16,z=2596.99}, yaw=-179.037, hold=0.1 },
+  { type="spawn", template="Allied Soldier", at={x=-515.59,y=-2.09,z=2628.41}, yaw=-38.979, hold=0.1 },
+  { type="spawn", template="Allied Soldier", at={x=-511.70,y=-2.09,z=2625.26}, yaw=-38.979, hold=0.1 },
+  { type="spawn", template="Allied Heavy (Light MG)", at={x=-512.39,y=-2.15,z=2632.33}, yaw=-38.979, hold=0.1 },
+
+  -- the air wave (Chinese, hostile), also staggered. A FEW persist past the cutscene (Logan: leave some helis
+  -- in the fight); wz2 is the guaranteed downing and ka2 is ephemeral, the rest stay.
+  { type="spawn", template="WZ10 (Full)",  at={x=-382.23,y=28.36,z=2237.92}, yaw=-11.342, name="wz_lead", group="airwave", hold=0.12 },
+  { type="spawn", template="WZ10 (Full)",  at={x=-415.39,y=28.59,z=2255.97}, yaw=-9.501,  name="wz2",     group="airwave", ephemeral=true, hold=0.12 },
+  { type="spawn", template="WZ10 (Full)",  at={x=-449.86,y=28.94,z=2251.63}, yaw=-7.098,  name="wz3",     group="airwave", hold=0.12 },
+  { type="spawn", template="Ka29b (Full)", at={x=-438.53,y=31.23,z=2101.45}, yaw=-8.939,  name="ka1",     group="airwave", hold=0.12 },
+  { type="spawn", template="Ka29b (Full)", at={x=-319.83,y=30.84,z=2130.35}, yaw=-18.026, name="ka2",     group="airwave", ephemeral=true, hold=0.12 },
   -- the allied pad-AA "SAM site": fires on the wave (relations already hostile), then the strike wipes it
-  { type="spawn", template="HMMWV (Avenger) (Full)", at={x=-523.16,y=-2.18,z=2604.95}, yaw=-172.356, name="aa1", group="padAA", ephemeral=true, hold=0 },
-  { type="spawn", template="HMMWV (Avenger) (Full)", at={x=-500.07,y=-2.18,z=2602.85}, yaw=177.321,  name="aa2", group="padAA", ephemeral=true, hold=0 },
-  { type="spawn", template="LAVIII (AD) (Full)",     at={x=-511.17,y=-2.18,z=2612.02}, yaw=-179.649, name="aa3", group="padAA", ephemeral=true, hold=0 },
+  { type="spawn", template="HMMWV (Avenger) (Full)", at={x=-523.16,y=-2.18,z=2604.95}, yaw=-172.356, name="aa1", group="padAA", ephemeral=true, hold=0.12 },
+  { type="spawn", template="HMMWV (Avenger) (Full)", at={x=-500.07,y=-2.18,z=2602.85}, yaw=177.321,  name="aa2", group="padAA", ephemeral=true, hold=0.12 },
+  { type="spawn", template="LAVIII (AD) (Full)",     at={x=-511.17,y=-2.18,z=2612.02}, yaw=-179.649, name="aa3", group="padAA", ephemeral=true, hold=0.4 },
 
-  -- send the wave in, fanned across the approach
+  -- send the wave in, fanned across the approach (they head for the AA/rig)
   { type="fly", target="wz_lead", at={x=-497,y=32,z=2662}, hold=0 },
-  { type="fly", target="wz2",     at={x=-470,y=34,z=2650}, hold=0 },
+  { type="fly", target="wz2",     at={x=-505,y=30,z=2620}, hold=0 },
   { type="fly", target="wz3",     at={x=-525,y=30,z=2648}, hold=0 },
   { type="fly", target="ka1",     at={x=-505,y=36,z=2690}, hold=0 },
   { type="fly", target="ka2",     at={x=-455,y=38,z=2700}, hold=0 },
 
-  -- REVEAL from black, alongside the AA guns, watching the wave come in off the sea. STATIC camera (no
-  -- chase = no jitter) -- the helis fly across the frame.
-  { type="camera", at={x=-540,y=12,z=2600}, lookAt={x=-470,y=28,z=2350}, hold=0 },
+  -- REVEAL: fade in on the wave coming off the sea; watch for a few seconds (static shot, no movement).
   { type="fade", to=0, hold=0 },
   { type="music", cue="mu_pmc_panicloop_01", hold=0 },
-  { type="subtitle", text="The Allies have too much oil. We'd like you to relieve them of it.", hold=5 },
+  { type="subtitle", text="The Allies have too much oil. We'd like you to relieve them of it.", hold=6 },
 
-  -- pan: a smooth dolly back + up so BOTH the incoming helis AND the AA guns are in frame at once
-  { type="camera", at={x=-540,y=12,z=2600}, to={x=-577,y=33,z=2540}, lookAt={x=-505,y=10,z=2625}, hold=6 },
+  -- FOCUS over on the AA guns (Logan's placed pad look point) -- the helis have naturally reached there by
+  -- now, so both are framed. Re-aim ONLY (same vantage) -- no camera move.
+  { type="camera", at={x=-343.02,y=49.85,z=2521.36}, lookAt={x=-515.90,y=17.81,z=2633.29}, hold=4 },
   { type="subtitle", text="They're on the triple-A now.", hold=0 },
 
-  -- a heli goes down (guaranteed, on top of any live AA fire)
+  -- a heli goes down at the pad (guaranteed, on top of any live AA fire)
   { type="func", fn=function(ctx) if ctx.named.wz2 then pcall(Object.Kill, ctx.named.wz2) end end, hold=0 },
   { type="shake", preset="ShakeCameraMedium", amplitude=7, duration=2, hold=0 },
   { type="subtitle", text="They got one of ours!", hold=2.5 },
@@ -89,10 +94,10 @@ local INTRO = {
   { type="shake", preset="ShakeCameraLarge", amplitude=9, duration=3, hold=0 },
   { type="subtitle", text="Arty's zeroing the SAMs -- the pad is clear.", hold=3.5 },
 
-  -- friendly transport touches down where you'll start
-  { type="spawn", template="Mi26 (CH) (Driver)", at={x=-455.63,y=48,z=2635.81}, yaw=-141.769, name="transport", hold=0 },
-  { type="fly", target="transport", at={x=-455.63,y=11,z=2635.81}, height=11, hold=0 },
-  { type="camera", at={x=-431.80,y=20,z=2600}, look="transport", hold=4.5 },
+  -- friendly transport touches down (CLEAR of your drop point so it can't shove you into the sea)
+  { type="spawn", template="Mi26 (CH) (Driver)", at={x=-448,y=48,z=2612}, yaw=-141.769, name="transport", hold=0 },
+  { type="fly", target="transport", at={x=-448,y=11,z=2612}, height=11, hold=0 },
+  { type="camera", at={x=-343.02,y=49.85,z=2521.36}, look="transport", hold=4.5 },
   { type="subtitle", text="Transport's down. Move out, merc.", hold=0 },
 
   { type="fade", to=1, hold=1.5 },
@@ -114,7 +119,10 @@ C.Register({
   -- sandbox so that destruction lives only in memory and never serializes (pristine rig on the next load).
   sandbox = true,
 
-  start = { x=-461.91, y=9.91, z=2636.13, yaw=-92.768 },
+  -- DROP POINT: on solid deck near where your Chinese squad lands, and well CLEAR of the transport's
+  -- touchdown (the old spawn sat right under it, which shoved the player off the rig into the sea).
+  -- (Adjust in MissionForge if you want a different exit; keep it clear of the transport at -448,2612.)
+  start = { x=-470, y=9.86, z=2675, yaw=177 },
 
   relations = {
     { "China",  "PMC",    "friend" },

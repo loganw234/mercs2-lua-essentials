@@ -79,26 +79,39 @@ STEP.wait = function() end
 STEP.camera = function(step, ctx, seq)
     Ess.Loop.stop(CAMMOVE_ID)   -- end any dolly still running from a previous camera step
     local ax, ay, az = xyz(step.at)
+    -- CONFIRMED engine quirk (Ess.Camera header / freecam.md): Camera.SetPosition NO-OPS until an active
+    -- OBJECT-form Camera.SetLookAt binding exists -- and the COORD form (lookAtPoint) does NOT create that
+    -- binding. So a fixed-vantage shot framing a POINT left the camera stuck on the player (control frozen,
+    -- watching yourself). Route point-looks through a reusable TinyGeometry anchor (object-form SetLookAt,
+    -- moved to the point each time) so the binding is real; the anchor is ctx-scoped + cleaned up on end.
     local function applyLook()
         if step.lookAt then
             local lx, ly, lz = xyz(step.lookAt)
-            if lx then Ess.Camera.lookAtPoint(lx, ly, lz, seq.i) end
+            if lx then
+                if not ctx._lookAnchor then
+                    ctx._lookAnchor = Ess.Camera.lookAtAnchor(lx, ly, lz, seq.i)   -- spawns TinyGeometry + binds
+                    if ctx._lookAnchor then ctx.track:guid(ctx._lookAnchor) end
+                else
+                    pcall(Object.SetPosition, ctx._lookAnchor, lx, ly, lz)
+                    Ess.Camera.lookAtObject(ctx._lookAnchor, nil, seq.i)
+                end
+            end
         elseif step.look then
             local g = resolveGuid(ctx, step.look)
             if g then Ess.Camera.lookAtObject(g, step.bone, seq.i) end
         end
     end
-    if ax then Ess.Camera.placeCamera(ax, ay, az, seq.i) end
-    applyLook()
+    applyLook()                                                     -- binding FIRST (so SetPosition won't no-op)
+    if ax then Ess.Camera.placeCamera(ax, ay, az, seq.i) end        -- ...THEN the fixed vantage
     local tx, ty, tz = xyz(step.to)
     if ax and tx then
         local dur = step.hold or 0; if dur <= 0 then dur = 2 end
         local t0 = Ess.Time.stamp()
         Ess.Loop.start(CAMMOVE_ID, 0.033, function()
             local f = Ess.Time.elapsed(t0) / dur
-            if f >= 1 then Ess.Camera.placeCamera(tx, ty, tz, seq.i); applyLook(); return false end
-            Ess.Camera.placeCamera(ax + (tx - ax) * f, ay + (ty - ay) * f, az + (tz - az) * f, seq.i)
+            if f >= 1 then applyLook(); Ess.Camera.placeCamera(tx, ty, tz, seq.i); return false end
             applyLook()   -- re-issue the look every tick (required for a MOVING camera to stay smooth)
+            Ess.Camera.placeCamera(ax + (tx - ax) * f, ay + (ty - ay) * f, az + (tz - az) * f, seq.i)
             return true
         end)
     end
