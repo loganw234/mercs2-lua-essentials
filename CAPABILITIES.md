@@ -128,6 +128,7 @@ in-game.
 | `Ess.Gfx` | Raw FlashWidget primitives (the Raw tier of UI) | `.widget/.call/.onEvent/.setVisible/.warmupRerender/.menuNav` |
 | `Ess.ScrollLog` | A scrolling text log widget | `.new(name, x,y,w,h)` |
 | `Ess.Easy.Console` | In-game reference **AND interactive playground** | `.open()` (browse/search the reference), **`.play()` (drill in, RUN a function live + cycle its params to see what it does)**, `.close()` |
+| `Ess.Easy.Debug` | A live **dev overlay** for mod authors | `.overlay(opts)` (toggle a panel: exact coords+yaw, what you're aiming at, on-foot/vehicle, health, nearby counts), `.hide()`, `.isOn()` |
 
 `Ess.UI.Menu`'s builder (`:entry/:category/:header/:switch`) and its `ctx:` helpers
 (`:hint/:toast/:confirm/:ask/:spawn/:close`) are the one surface kept byte-for-byte backward-compatible with
@@ -152,8 +153,13 @@ Trigger conditions (`Ess.Raw.Triggers.arm` specs): `"immediate"`/`"once"`/`"recu
 
 ## Missions
 
+Three weights, lightest first: a single tracked goal → a linear sequence → the full save-safe engine.
+
 | Namespace | What it's for | Key calls |
 |---|---|---|
+| `Ess.Objective` | A single **counted goal** on the HUD objective line (state, no Contract) | `.new{label, target, slot, onComplete, onProgress, onFail, id}` → `:advance(n)/:set(n)/:progress()/:isDone()/:label(s)/:complete()/:fail()/:cancel()`; `id` makes it reload-safe (re-create cancels the prior) |
+| `Ess.Quest` | An ordered **sequence** shown one step at a time | `.new{steps, slot, showCounter, onStep, onComplete}` → `:advance(n)/:skip()/:current()/:step()/:isDone()/:cancel()`; steps are `"text"`, `{label,target}`, or auto-wired `{reach={x,y,z,r}}` / `{destroy=guid}` / `{clear={x,y,z,r,faction}}` |
+| `Ess.Easy.Objective` | The intent bundles — a goal wired to a world event + its marker, in one line | `(label, target, onComplete)`; `.reach(x,y,z,r, label, onDone)`, `.destroy(guid, label, onDone)`, `.clear(x,y,z,r, faction, label, onDone)` (polls the area), `.survive(seconds, label, onDone, onFail)`; `Ess.Easy.Quest(steps, onComplete)` |
 | `Ess.Contract` | The full ephemeral-mission engine (native port of ContractFramework) | `.Register(def)`, `.Accept(id)`, `.Abort()`, `.Status()`; 16 objective types via `C.Destroy/Reach/Defend/Hold/Survive/Stay/…`; relations/support/AI-orders/triggers subsystems (consumers of the encounter toolkit above) |
 | `Ess.Easy.Contract` | One-call contracts | `.destroy(title, spawns, opts)`, `.reach(title, at, radius, opts)` |
 
@@ -173,9 +179,16 @@ Trigger conditions (`Ess.Raw.Triggers.arm` specs): `"immediate"`/`"once"`/`"recu
 
 ## Verification status
 
-Everything above is built and live-tested against the running game (most with exact before/after value
-confirmations). Two honest limits, both external rather than untested logic:
+Most of the surface is built and live-tested against the running game (many with exact before/after value
+confirmations). Honest limits:
 
+- **The current `[Unreleased]` "creativity-gaps" batch** — `Ess.Support`, `Ess.On`, `Ess.Keys`,
+  `Ess.Easy.Spawn.enemies`, the `Console.play()` playground, and `Ess.Objective`/`Ess.Quest`/`Ess.Easy.Debug`
+  — is **offline-verified, not yet in-game smoke-run**. The pure state-machine logic (counting, quest
+  sequencing, auto-wiring, teardown, reload-safe replace, overlay line-building) is execute-verified by
+  `tools/test_objective.py`/`test_overlay.py`-style harnesses; the engine-touching calls are composed from
+  confirmed call sites and pass the `luac5.1` syntax gate. Run `python tools/smoke.py` once in-game before
+  relying on them, then this batch releases as `0.3.0`. See `CHANGELOG.md`.
 - **Co-op peer-to-peer delivery** (`Ess.Net`) — the wire protocol is a faithful port of confirmed-working
   co-op code, but full two-machine delivery hasn't been re-verified solo (needs a second machine).
 - **`Ess.Input.hijackController`** — its known bug is fixed, but it hasn't been driven with real controller

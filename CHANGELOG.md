@@ -31,6 +31,23 @@ calls + offline-verified where pure); test in a live game, then bump to `0.3.0` 
   presets) so a new modder sees exactly what each does in-game. Reachable from a pinned row in `.open()`, or
   bound to F3 via the new `Playground` OnKey demo (shipped in the zip). Construction / param-cycling /
   run-dispatch verified offline; UI rendering needs an in-game pass.
+- **`Ess.Objective` + `Ess.Quest`** — a lightweight **counted-goal tracker** for the gap between a bare
+  `Ess.Hud.objective` text line and a whole `Ess.Contract`. `Ess.Objective` shows "label 3/5" on the HUD and
+  fires a callback at target; `Ess.Quest` sequences steps one at a time. The **intent bundles** are the
+  headline: `Ess.Easy.Objective.reach/.destroy/.clear/.survive` wire a goal to a world event AND drop its
+  marker in one line (`clear` polls an area to sidestep the engine's missing "kill" event), and
+  `Ess.Easy.Quest` makes a whole linear mission — `{reach=…}`, `{destroy=…}`, `{clear=…}`, `"manual"` steps —
+  one table. State machine (counting, sequencing, auto-wiring, marker + watcher teardown, reload-safe id
+  replace) execute-verified offline; the engine reads/marks need an in-game pass. Recipes: `track_a_goal`,
+  `a_quick_mission`.
+- **`Ess.Easy.Debug.overlay()`** — a live on-screen **dev overlay** for mod authors: your exact position +
+  yaw, what you're aiming at (name/faction/distance), on-foot/vehicle, health, nearby counts. Toggle it to
+  read a spawn/teleport position off the screen instead of logging it. Bound to F8 via the new `DebugOverlay`
+  OnKey demo (shipped in the zip). Line-building + toggle verified offline; panel render needs an in-game
+  pass. Recipe: `dev_overlay`. (Deliberately shows no "FPS" — the refresh is a timer, so any framerate would
+  be the tick rate, not the real one.)
+- **`Ess.Hud.objective(text, nSlot)`** now takes an optional tray slot (default 1), so `Ess.Objective`/`Quest`
+  can show a goal on a line other than a running Contract's. Backward-compatible.
 
 ## [0.2.1]
 

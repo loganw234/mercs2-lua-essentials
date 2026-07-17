@@ -26,10 +26,11 @@ jobs:
           luac5.1 -p dist/Ess.lua        # parse the merged chunk -- fails the build on any syntax error
           python3 build/package.py
 
-      - name: Offline behavioral tests (pure namespaces)
+      - name: Offline behavioral tests (pure namespaces + intent bundles)
         run: |
           python3 -m pip install --quiet lupa
           python3 tools/checkpure.py
+          python3 tools/test_bundles.py
 
       - name: Upload built zip
         uses: actions/upload-artifact@v4

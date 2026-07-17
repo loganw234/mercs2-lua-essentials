@@ -178,6 +178,23 @@ local REGISTRY = {
     { ns = "Ess.Vehicle", usage = "Ess.Vehicle.exit(uVeh, uChar)",
       desc = "Gets a character back out of a vehicle." },
 
+    { ns = "Ess.Objective", usage = "Ess.Objective.new{ label=, target=, onComplete= }",
+      desc = "A counted goal on the HUD objective line: :advance()/:set()/:complete(). Shows \"label 3/5\" and fires onComplete at target. Lighter than a Contract." },
+    { ns = "Ess.Quest", usage = "Ess.Quest.new{ steps = {...} }",
+      desc = "An ordered sequence shown one step at a time; steps can auto-wire to reach/destroy/clear -- a whole linear mission in one table." },
+    { ns = "Ess.Easy (Objective)", usage = "Ess.Easy.Objective(label, target, onComplete)",
+      desc = "A manual counted goal you advance yourself with :advance()." },
+    { ns = "Ess.Easy (Objective)", usage = "Ess.Easy.Objective.reach(x,y,z,r, label, onDone)",
+      desc = "Goal that completes when you enter the radius -- drops a 'go here' ground ring for you." },
+    { ns = "Ess.Easy (Objective)", usage = "Ess.Easy.Objective.destroy(uGuid, label, onDone)",
+      desc = "Goal that completes when that object dies -- marks it on radar/PDA/world." },
+    { ns = "Ess.Easy (Objective)", usage = "Ess.Easy.Objective.clear(x,y,z,r, faction, label, onDone)",
+      desc = "Goal that completes when the area is emptied of a faction (polls it) -- shows \"N left\"." },
+    { ns = "Ess.Easy (Objective)", usage = "Ess.Easy.Objective.survive(seconds, label, onDone, onFail)",
+      desc = "A live countdown goal; fails if the player dies before it ends." },
+    { ns = "Ess.Easy (Objective)", usage = "Ess.Easy.Quest(steps, onComplete)",
+      desc = "A whole linear mission in one table -- reach/destroy/clear/manual steps, each self-marking." },
+
     { ns = "Ess.Easy (Contract)", usage = "Ess.Easy.Contract.destroy(title, spawns, opts)",
       desc = "Registers and accepts a one-objective \"kill these\" contract in one call." },
     { ns = "Ess.Easy (Contract)", usage = "Ess.Easy.Contract.reach(title, at, radius, opts)",
@@ -209,6 +226,9 @@ local REGISTRY = {
       desc = "Formats a raw seconds value into a display string, e.g. for a HUD timer/countdown." },
     { ns = "Ess.Easy (Time)", usage = "Ess.Easy.Time.slowmo(n, seconds)",
       desc = "Slows the game to speed n (default 0.2) for `seconds`, then auto-restores normal speed." },
+
+    { ns = "Ess.Easy (Debug)", usage = "Ess.Easy.Debug.overlay(opts)",
+      desc = "Toggle a live dev panel that follows you: exact coords, what you're aiming at, on-foot/vehicle, health, nearby counts. The fast way to grab a spawn/teleport position." },
 
     { ns = "Ess", usage = "Ess.Log(msg)",
       desc = "Prints a line to the Lua bridge log (lua_loader_printf.log)." },
@@ -344,6 +364,19 @@ local DEMOS = {
     { group = "Support", name = "Airstrike my target", desc = "Barrage whatever your reticle is on.", run = function() Ess.Easy.Airstrike.onTarget() end },
     { group = "Support", name = "Artillery ahead", desc = "Shells rain ~35u in front of you.",
       run = function() local x, y, z, yaw = Ess.Player.pose(0); if x then local ax, az = Ess.Math.pointAhead(x, z, yaw or 0, 35); Ess.Support.artillery(ax, y, az, { count = 6 }) end end },
+    -- Goals (objectives you watch resolve on the HUD)
+    { group = "Goals", name = "Reach objective ahead", desc = "Drops a 'go here' goal ~30u ahead -- walk into it to complete.",
+      run = function() local x, y, z, yaw = Ess.Player.pose(0); if x then local ax, az = Ess.Math.pointAhead(x, z, yaw or 0, 30); Ess.Easy.Objective.reach(ax, y, az, 8, "Reach the marker") end end },
+    { group = "Goals", name = "Survive timer", desc = "A live countdown goal on the HUD; don't die before it ends.",
+      params = { { key = "seconds", values = { 10, 20, 30 } } },
+      run = function(a) Ess.Easy.Objective.survive(a.seconds, "Survive") end },
+    { group = "Goals", name = "Mini mission", desc = "A 2-step auto quest: reach a marker ahead, then survive 15s.",
+      run = function() local x, y, z, yaw = Ess.Player.pose(0); if x then local ax, az = Ess.Math.pointAhead(x, z, yaw or 0, 30)
+          Ess.Quest.new{ steps = { { reach = { ax, y, az, 8 }, label = "Get to the marker" } },
+              onComplete = function() Ess.Easy.Objective.survive(15, "Hold your ground") end } end end },
+    -- Dev
+    { group = "Dev", name = "Toggle debug overlay", desc = "Live pos / aim / vehicle / health / nearby panel (toggle again to hide).",
+      run = function() Ess.Easy.Debug.overlay() end },
     -- Juice
     { group = "Juice", name = "Slow motion", desc = "Bullet-time for 3 seconds.",
       params = { { key = "scale", values = { 0.2, 0.35, 0.5 } } }, run = function(a) Ess.Easy.Time.slowmo(a.scale, 3) end },

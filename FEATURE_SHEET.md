@@ -1222,3 +1222,74 @@ Commits this session (all on `master`, each CI-validated: build + luac5.1 + chec
 `Ess.Support` → `Ess.On` → `Ess.Keys` → `Ess.Easy.Spawn.enemies`/player-state → `Console.play()` playground,
 plus their recipes and the doc/CHANGELOG/package updates. `smoke.py` gained `--delay` (default 2.5) + `--only`
 earlier so the full catalog stops CTD-ing from stacked spawns; run it at `--delay 3` for the whole suite.
+
+---
+
+## Session note — "intent bundles": goal tracker + dev overlay (autonomous, 2026-07-17)
+
+Follow-on to the creativity-gaps batch. Logan asked "what else can we provide, or is this everything?" The
+honest read: raw engine ACCESS is essentially at the ceiling (the last sweeps were hitting "no confirmed call
+sites left to wrap responsibly"), so the frontier moved from *wrapping more calls* to **bundling verified
+primitives into one intent** + discovery. He approved building the two clearest gaps and said to note/implement
+any other intent-bundle opportunities found along the way.
+
+### Built (all offline-verified, VERSION held at 0.2.1)
+
+- **`Ess.Objective` + `Ess.Quest` + `Ess.Easy.Objective/Quest`** (`src/59_objective.lua`, new) — the
+  counted-goal tracker that fills the gap between a bare `Ess.Hud.objective` text line and a whole
+  `Ess.Contract`. `Ess.Objective` = one stateful goal ("label 3/5" on the HUD, advance/complete/fail/cancel,
+  reload-safe `id`). `Ess.Quest` = an ordered sequence, one step at a time. The **Easy intent bundles** are
+  the point: `.reach/.destroy/.clear/.survive` wire a goal to a world event AND drop its marker in one line;
+  `Ess.Easy.Quest` makes a whole linear mission (`{reach=}/{destroy=}/{clear=}/"manual"` steps) one table.
+  Pure composition of already-live-verified pieces (Hud/On/Loop/Probe/Mark/Player) — no new engine calls.
+- **`Ess.Easy.Debug.overlay()`** (`src/97_easy_debug.lua`, new) — a live dev panel (coords+yaw / aim
+  name+faction+distance / on-foot-or-vehicle / health / nearby counts) that a mod author toggles to read a
+  spawn position off the screen. Composes `Ess.UI.Panel` + `Ess.Loop` + the Player/Probe/Object getters.
+- **`Ess.Hud.objective(text, nSlot)`** — added the optional slot (backward-compatible) so goals can share the
+  tray with a running Contract.
+
+### Extra intent bundles found WHILE building (task: "note or implement others") — IMPLEMENTED
+
+1. **Auto-marking on `reach`/`destroy`** — an objective that says "go here" / "destroy that" should also SHOW
+   where. Both now drop the matching `Ess.Mark` (a ground ring / a radar+PDA+world marker) and clear it on
+   completion. Turns the whole "show goal + mark it + detect + clean up" loop into one call.
+2. **`Ess.Easy.Objective.clear(x,y,z,r, faction, …)`** — the engine has no clean "player got a kill" event
+   (documented limit in `Ess.On`). `clear` sidesteps it by POLLING the area population (`Ess.Probe.nearby`
+   with the faction label) and completing when it hits zero — exactly how you'd detect "area cleared" by
+   hand, bundled, with a live "N left" label. This is the pattern for synthesising a missing event.
+3. **Auto-wired `Ess.Quest` steps** — a quest step can BE a reach/destroy/clear objective, so a linear mission
+   is one declarative table with zero manual advancing. The capstone bundle; complements Contract (which is
+   the heavy save-safe/co-op tier) rather than duplicating it.
+
+### Extra opportunities found — NOTED, not built (for a future pass / Logan's call)
+
+- **A generic `Ess.Easy.Countdown(seconds, onExpire)`** showing MM:SS via `Ess.Time.format` — distinct from
+  `survive` (no death-fail, pure clock: a bomb/race timer). Low-risk; skipped only to avoid sprawl without a nod.
+- **`Ess.Easy.Escort(npc, dest, …)`** — protect a moving NPC to a destination (AIOrders.follow + Objective +
+  On.death fail + reach arrive). A classic beat, but engine-heavier (AI orders) — wants a live pass to design.
+- **`Ess.Easy.Patrol(area, faction, n)`** — spawn a patrolling enemy group (Spawn + AIOrders.patrol). Cheap;
+  natural pair with `clear`.
+- **Overlay "log/copy this position" key** — the overlay shows coords; a one-key "dump current pose to the
+  log" would close the loop. Held back to avoid coupling `Ess.Easy.Debug` to `Ess.Keys`.
+- **Code-side template CONSTANTS** (`Ess.Templates.vehicles.veyron`) for discoverability — deliberately
+  DEFERRED: the in-game curated spawn catalog is another user's active task; a constants table risks
+  overlapping their sorting. Coordinate first.
+
+### Verification ledger (honest)
+
+- **Execute-verified offline** (lupa, stubbed engine): the whole `Ess.Objective`/`Quest` state machine —
+  counting, single-step vs counted, quest sequencing with the `(i/total)` counter, all four auto-wired
+  constructors, marker place+clear balance, survive's timer + fail-on-death teardown, reload-safe id replace,
+  and the full auto-wired reach→destroy→clear→manual quest (10 checks); plus the overlay's toggle + every
+  painted line + refresh + idempotent hide (4 checks). Committed as `tools/test_bundles.py`, wired into CI
+  next to `checkpure.py` (same lupa-with-stubs approach) so these become permanent regression guards.
+- **Composed-from-confirmed-calls, `luac5.1`-clean, NOT yet in-game** — the engine touchpoints: the HUD tray
+  writes, `Ess.On`/`Ess.Probe`/`Ess.Mark` reads, `Ess.UI.Panel` render, `Object.GetMaxHealth`. Run
+  `python tools/smoke.py` (recipes `track_a_goal`/`a_quick_mission`/`dev_overlay` auto-register), press F3
+  (playground now has Goals + Dev groups), press F8 (overlay) before relying on them.
+- Console reference + playground, CAPABILITIES, CHANGELOG `[Unreleased]`, samples/README, and the release zip
+  (new `DebugOverlay` OnKey, F8) all updated. CAPABILITIES' Verification-status section now honestly carves
+  out this entire unreleased batch instead of implying it's live-tested.
+
+**Release posture unchanged: `Ess.VERSION` stays `0.2.1`.** After Logan's one live pass, bump to `0.3.0`,
+rename CHANGELOG `[Unreleased]` → `## [0.3.0]`, push → `release.yml` cuts it.

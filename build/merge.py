@@ -71,6 +71,7 @@ MANIFEST = [
     "56_sound.lua",
     "57_hud.lua",
     "58_support.lua",
+    "59_objective.lua",
     "90_override.lua",
     "70_net.lua",
     "71_net_wire.lua",
@@ -97,6 +98,7 @@ MANIFEST = [
     "94_easy_world.lua",
     "95_ui_easy.lua",
     "96_console.lua",
+    "97_easy_debug.lua",
 ]
 
 

@@ -9,7 +9,8 @@
 --   Ess.Hud.hideHint(sId, bBroadcast)
 --   Ess.Hud.banner(sMsg)                  a clean, icon-free, centered text banner via the EventFanfare
 --                                         "custom" trick (CONFIRMED live-tested)
---   Ess.Hud.objective(sText)              set the persistent objective-tray line (nil clears it)
+--   Ess.Hud.objective(sText [,nSlot])     set the persistent objective-tray line (nil clears it); nSlot
+--                                         defaults to 1 (the "current objective" line)
 --   Ess.Hud.radio(sText, nHold)           a transient radio-chatter subtitle that auto-clears after nHold s
 
 import("MrxTutorialManager")
@@ -54,13 +55,16 @@ function Ess.Hud.banner(sMsg)
     pcall(function() Hud.EventFanfare:Commence({ sType = "custom", vText = sMsg }) end)
 end
 
--- Ess.Hud.objective(sText) -- set the persistent objective-tray line (Hud.ObjectiveTray slot 1, the "current
--- objective" line). Pass nil to clear it. CONFIRMED (this is exactly what Ess.Contract drives its objective
--- line with); promoted here so ANY mission/mod can set the HUD objective without reaching into Contract or
--- re-deriving the SetSlotToText/ClearSlot shape.
-function Ess.Hud.objective(sText)
-    if sText == nil then pcall(function() Hud.ObjectiveTray:ClearSlot({ nSlot = 1 }) end)
-    else pcall(function() Hud.ObjectiveTray:SetSlotToText({ nSlot = 1, sText = tostring(sText) }) end) end
+-- Ess.Hud.objective(sText [,nSlot]) -- set the persistent objective-tray line (Hud.ObjectiveTray, slot 1 by
+-- default = the "current objective" line; slot 3 is the transient radio line, driven by Ess.Hud.radio). Pass
+-- nil sText to clear that slot. CONFIRMED (this is exactly what Ess.Contract drives its objective line with);
+-- promoted here so ANY mission/mod can set the HUD objective without reaching into Contract or re-deriving
+-- the SetSlotToText/ClearSlot shape. The optional slot lets Ess.Objective/Ess.Quest show a goal on a line
+-- other than a running Contract's.
+function Ess.Hud.objective(sText, nSlot)
+    local slot = tonumber(nSlot) or 1
+    if sText == nil then pcall(function() Hud.ObjectiveTray:ClearSlot({ nSlot = slot }) end)
+    else pcall(function() Hud.ObjectiveTray:SetSlotToText({ nSlot = slot, sText = tostring(sText) }) end) end
 end
 
 -- Ess.Hud.radio(sText, nHold) -- a transient "radio chatter" subtitle (objective-tray slot 3) that clears

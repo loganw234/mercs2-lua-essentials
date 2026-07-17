@@ -25,6 +25,7 @@ handler.
 | `track_lifecycles` | bundle spawns/events/timers on one handle, tear it all down at once | Track, Event |
 | `react_to_things` | hooks: when something dies / you enter an area / you get hurt | On |
 | `hotkey_toolkit` | bind a panel of hotkeys from one script (F6/F7/F8) | Keys |
+| `dev_overlay` | toggle a live panel: your coords, what you're aiming at, health, nearby counts | Easy.Debug |
 
 **Text, numbers, colour, vectors & randomness** (pure utilities — no engine needed)
 
@@ -81,6 +82,8 @@ handler.
 
 | Recipe | Achieves | Namespaces |
 |---|---|---|
+| `track_a_goal` | a counted HUD objective that ticks up + a goal that self-completes when a target dies | Objective, Easy.Objective |
+| `a_quick_mission` | a whole linear mission (reach → return) in one table, no Contract | Quest, Easy.Objective |
 | `a_simple_mission` | author a whole 2-objective mission with a reward | Contract |
 | `a_richer_mission` | a mission where a trigger fires mid-mission support call-ins | Contract |
 | `an_arena` | run a save-safe ephemeral "arena" / minigame mode | Sandbox |
@@ -95,6 +98,7 @@ the game's `scripts/OnKey/` and bind them in `lua_loader.ini` (e.g. `MissionForg
 |---|---|---|
 | `StarterMod` | F5 | **copy-me starter** — the three patterns every OnKey mod needs (guard / state / action), as a god-mode toggle. Gut the action block and drop your own in. |
 | `Playground` | F3 | **the interactive playground** — drill into `Ess.Easy.*` functions, RUN one live, and cycle its parameters to see exactly what each does in-game. The fastest way to learn what Ess can do. |
+| `DebugOverlay` | F8 | **the dev overlay** — a live panel that follows you: exact position + yaw, what you're aiming at, on-foot/vehicle, health, nearby counts. Grab a spawn/teleport position straight off the screen. |
 | `MissionForge` | F7 | **the mission-authoring tool** — walk (or fly) around and drop-at-your-position placement of units / objectives / support / triggers / AI-orders / **cinematic camera shots**, then export a `MISSIONFORGE_EXPORT` block for the web tool (or hand-authoring) to turn into an `Ess.Contract`. A full tool, not a demo (~1100 lines); consumes Ess throughout. |
 | `CustomMenu` | F4 | **make your own menu of cool stuff** — a beginner template: Ess.UI.Menu wired to the Ess.Easy.* one-liners (spawn / effects / unlocks / world tweaks). Copy it and swap in your own entries. |
 | `CoopChat` | F2 | co-op text chat — per-player username over the wire, auto-fade (Net + UI.Chat) |
