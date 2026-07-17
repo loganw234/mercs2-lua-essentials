@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ess Bone Monitor</title>
+<!-- STRESS TEST for the WebSocket lua-bridge: live skeleton. One "Start" chunk spins up an in-game Ess.Loop
+     that reads every human bone (Object.GetHardpointPosition, real names from biped_names.json) and pushes
+     them over the hidden Loader.WsSend channel every tick; this page listens and draws the moving rig. The
+     game streams, the browser just renders -- so it hammers the {type:"ws"} telemetry path with ~80 xyz
+     values many times a second. Open next to ess-bridge.js; auto-connects to ws://127.0.0.1:27050. -->
+<style>
+  :root{ color-scheme:dark; --bg:#0b1220; --panel:#0f1830; --edge:#1c2743; --ink:#e6edf7; --dim:#7d8ba5;
+         --accent:#38bdf8; --ok:#4ec9a0; --err:#f87171; --warn:#fbbf24; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 13px;background:var(--panel);border-bottom:1px solid var(--edge)}
+  h1{font-size:14px;margin:0;font-weight:650;letter-spacing:.3px}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--dim);transition:background .2s}
+  .dot.open{background:var(--ok)} .dot.connecting{background:var(--warn)} .dot.error,.dot.closed{background:var(--err)}
+  #state{color:var(--dim);min-width:74px}
+  label{color:var(--dim)} select,button{font:inherit;color:var(--ink);background:#0b0e17;border:1px solid var(--edge);border-radius:6px;padding:5px 9px}
+  button{cursor:pointer;background:#18213a} button:hover{border-color:var(--accent)}
+  button.go{background:var(--ok);color:#04120c;border-color:var(--ok);font-weight:700}
+  button.stop{background:var(--err);color:#1a0606;border-color:var(--err);font-weight:700}
+  input[type=range]{vertical-align:middle}
+  .metrics{display:flex;gap:8px;flex-wrap:wrap;padding:8px 13px;background:#0c1426;border-bottom:1px solid var(--edge)}
+  .m{background:#0f1830;border:1px solid var(--edge);border-radius:8px;padding:5px 11px;min-width:82px}
+  .m .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+  .m .k{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
+  .m .v.ok{color:var(--ok)} .m .v.warn{color:var(--warn)} .m .v.err{color:var(--err)}
+  main{display:grid;grid-template-columns:1fr 260px;gap:0;height:calc(100vh - 108px)}
+  @media(max-width:760px){ main{grid-template-columns:1fr;height:auto} #wrap{height:60vh} }
+  #wrap{position:relative;background:radial-gradient(circle at 50% 35%,#101a33,#0a1120)}
+  canvas{display:block;width:100%;height:100%}
+  aside{border-left:1px solid var(--edge);background:var(--panel);overflow-y:auto;padding:10px 12px}
+  aside h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin:2px 0 8px}
+  .kv{display:flex;justify-content:space-between;gap:8px;padding:2px 0;border-bottom:1px solid #16223f}
+  .kv .n{color:var(--dim)} .kv .p{font-variant-numeric:tabular-nums}
+  #msg{margin-top:10px;color:var(--warn);font-size:12px;white-space:pre-wrap}
+  .hint{color:var(--dim);font-size:11px;padding:0 13px 7px;background:#0c1426}
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="dot"></span><h1>Bone Monitor</h1><span id="state">–</span>
+  <button class="go" id="start">Start</button>
+  <button class="stop" id="stop">Stop</button>
+  <label>rate <select id="rate">
+    <option value="0.1">10 Hz</option><option value="0.05" selected>20 Hz</option>
+    <option value="0.033">30 Hz</option><option value="0.02">50 Hz</option><option value="0.01">100 Hz</option>
+  </select></label>
+  <label>char <select id="char"><option value="0">0 (you)</option><option value="1">1 (co-op)</option></select></label>
+  <label>zoom <input type="range" id="zoom" min="0.2" max="4" step="0.1" value="1"></label>
+  <button id="recal">Recalibrate</button>
+</header>
+<div class="metrics">
+  <div class="m"><div class="v" id="mHz">0</div><div class="k">updates/s</div></div>
+  <div class="m"><div class="v" id="mBones">0</div><div class="k">bones/frame</div></div>
+  <div class="m"><div class="v" id="mAge">–</div><div class="k">last frame</div></div>
+  <div class="m"><div class="v" id="mKb">0</div><div class="k">KB/s in</div></div>
+  <div class="m"><div class="v" id="mUp">–</div><div class="k">up axis</div></div>
+</div>
+<div class="hint">Left = front view · right = side view. Skeleton is centered on the hips; the whole-body translation is removed so you watch the <em>pose</em> move. If it looks sideways, hit Recalibrate (auto-detects the up axis from the tallest spread).</div>
+<main>
+  <div id="wrap"><canvas id="cv"></canvas></div>
+  <aside>
+    <h2>Key bones (live world xyz)</h2>
+    <div id="readout"></div>
+    <div id="msg"></div>
+  </aside>
+</main>
+
+<script src="ess-bridge.js"></script>
+<script>
+var $=function(id){return document.getElementById(id);};
+
+/* ---- the human bone set (biped_names.json) + the 4 standard foot bones; ORDER is the wire order ---- */
+var BONES=[
+ "bone_root","bone_hips","bone_spine1","bone_spine2","bone_chest","bone_neck","bone_head","bone_head1",
+ "bone_head2","bone_head3","bone_tail","bone_attach_root","bone_attach_root_b","bone_attach_chest",
+ "bone_lshoulder","bone_lbicep","bone_lforearm","bone_lforearmroll","bone_lhand","bone_attach_lhand",
+ "bone_lthumb1","bone_lthumb2","bone_lthumb3","bone_lindex1","bone_lindex2","bone_lindex3",
+ "bone_lmiddle1","bone_lmiddle2","bone_lmiddle3","bone_lring1","bone_lring2","bone_lring3",
+ "bone_lpinky1","bone_lpinky2","bone_lpinky3",
+ "bone_rshoulder","bone_rbicep","bone_rforearm","bone_rforearmroll","bone_rhand","bone_attach_rhand",
+ "bone_rthumb1","bone_rthumb2","bone_rthumb3","bone_rindex1","bone_rindex2","bone_rindex3",
+ "bone_rmiddle1","bone_rmiddle2","bone_rmiddle3","bone_rring1","bone_rring2","bone_rring3",
+ "bone_rpinky1","bone_rpinky2","bone_rpinky3",
+ "bone_lthigh","bone_lshin","bone_lfootbone1","bone_lfootbone2",
+ "bone_rthigh","bone_rshin","bone_rfootbone1","bone_rfootbone2",
+ "bone_jaw","bone_eyeball_left","bone_eyeball_right","bone_eyelid_top_left","bone_eyelid_top_right",
+ "bone_eyebrow_left","bone_eyebrow_right","bone_cheek_left","bone_cheek_right","bone_nose_left","bone_nose_right",
+ "bone_mouth_corner_left","bone_mouth_corner_right","bone_mouth_top_left","bone_mouth_top_right",
+ "bone_mouth_bottom_left","bone_mouth_bottom_right","bone_hair","bone_hair1","bone_hair2"
+];
+var IDX={}; BONES.forEach(function(n,i){IDX[n]=i;});
+
+/* child -> parent, so we can draw the "bones" between joints */
+var PARENT={
+ "bone_hips":"bone_root","bone_spine1":"bone_hips","bone_spine2":"bone_spine1","bone_chest":"bone_spine2",
+ "bone_neck":"bone_chest","bone_head":"bone_neck","bone_head1":"bone_head","bone_head2":"bone_head1",
+ "bone_head3":"bone_head2","bone_tail":"bone_hips","bone_attach_root":"bone_root","bone_attach_root_b":"bone_root",
+ "bone_attach_chest":"bone_chest",
+ "bone_lshoulder":"bone_chest","bone_lbicep":"bone_lshoulder","bone_lforearm":"bone_lbicep",
+ "bone_lforearmroll":"bone_lforearm","bone_lhand":"bone_lforearm","bone_attach_lhand":"bone_lhand",
+ "bone_rshoulder":"bone_chest","bone_rbicep":"bone_rshoulder","bone_rforearm":"bone_rbicep",
+ "bone_rforearmroll":"bone_rforearm","bone_rhand":"bone_rforearm","bone_attach_rhand":"bone_rhand",
+ "bone_lthigh":"bone_hips","bone_lshin":"bone_lthigh","bone_lfootbone1":"bone_lshin","bone_lfootbone2":"bone_lfootbone1",
+ "bone_rthigh":"bone_hips","bone_rshin":"bone_rthigh","bone_rfootbone1":"bone_rshin","bone_rfootbone2":"bone_rfootbone1",
+ "bone_jaw":"bone_head","bone_hair":"bone_head","bone_hair1":"bone_hair","bone_hair2":"bone_hair1"
+};
+["thumb","index","middle","ring","pinky"].forEach(function(f){
+  ["l","r"].forEach(function(s){
+    PARENT["bone_"+s+f+"1"]="bone_"+s+"hand";
+    PARENT["bone_"+s+f+"2"]="bone_"+s+f+"1";
+    PARENT["bone_"+s+f+"3"]="bone_"+s+f+"2";
+  });
+});
+["jaw","eyeball_left","eyeball_right","eyelid_top_left","eyelid_top_right","eyebrow_left","eyebrow_right",
+ "cheek_left","cheek_right","nose_left","nose_right","mouth_corner_left","mouth_corner_right",
+ "mouth_top_left","mouth_top_right","mouth_bottom_left","mouth_bottom_right"].forEach(function(f){
+  if(!PARENT["bone_"+f]) PARENT["bone_"+f]="bone_head";
+});
+
+function region(n){
+  if(/attach/.test(n)) return "torso";
+  if(/thumb|index|middle|ring|pinky/.test(n)) return n[5]==="l"?"fingL":"fingR";
+  if(/shoulder|bicep|forearm|hand/.test(n)) return n.indexOf("bone_l")===0?"armL":"armR";
+  if(/thigh|shin|foot/.test(n)) return n.indexOf("bone_l")===0?"legL":"legR";
+  if(/head|hair/.test(n)) return "head";
+  if(/jaw|eye|mouth|nose|cheek|brow|lid/.test(n)) return "face";
+  return "torso";
+}
+var COLOR={torso:"#7aa2f7",head:"#e6b455",face:"#ff9e64",armL:"#4ec9a0",armR:"#56b6c2",
+           fingL:"#9ece6a",fingR:"#73daca",legL:"#bb9af7",legR:"#f7768e"};
+var KEY=["bone_head","bone_lhand","bone_rhand","bone_lfootbone2","bone_rfootbone2","bone_hips","bone_chest"];
+
+/* ---- streaming state ---- */
+var bridge=null, connected=false, latest=null, calib=null;
+var recvCount=0, recvBytes=0, lastFrameT=0, hzWin=[];
+
+function buildStartChunk(){
+  var names="{"+BONES.map(function(n){return '"'+n+'"';}).join(",")+"}";
+  var interval=$("rate").value, ci=$("char").value;
+  return "" +
+    "_G.__bm=_G.__bm or {}\n"+
+    "local BM=_G.__bm\n"+
+    "BM.n="+names+"\n"+
+    "Ess.Loop.start('bonemon',"+interval+",function()\n"+
+    "  local c=Ess.Player.character("+ci+")\n"+
+    "  if not c then Loader.WsSend('BONES|') return true end\n"+
+    "  local t={}\n"+
+    "  for i=1,#BM.n do\n"+
+    "    local ok,x,y,z=pcall(Object.GetHardpointPosition,c,BM.n[i])\n"+
+    "    if ok and x then t[i]=string.format('%.3f,%.3f,%.3f',x,y,z) else t[i]='' end\n"+
+    "  end\n"+
+    "  Loader.WsSend('BONES|'..table.concat(t,';'))\n"+
+    "  return true\n"+
+    "end)\n"+
+    "return 'streaming '..#BM.n..' bones @ "+interval+"s'";
+}
+
+function start(){
+  if(!connected){ setMsg("Not connected — start the game + bridge first."); return; }
+  calib=null; setMsg("");
+  bridge.run(buildStartChunk()).then(function(r){
+    if(r.error||r.ok===false) setMsg("start failed: "+(r.error||r.value));
+    else setMsg(r.timedOut?"started (no ack line yet)":String(r.value));
+  });
+}
+function stop(){ if(bridge&&connected) bridge.run("Ess.Loop.stop('bonemon') return 'stopped'"); }
+
+/* ---- parse an incoming BONES| frame ---- */
+function onData(line){
+  if(line.indexOf("BONES|")!==0) return;
+  var body=line.slice(6);
+  var parts=body.length?body.split(";"):[];
+  var pos=new Array(BONES.length); var got=0;
+  for(var i=0;i<parts.length && i<BONES.length;i++){
+    if(!parts[i]){ pos[i]=null; continue; }
+    var c=parts[i].split(",");
+    if(c.length===3){ pos[i]=[+c[0],+c[1],+c[2]]; got++; }
+  }
+  latest={pos:pos,got:got};
+  recvCount++; recvBytes+=line.length; lastFrameT=performance.now(); hzWin.push(lastFrameT);
+}
+
+/* ---- calibration: pick the up axis (tallest spread), center on hips ---- */
+function calibrate(){
+  if(!latest) return;
+  var pos=latest.pos, mn=[1e9,1e9,1e9], mx=[-1e9,-1e9,-1e9], any=false;
+  for(var i=0;i<pos.length;i++){ var p=pos[i]; if(!p) continue; any=true;
+    for(var a=0;a<3;a++){ if(p[a]<mn[a])mn[a]=p[a]; if(p[a]>mx[a])mx[a]=p[a]; } }
+  if(!any) return;
+  var rng=[mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]];
+  var order=[0,1,2].sort(function(a,b){return rng[b]-rng[a];});
+  var up=order[0], wide=order[1], deep=order[2];
+  var hip=pos[IDX["bone_hips"]]||pos[IDX["bone_root"]]||[(mn[0]+mx[0])/2,(mn[1]+mx[1])/2,(mn[2]+mx[2])/2];
+  calib={up:up,wide:wide,deep:deep,center:hip.slice(),span:rng[up]||1};
+  $("mUp").textContent=["X","Y","Z"][up];
+}
+
+/* ---- render (decoupled from data via rAF) ---- */
+var cv=$("cv"), ctx=cv.getContext("2d"), DPR=Math.max(1,window.devicePixelRatio||1);
+function resize(){ var w=$("wrap").clientWidth,h=$("wrap").clientHeight; cv.width=w*DPR; cv.height=h*DPR; cv.style.width=w+"px"; cv.style.height=h+"px"; }
+window.addEventListener("resize",resize);
+
+function project(p,view,geo){
+  var vert=(p[calib.up]-calib.center[calib.up])*geo.s;
+  var haxis=view===0?calib.wide:calib.deep;
+  var horiz=(p[haxis]-calib.center[haxis])*geo.s;
+  return [ (view===0?geo.cxF:geo.cxS)+horiz, geo.cy-vert ];
+}
+function draw(){
+  requestAnimationFrame(draw);
+  var W=cv.width,H=cv.height; ctx.clearRect(0,0,W,H);
+  // divider
+  ctx.strokeStyle="#1c2743"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke();
+  ctx.fillStyle="#3b4a6b"; ctx.font=(11*DPR)+"px ui-monospace"; ctx.fillText("FRONT",10*DPR,18*DPR); ctx.fillText("SIDE",W/2+10*DPR,18*DPR);
+  if(!latest||!latest.got){ ctx.fillStyle="#7d8ba5"; ctx.font=(13*DPR)+"px ui-monospace"; ctx.fillText(connected?"waiting for bone data — press Start":"not connected",W/2-90*DPR,H/2); return; }
+  if(!calib) calibrate();
+  if(!calib) return;
+  var zoom=+$("zoom").value;
+  var geo={ s:(0.42*H/calib.span)*zoom, cxF:W*0.25, cxS:W*0.75, cy:H*0.62 };
+  var pos=latest.pos;
+  for(var view=0;view<2;view++){
+    // edges
+    ctx.lineWidth=1.6*DPR;
+    for(var i=0;i<BONES.length;i++){
+      var par=PARENT[BONES[i]]; if(par===undefined) continue;
+      var a=pos[i], b=pos[IDX[par]]; if(!a||!b) continue;
+      var pa=project(a,view,geo), pb=project(b,view,geo);
+      ctx.strokeStyle=COLOR[region(BONES[i])]||"#7aa2f7"; ctx.globalAlpha=.75;
+      ctx.beginPath(); ctx.moveTo(pa[0],pa[1]); ctx.lineTo(pb[0],pb[1]); ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+    // nodes
+    for(var j=0;j<BONES.length;j++){
+      var p=pos[j]; if(!p) continue;
+      var sp=project(p,view,geo);
+      ctx.fillStyle=COLOR[region(BONES[j])]||"#7aa2f7";
+      ctx.beginPath(); ctx.arc(sp[0],sp[1],2.4*DPR,0,6.283); ctx.fill();
+    }
+    // key labels (front only)
+    if(view===0){ ctx.fillStyle="#7d8ba5"; ctx.font=(9.5*DPR)+"px ui-monospace";
+      for(var k=0;k<KEY.length;k++){ var pk=pos[IDX[KEY[k]]]; if(!pk)continue; var s=project(pk,0,geo);
+        ctx.fillText(KEY[k].replace("bone_",""),s[0]+5*DPR,s[1]-4*DPR); } }
+  }
+  // metrics
+  var now=performance.now();
+  while(hzWin.length&&hzWin[0]<now-1000) hzWin.shift();
+  $("mHz").textContent=hzWin.length; $("mHz").className="v "+(hzWin.length>0?"ok":"err");
+  $("mBones").textContent=latest.got+"/"+BONES.length;
+  var age=now-lastFrameT; $("mAge").textContent=(age<2000?Math.round(age)+" ms":"stale"); $("mAge").className="v "+(age<500?"ok":age<2000?"warn":"err");
+  // readout
+  var out="";
+  for(var r=0;r<KEY.length;r++){ var pr=pos[IDX[KEY[r]]];
+    out+='<div class="kv"><span class="n">'+KEY[r].replace("bone_","")+'</span><span class="p">'+(pr?pr.map(function(v){return v.toFixed(1);}).join("  "):"—")+'</span></div>'; }
+  $("readout").innerHTML=out;
+}
+
+/* KB/s in — sample the byte counter each second */
+setInterval(function(){ $("mKb").textContent=(recvBytes/1024).toFixed(1); recvBytes=0; },1000);
+
+/* ---- connection ---- */
+function setState(s){ connected=(s==="open"); $("dot").className="dot "+s; $("state").textContent=s; }
+function setMsg(m){ $("msg").textContent=m; }
+function connect(){
+  if(typeof EssBridge==="undefined"){ setState("error"); setMsg("ess-bridge.js failed to load (keep it in the same folder)."); return; }
+  bridge=new EssBridge("ws://127.0.0.1:27050",{ onStatus:setState, onData:onData, onLog:function(){} });
+  bridge.connect().catch(function(){});
+}
+
+$("start").onclick=start; $("stop").onclick=stop; $("recal").onclick=function(){calib=null;};
+$("char").onchange=function(){ calib=null; if(connected) start(); };
+$("rate").onchange=function(){ if(connected) start(); };
+window.addEventListener("beforeunload",function(){ try{stop();}catch(e){} });
+
+resize(); setState("closed"); connect(); requestAnimationFrame(draw);
+</script>
+</body>
+</html>
