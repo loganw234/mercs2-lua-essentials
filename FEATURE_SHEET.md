@@ -1133,3 +1133,23 @@ The ONLY things that touch the engine and were NOT smoke-run are two recipes, `w
 them once the game's up before relying on them. Nothing this session changed existing engine code, so the
 pre-existing recipes are unaffected. VERSION stays `0.1.1`; once those two are confirmed, bump `Ess.VERSION`
 and rename the CHANGELOG `[Unreleased]` section to `0.2.0` to cut the release.
+
+Full session inventory (what shipped, ~14 commits, all on `master`, CI-validated):
+- **Pure-Lua utility layer**, all execute-verified: `Ess.Str`, `Ess.Color`, `Ess.Vec` (new files);
+  `Ess.Table` (11 collection helpers), `Ess.Math` (easing/remap/range: clamp01/remap/smoothstep/lerpAngle/
+  wrap/within2D/3D/dist*Sq), `Ess.RNG` (shuffle/pickN). `Ess.Vec` surfaced (and now documents) the Lua
+  multi-return caveat — `scale(dir(...), s)` truncates unless the inner call is the LAST arg.
+- **`tools/checkpure.py`** — offline behavioral tests (lupa) wired into CI. Now covers EVERY pure namespace
+  (10 groups: Safe/Math/Str/Color/Table/RNG/Vec/Points/State/Time), including `Ess.Points`, which advertised
+  "testable offline" but had zero coverage. Edge-case hardened. This is coverage the project never had —
+  `smoke.py` needs the game; this doesn't.
+- **Docs**: `GETTING_STARTED.md` (modder on-ramp) + `CONTRIBUTING.md` (how to extend Ess + the confirmed
+  engine-rules reference), both linked from the README; the 34-recipe catalog regrouped by theme; every pure
+  namespace got a recipe (`text_and_tables`/`smooth_and_range`/`pick_colors`/`vector_math`/`random_order`).
+- **Packaging**: the release zip now bundles the guides (`Ess-GETTING_STARTED`/`Ess-CAPABILITIES`).
+- **Review pass**: read Points/ScrollLog/Mark (+ mark_raw) with fresh eyes — no new bugs; the earlier
+  nil-id fix remains the session's only bug. Confirmed `Marker.Remove` clears both AddBlip and AddDisc
+  handles (no disc leak in `Ess.Mark.clear`).
+
+Still-open (unchanged): the two engine recipes `watch_a_vehicle`/`a_custom_hud` need a `smoke.py` run; then
+bump to `0.2.0`. Nothing this session touched existing engine code.
