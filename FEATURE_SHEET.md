@@ -1110,3 +1110,26 @@ transition) + `a_custom_hud` (Panel + Bar driven from a Loop tick) which are com
 APIs and pass the syntax gate but are the first things in this session that genuinely need an in-game
 smoke run to confirm — flagged as such in the CHANGELOG. The lupa execute-harness earned its keep again:
 it caught the off-by-a-few-chars `truncate` assertion, and confirmed cooldown/state behavior without the game.
+
+Wrap-up (same session). Further additions after the guide: `Ess.Math.within2D/within3D` + `dist2DSq/dist3DSq`
+(the `dx*dx + dz*dz <= r*r` range test that the contract handlers open-code ~15 times, named once);
+`Ess.Table.slice/reverse/reduce` (rounding out the array API alongside map/filter/find); and `build/
+package.py` now bundles GETTING_STARTED + CAPABILITIES into the release zip so a download is self-contained
+for learning, not just installing. The recipe catalog (32 now) was regrouped by theme — a flat 32-row table
+was a lot to scan — and cross-checked to cover every recipe file exactly.
+
+**The infrastructure win: `tools/checkpure.py`.** An offline behavioral test suite (via lupa) for the pure
+namespaces, wired into CI beside the `luac5.1` gate. This is coverage the project never had: `smoke.py` needs
+the running game, so pure-logic regressions could previously only be caught by eye. Now Math / Str / Color /
+Table / RNG / State / Time are asserted on every push with no game required. It also pins down the 5.5-vs-5.1
+gap concretely — it must shim `math.atan2` (5.5 removed it; the engine's 5.1 keeps it, which `Ess.Math.angleTo`
+correctly targets), a standing reminder that lupa is a BEHAVIOR check, not a syntax gate.
+
+**Verification ledger for the next in-engine session (honest):** everything added this session that is PURE
+— all of Str / Color / Table / Math / the RNG shuffle+pickN, plus the `text_and_tables` / `pick_colors` /
+`random_order` / `cooldowns` / `remember_this_session` recipes — is execute-verified and needs no re-check.
+The ONLY things that touch the engine and were NOT smoke-run are two recipes, `watch_a_vehicle` and
+`a_custom_hud`: composed strictly from confirmed calls and syntax-clean, but run `python tools/smoke.py` on
+them once the game's up before relying on them. Nothing this session changed existing engine code, so the
+pre-existing recipes are unaffected. VERSION stays `0.1.1`; once those two are confirmed, bump `Ess.VERSION`
+and rename the CHANGELOG `[Unreleased]` section to `0.2.0` to cut the release.
