@@ -22,7 +22,7 @@
 
 _G.Ess = _G.Ess or {}
 local Ess = _G.Ess
-Ess.VERSION = "0.1.0"
+Ess.VERSION = "0.1.1"
 
 Ess.Safe = Ess.Safe or {}
 Ess.Table = Ess.Table or {}

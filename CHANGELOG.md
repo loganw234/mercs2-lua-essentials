@@ -7,6 +7,13 @@ Releases are automatic: **bump `Ess.VERSION`, add a matching `## [x.y.z]` sectio
 zip, and publishes a GitHub Release tagged `v<version>` using that section as the notes. (No section for the
 version? It still releases, with auto-generated commit notes.) See the README's "Releasing" section.
 
+## [0.1.1]
+
+### Fixed
+- Packaging: the release zip now bundles `samples/PORTING_MENUS.md` (and any future top-level sample doc)
+  under `Ess-samples/`. `build/package.py` had hardcoded only `samples/README.md`, so the v0.1.0 zip left
+  the menu-porting guide out.
+
 ## [0.1.0]
 
 First public release — the whole `Ess` framework as one drop-in `1_Ess.lua`, plus the UI wad, the
