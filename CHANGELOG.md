@@ -26,6 +26,8 @@ version? It still releases, with auto-generated commit notes.) See the README's 
   replacement).
 - **GETTING_STARTED.md** — an install-to-first-mod on-ramp (linked from the README) for a game that never
   shipped mod support: the OnLoad/OnKey model, the `_G.Ess` guard, the re-run gotcha, the dev loop.
+- **CONTRIBUTING.md** — how to extend Ess safely (the build, the three verification gates, adding a
+  namespace) plus the confirmed engine rules every helper respects (a useful reference for any Mercs2 Lua).
 - Recipes: `text_and_tables`, `pick_colors`, `vector_math`, `random_order` (the new utilities); `cooldowns`,
   `remember_this_session` (timing / session state); `watch_a_vehicle`, `a_custom_hud` (engine patterns).
 - **`tools/checkpure.py`** — an offline behavioral test suite (via lupa) for the pure namespaces

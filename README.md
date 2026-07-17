@@ -17,7 +17,9 @@ helpers rather than being absorbed itself.
 **New here?** [GETTING_STARTED.md](GETTING_STARTED.md) — install Ess and write your first keypress mod in a
 few minutes. **Full reference:** [CAPABILITIES.md](CAPABILITIES.md) — a clean, current-state map of
 everything `Ess` does, organized by what you reach for and tier-aware. For the design rationale and full
-build history (every bug found, every pivot), see [FEATURE_SHEET.md](FEATURE_SHEET.md).
+build history (every bug found, every pivot), see [FEATURE_SHEET.md](FEATURE_SHEET.md). **Extending Ess** (or
+writing your own Mercs2 Lua)? [CONTRIBUTING.md](CONTRIBUTING.md) covers the build, the three verification
+gates, and the confirmed engine rules to respect.
 
 ## Layout
 
