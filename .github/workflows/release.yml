@@ -53,6 +53,8 @@ jobs:
         run: |
           python3 build/merge.py
           luac5.1 -p dist/Ess.lua
+          # refresh the bundled browser IDE from its own latest release so the zip ships the current build
+          curl -sfL "https://github.com/loganw234/mercs2-lua-web-ide/releases/latest/download/mercs2-lua-ide.html" -o tools/mercs2-lua-ide.html || echo "IDE fetch failed -- shipping the committed copy"
           python3 build/package.py
 
       - name: Pull the CHANGELOG section for this version

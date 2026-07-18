@@ -29,6 +29,7 @@ SRC = ROOT / "src"
 DIST = ROOT / "dist"
 DATA = ROOT / "data"
 SAMPLES = ROOT / "samples"
+TOOLS = ROOT / "tools"
 
 # the bind-to-a-key demos to ship (deployable into scripts/OnKey/). Kept as an explicit list, not a glob,
 # so adding a WIP demo to samples/OnKey/ doesn't silently ship it in a release.
@@ -60,7 +61,8 @@ def install_notes(ver):
         "  scripts/OnLoad/1_Ess.lua   the framework itself (one merged file)\n"
         "  scripts/OnKey/*.lua        optional demos you bind to keys (see below)\n"
         "  Ess-samples/               short \"how do I X?\" recipe scripts + docs (reference; also the smoke test)\n"
-        "  Ess-GETTING_STARTED.md     install -> your first keypress mod (start here); Ess-CAPABILITIES.md = full API\n\n"
+        "  Ess-GETTING_STARTED.md     install -> your first keypress mod (start here); Ess-CAPABILITIES.md = full API\n"
+        "  mercs2-lua-ide.html        a browser Lua editor -- double-click it, hit Connect, write Ess in your live game\n\n"
         "INSTALL\n"
         "  1. Extract this zip INTO your Mercenaries 2 folder (the one with Mercenaries2.exe). The data/\n"
         "     and scripts/ folders merge into the game's existing ones; nothing here touches a save.\n"
@@ -116,6 +118,13 @@ def main():
             p = ROOT / doc
             if p.exists():
                 z.write(p, "Ess-" + doc); files += 1
+
+        # the standalone browser Lua IDE -- a plain double-click .html that writes Ess into a live game over
+        # the lua-bridge. Refreshed from its own GitHub release in CI (see release.yml) so the download always
+        # ships the current build. Bundled here so users get the editor with the framework.
+        ide = TOOLS / "mercs2-lua-ide.html"
+        if ide.exists():
+            z.write(ide, "mercs2-lua-ide.html"); files += 1
 
     print("[package] wrote %s (%d files, %d bytes)" % (out, files, out.stat().st_size))
     print("[package] extract it into your Mercenaries 2 folder; install steps are in Ess-README.txt.")
