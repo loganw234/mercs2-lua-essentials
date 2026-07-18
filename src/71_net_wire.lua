@@ -30,6 +30,12 @@ M.MAGIC = M.MAGIC or 5066564   -- "MOD" (0x4D4F44): leads every Ess.Net packet (
                                -- only claims genuinely-ours traffic and passes the game's own events through.
 M.SLOTS = M.SLOTS or 5     -- tArgs per send (3 are header now: magic+header+sender); rest are payload
 M.HB    = M.HB    or 2.0   -- heartbeat seconds (Track polling + late-join reconcile)
+M.OFF   = M.OFF   or false -- KILL SWITCH: when true, Ess.Net installs NO receiver hijack on
+                           -- MrxFactionManager.NetEventCallback and puts NOTHING on the wire (local
+                           -- Shared/Set still update, just don't broadcast). Set it true BEFORE Ess loads
+                           -- (e.g. a lower-numbered OnLoad script doing `_G.Ess={Net={OFF=true}}`) to fully
+                           -- take Ess.Net out of a co-op session -- the exact isolation test for "is Ess.Net
+                           -- interfering with the join flow" (same method that diagnosed ModNet).
 
 -- ===== persistent state (survives a reload) =====
 M._chan  = M._chan  or {}  -- chash -> { fn, raw, name }
@@ -96,6 +102,7 @@ end
 
 -- ===== wire: chunked send + reassembly =====
 local function wireSend(ch, nums, reliable)
+    if M.OFF then return end                       -- kill switch: never put anything on the wire
     if not (Net and Net.SendCustomEvent) then return end
     -- Ready-gate: in co-op, hold ALL traffic until the peer says it's loaded (Ess.Net installed),
     -- EXCEPT the handshake channels. Stops us pumping evt=5 at a still-loading joiner whose native
@@ -248,16 +255,20 @@ Ess.Loop.start("Ess.Net.heartbeat", M.HB, function()
 end)
 
 -- ===== install: the collision-proof callback hijack, via Ess.Net.hijackCallback (70_net.lua) =====
-import("MrxFactionManager")   -- always-resident hijack target
-local installed = Ess.Net.hijackCallback(MrxFactionManager, "NetEventCallback",
-    function(evt, tArgs) return evt == M.EV and tArgs ~= nil and tArgs[1] == M.MAGIC end,
-    function(_, tArgs) wireRecv(tArgs) end)
-if installed then
-    Ess.Log("Net: receiver installed on MrxFactionManager (EV=" .. M.EV .. " MAGIC=" .. M.MAGIC .. ", collision-proof marker active)")
+import("MrxFactionManager")   -- always-resident hijack target (harmless to import even when OFF)
+if M.OFF then
+    Ess.Log("Net: DISABLED (Ess.Net.OFF) -- no receiver hijack on NetEventCallback, no wire traffic")
+else
+    local installed = Ess.Net.hijackCallback(MrxFactionManager, "NetEventCallback",
+        function(evt, tArgs) return evt == M.EV and tArgs ~= nil and tArgs[1] == M.MAGIC end,
+        function(_, tArgs) wireRecv(tArgs) end)
+    if installed then
+        Ess.Log("Net: receiver installed on MrxFactionManager (EV=" .. M.EV .. " MAGIC=" .. M.MAGIC .. ", collision-proof marker active)")
+    end
 end
 
 Ess.Log("Net: v" .. (Ess.VERSION or "?") .. " ready (EV=" .. M.EV .. " SLOTS=" .. M.SLOTS .. " HB=" .. M.HB .. ")")
 
 -- On every load, a freshly-loaded joiner (non-authority) announces readiness immediately so the host
 -- opens the wire without waiting for the first heartbeat tick. Heartbeat then retries.
-if M.IsCoop() and not M.IsAuthority() then pcall(function() M.Send(READY, 1) end) end
+if not M.OFF and M.IsCoop() and not M.IsAuthority() then pcall(function() M.Send(READY, 1) end) end
