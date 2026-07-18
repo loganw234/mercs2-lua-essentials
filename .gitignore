@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 /dist/
+
+# packaged tool artifacts (e.g. LiveBoneMonitor.zip) -- built outputs, not source
+tools/*.zip
