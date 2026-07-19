@@ -19,10 +19,23 @@ wrote code that compensated for the old behaviour, remove the compensation.
 The rest of this release closes "creativity gaps" for new modders — the framework was strong on *how* to do
 things, thinner on *what you can do* and on reacting to the player. All additive.
 
-**Verification status, honestly:** the yaw fix and the new view-relative placement are **live-verified
-in-game** (exact numbers below). The additive batch below them is built from confirmed engine calls and
-**offline/execute-verified**, but has **not had a full in-game smoke run** — per-entry notes say which parts
-still want a live pass. Nothing in it changes existing behaviour.
+**Verification status:** the yaw fix and the new view-relative placement are **live-verified in-game** (exact
+numbers below). The additive batch was then **live-verified in-game as well**, feature by feature:
+
+- **`Ess.On`** — 7 of its 8 hooks fired live: `death`, `enterArea`, `insideArea`, `healthBelow`, `tick`,
+  `vehicle` (enter + exit), `playerHurt`. *(`exitArea` not exercised.)*
+- **`Ess.Support`** — all 7 call-ins fired clean (`shell`, `artillery`, `airstrike`, `bombingrun`,
+  `gunship`, `reinforce`, `Easy.Airstrike.at`), with `reinforce` separately confirmed actually delivering
+  units.
+- **`Ess.Keys`** (`vk`/`on`/`isBound`/`off`), **`Ess.Objective`** + `Easy.Objective.reach/.destroy/.clear/
+  .survive`, **`Ess.Quest`** sequencing, **`Easy.Spawn.enemies`**, **`Safe.template`**,
+  **`Hud.objective(text, slot)`** — all pass.
+- The two pieces that most needed eyes: **`Easy.Debug.overlay()`** renders, and **`Easy.Console.play()`**'s
+  drill-in / run-live / param-cycling works.
+
+**Still unverified:** the six OnKey demos that ship in the zip — `VehicleInspector`, `WaveSurvival`,
+`BossFight`, `EncounterDirector`, `CreatorToolkit`, `Playground`. They need deploying to `scripts/OnKey/`
+plus `lua_loader.ini` bindings and a keypress each. Nothing in the batch changes existing behaviour.
 
 ### Fixed
 - **The forward vector was mirrored on X.** The engine's forward is `(+sin(yaw), +cos(yaw))`; Ess used
