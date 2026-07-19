@@ -3,19 +3,24 @@
 -- checks in a dozen encounter scripts). One confirmed-correct home for each so nobody re-implements -- and
 -- re-mis-signs -- the yaw math again. Loads right after 00_core (pure functions, no Ess deps).
 --
--- ENGINE CONVENTION (load-bearing, live-calibrated): Y is UP; the horizontal plane is X/Z. A yaw's FORWARD
--- vector is (-sin(yaw), +cos(yaw)) in (x,z). angleTo/pointAhead below are exact inverses of each other, so a
--- yaw from angleTo fed to Object.SetYaw faces the way you expect, and pointAhead matches spawnAhead exactly.
+-- ENGINE CONVENTION (load-bearing, live-calibrated 2026-07-19): Y is UP; the horizontal plane is X/Z.
+-- A yaw's FORWARD vector is **(+sin(yaw), +cos(yaw))** in (x,z). angleTo/pointAhead below are exact
+-- inverses of each other -- if the convention ever needs revisiting, they MUST be changed as a pair.
 --
--- ⚠ BODY YAW vs VIEW DIRECTION -- the thing that makes this trig LOOK broken when it isn't (re-confirmed
--- live 2026-07-19 with an 8-spoke coloured marker ring; supersedes an earlier note here that wrongly called
--- the gap "~4deg of camera parallax"). Object.GetYaw(character) is the CHEST/BODY orientation. It is NOT
--- where the player is LOOKING: stand still and swing the mouse and the body stays put while the view
--- rotates -- a measured 45deg gap, and it can be larger. So "spawn in front of me" via pointAhead/spawnAhead
--- lands in front of the BODY, which to a player who just swung the camera reads as "it spawned to my right".
--- That is correct behaviour, not a sign error -- do NOT "fix" the sin/cos. If you want VIEW-relative
--- placement instead, derive the look direction (e.g. Ess.Player.targetUnderReticle -> angleTo) and pass
--- THAT yaw in; running forward re-aligns body to view, which is why the ring reads clean while moving.
+-- ⚠ THIS WAS MIRRORED (x sign) UNTIL 2026-07-19 -- history, because it hid for a long time and will
+-- otherwise be "re-fixed" back. It used to be (-sin, +cos), with angleTo = atan2(-dx, dz). Proven wrong by
+-- an A/B marker test: two rings placed from the SAME body yaw, one per convention. Facing EAST (yaw ~ +90)
+-- the (+sin) ring was dead ahead and the (-sin) ring was 180 degrees BEHIND. Facing NORTH (yaw ~ 0) the two
+-- rings COINCIDE, because sin(0) = 0.
+--   => the error is INVISIBLE at yaw 0/180 and MAXIMAL at yaw +-90.
+--   => ALWAYS calibrate this facing EAST/WEST. An earlier calibration done facing north "passed" and let
+--      the mirror survive; a second one misread the residual as camera parallax. Don't repeat either.
+--
+-- ⚠ SEPARATELY (a real, DIFFERENT phenomenon -- don't conflate it with the above): Object.GetYaw(character)
+-- is the CHEST/BODY orientation, NOT where the player is LOOKING. Stand still and swing the mouse and the
+-- view rotates while the body does not; running forward re-aligns them. So even with the trig correct,
+-- "spawn in front of me" lands in front of the BODY. For VIEW-relative placement derive the look direction
+-- separately (Ess.Player.targetUnderReticle -> angleTo) and pass THAT yaw in.
 --
 -- API:
 --   Ess.Math.clamp(v, lo, hi) -> n            Ess.Math.lerp(a, b, t) -> n            Ess.Math.sign(v) -> -1|0|1
@@ -23,6 +28,7 @@
 --   Ess.Math.dist2D(x1,z1, x2,z2) -> n        Ess.Math.dist3D(x1,y1,z1, x2,y2,z2) -> n
 --   Ess.Math.angleTo(fromX,fromZ, toX,toZ) -> yawDegrees   -- the yaw that FACES from->to
 --   Ess.Math.pointAhead(x, z, yawDeg, dist) -> x2, z2      -- project (x,z) forward by a yaw (spawnAhead math)
+--   Ess.Math.rotateOffset(x, z, yawDeg, localX, localZ) -> x2, z2  -- a local (right,forward) offset -> world
 --   Ess.Math.normDeg(deg) -> n in [-180, 180)             -- normalize an angle (shortest-turn friendly)
 --   Ess.Math.clamp01(v) -> n                  Ess.Math.remap(v, inLo,inHi, outLo,outHi) -> n  (linear rescale)
 --   Ess.Math.smoothstep(t) -> n (ease 0..1)   Ess.Math.lerpAngle(a,b,t) -> deg (shortest path)   Ess.Math.wrap(v,lo,hi) -> n
@@ -64,12 +70,13 @@ function M.dist3D(x1, y1, z1, x2, y2, z2)
 end
 
 -- Ess.Math.angleTo(fromX, fromZ, toX, toZ) -> yaw in DEGREES that points from (fromX,fromZ) toward
--- (toX,toZ), in the engine's own yaw convention (forward = (-sin,cos)). Feed the result to Object.SetYaw /
+-- (toX,toZ), in the engine's own yaw convention (forward = (+sin,cos)). Feed the result to Object.SetYaw /
 -- Ess.Object.setYaw to turn a thing to face a target. Returns 0 if the two points coincide.
+-- EXACT INVERSE of pointAhead below: angleTo(x,z, pointAhead(x,z,Y,d)) == Y. Change both or neither.
 function M.angleTo(fromX, fromZ, toX, toZ)
     local dx, dz = toX - fromX, toZ - fromZ
     if dx == 0 and dz == 0 then return 0 end
-    return math.deg(math.atan2(-dx, dz))
+    return math.deg(math.atan2(dx, dz))
 end
 
 -- Ess.Math.pointAhead(x, z, yawDeg, dist) -> x2, z2 -- the point `dist` units in FRONT of (x,z) when facing
@@ -77,7 +84,18 @@ end
 -- NPC, aim a dolly, offset a marker) without re-deriving the sin/cos. Y is unchanged (caller keeps it).
 function M.pointAhead(x, z, yawDeg, dist)
     local yr = math.rad(yawDeg or 0)
-    return x - math.sin(yr) * dist, z + math.cos(yr) * dist
+    return x + math.sin(yr) * dist, z + math.cos(yr) * dist
+end
+
+-- Ess.Math.rotateOffset(x, z, yawDeg, localX, localZ) -> worldX, worldZ
+-- Place a LOCAL offset (localX = right+, localZ = forward+) into world space around (x,z) for a thing facing
+-- yawDeg -- i.e. "put this at 5 right and 10 ahead of me". The general case pointAhead is the localX=0
+-- special case of. Exists because a hand-rolled rotation matrix is exactly where this project re-derived --
+-- and re-mis-signed -- the yaw math before (MissionForge's squad grid); use this instead of writing one.
+function M.rotateOffset(x, z, yawDeg, localX, localZ)
+    local yr = math.rad(yawDeg or 0)
+    local s, c = math.sin(yr), math.cos(yr)
+    return x + localX * c + localZ * s, z - localX * s + localZ * c
 end
 
 -- normalize any angle to [-180, 180) -- so a difference of two yaws reads as the SHORTEST turn (e.g. 350

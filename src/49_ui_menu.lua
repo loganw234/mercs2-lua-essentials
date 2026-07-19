@@ -81,11 +81,9 @@ local function menu_ctx(menu)
         end
         if not px then self:hint("NO PLAYER POSITION"); return nil end
         local sx, sz = px, pz
-        if dist and dist ~= 0 then
-            local yr = math.rad(yaw or 0)
-            sx = px - math.sin(yr) * dist
-            sz = pz + math.cos(yr) * dist
-        end
+        -- forward projection goes through Ess.Math.pointAhead, never a local copy -- this used to inline
+        -- the sin/cos and silently kept the OLD mirrored x sign after the convention was corrected.
+        if dist and dist ~= 0 then sx, sz = Ess.Math.pointAhead(px, pz, yaw or 0, dist) end
         local ok, u = pcall(Pg.Spawn, template, sx, py, sz)
         if ok and u then pcall(Object.SetYaw, u, yaw or 0); return u end
         self:hint("SPAWN FAILED: " .. tostring(template))

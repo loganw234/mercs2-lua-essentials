@@ -40,8 +40,8 @@ at(1.9, function() Ess.Impulse.push(car, { forward = 6, up = 18 }) end)
 -- makes it a smooth swing, not a cut.
 at(2.15, function()
     local cx, cy, cz = Ess.Object.pos(car)
-    local sr = math.rad((yaw or 0) + 90)                        -- 90 deg off your facing = straight out to the side
-    local sx, sz = (cx or px) - math.sin(sr) * 16, (cz or pz) + math.cos(sr) * 16
+    -- 90 deg off your facing = straight out to the side (via Ess.Math, not a hand-rolled sin/cos)
+    local sx, sz = Ess.Math.pointAhead(cx or px, cz or pz, (yaw or 0) + 90, 16)
     Ess.Camera.beginCinematic(0, 1)
     Ess.Camera.placeCamera(sx, (cy or py) + 7, sz, 0)
     Ess.Camera.lookAtObject(car, nil, 0)                        -- tracks the car as it flies + tumbles

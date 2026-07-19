@@ -279,9 +279,14 @@ end
 -- own ctx:spawn recipe. nDist default 18, nHeight default 0 (bump it up for aircraft / a midair drop).
 --
 -- ⚠ "in front of" means in front of the character's BODY (Object.GetYaw = chest orientation), NOT in front
--- of where the player is LOOKING. Standing still and swinging the mouse turns the view but not the body, so
--- the spawn can land well off to one side (measured 45deg) -- expected, not a trig bug. See 01_math.lua's
--- header. For view-relative placement, resolve the look direction yourself and use Ess.Math.pointAhead.
+-- of where the player is LOOKING -- standing still and swinging the mouse turns the view but not the body.
+-- For view-relative placement, resolve the look direction yourself (Ess.Player.targetUnderReticle ->
+-- Ess.Math.angleTo) and pass that yaw to Ess.Math.pointAhead.
+--
+-- HISTORY: a "spawns off to one side" report here was FIRST misdiagnosed as purely this body/view gap. It
+-- was actually a mirrored x sign in Ess.Math.pointAhead (fixed 2026-07-19 -- see that file's header). Both
+-- effects are real; don't let the body/view explanation talk you out of checking the trig. Calibrate facing
+-- EAST/WEST, where a sign error is maximal -- facing north it is invisible.
 function Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i)
     local px, py, pz, yaw = Ess.Player.pose(i or 0)
     if not px then return nil end

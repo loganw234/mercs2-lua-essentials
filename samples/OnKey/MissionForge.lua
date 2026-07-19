@@ -1044,15 +1044,15 @@ Drop = function()
         local list = b.squad
         local cols = math.max(1, math.min(5, math.ceil(math.sqrt(#list))))
         local SP = 5
-        local yr = math.rad(yaw); local cyaw, syaw = math.cos(yr), math.sin(yr)
+        -- grid rotation goes through Ess.Math.rotateOffset (this used to inline its own rotation matrix,
+        -- which carried the OLD mirrored x sign -- squads came out flipped about the forward axis)
         F.squadSeq = (F.squadSeq or 0) + 1; local sqId = F.squadSeq
         local placed = 0
         for idx, item in ipairs(list) do
             local i0 = idx - 1
             local col = i0 % cols; local row = math.floor(i0 / cols)
             local lx = (col - (cols - 1) / 2) * SP; local lz = row * SP
-            local wx = px + lx * cyaw - lz * syaw
-            local wz = pz + lx * syaw + lz * cyaw
+            local wx, wz = Ess.Math.rotateOffset(px, pz, yaw, lx, lz)
             local ph = item.veh and emptyVariant(item.tmpl) or (FACTION_CRATE[b.faction] or DEFAULT_CRATE)
             local mini = { real = item.tmpl, placeholder = ph, kind = item.veh and "vehicle" or "infantry", faction = b.faction }
             local u, php
