@@ -146,29 +146,28 @@ reference) was found and fixed. Further live verification (driving it with real 
 capability most mods don't need, not worth more session time. `xpad.py` remains available and fully
 functional if a future need for it comes up.
 
-## `webrepl.py` + `webrepl.html` -- a browser "mod page" that drives the live game
+## Browser tools -- SUPERSEDED, see the standalone projects
 
-A tiny local relay so a **web page can make Ess calls in the running game**. Browsers can't open a raw TCP
-socket and the lua-bridge is raw TCP on `127.0.0.1:27050`, so `webrepl.py` serves `webrepl.html` and exposes
-`POST /exec`, which forwards a Lua snippet to the bridge and reads the result back the *same* log-tagged way
-`lua_repl.py` does (it imports `lua_repl` and reuses `execute()` -- one protocol, one place).
+`webrepl.py` / `webrepl.html` (a local HTTP relay + one-click "mod page") and `mercs2-lua-ide.html` were the
+**early prototypes** of driving the game from a browser. They existed because browsers can't open a raw TCP
+socket and the lua-bridge was raw TCP only, so a Python relay had to sit in the middle.
 
-```
-python tools/webrepl.py                 # serve http://127.0.0.1:8770 , bridge 127.0.0.1:27050
-python tools/webrepl.py --web-port 9000 --game-dir "C:/Games/Mercenaries 2 World in Flames"
-```
+That constraint is gone -- the bridge speaks **WebSocket** directly now -- and both prototypes have grown
+into their own maintained projects. Use those instead:
 
-Open the URL with the game running (Ess + lua-bridge loaded). The page has a live bridge-status dot, a grid
-of one-click Ess actions (spawn a car, airstrike on me, give cash, slow-mo, ...), and a free-form box that
-runs any Lua -- `return X` sends the value back to the on-page console. It's a working demo of "a mod UI in a
-browser," and a template for building richer web tools on top of the bridge.
+- **Lua Web IDE** -- [github.com/loganw234/mercs2-lua-web-ide](https://github.com/loganw234/mercs2-lua-web-ide)
+  · live at **<https://ide.mercs2.tools/>**. A real in-browser Lua editor (CodeMirror 6, `Ess.*`-aware and
+  native-engine autocomplete, lint, script library, API reference) that runs code in your live game.
+- **Live Map** -- [github.com/loganw234/mercs2-webmap](https://github.com/loganw234/mercs2-webmap)
+  · live at **<https://map.mercs2.tools/>**. A Leaflet map of the world that overlays any JSON of world-space
+  points as a toggleable layer, with optional live player tracking and an in-game teleport button.
 
-**Binds to `127.0.0.1` only** -- it executes arbitrary Lua in your game, so it's a local dev tool, never
-something to expose on a public interface.
+Both are single self-contained HTML files -- no relay, no build step, no install.
 
-## `ess-bridge.js` + `BRIDGE_WEBSOCKET.md` -- browser WS client + bridge spec (forward-looking)
+## `ess-bridge.js` + `BRIDGE_WEBSOCKET.md` -- browser WS client + bridge spec
 
-For when the bridge learns to speak **WebSocket** (so a web page connects directly, no relay at all).
+The reference client and wire spec written while WebSocket support was still being designed (it has since
+landed in the bridge; the two projects above are the real-world implementations).
 `ess-bridge.js` is a tiny, dependency-free reference client implementing the two-tier protocol: an **ack**
 (the bridge received your chunk) plus a **result** delivered over a **hidden channel** -- the chunk tags its
 result in Lua via `Loader.WsSend` (a WS-only emit that never writes the log), and the client matches the tag,
