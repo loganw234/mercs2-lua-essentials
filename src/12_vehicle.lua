@@ -198,7 +198,8 @@ Ess.Easy = Ess.Easy or {}
 Ess.Easy.Vehicle = Ess.Easy.Vehicle or {}
 function Ess.Easy.Vehicle.summon(sTemplate, opts)
     opts = opts or {}
-    local v = Ess.Object.spawnAhead(sTemplate, opts.dist or 18, opts.height or 10)
+    -- opts.useView = true -> put it where you're LOOKING rather than where your body is turned
+    local v = Ess.Object.spawnAhead(sTemplate, opts.dist or 18, opts.height or 10, 0, opts)
     if not v then return nil end
     Ess.Vehicle.enterBestSeat(Ess.Player.character(0), v)
     return v

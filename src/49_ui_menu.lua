@@ -73,19 +73,23 @@ local function menu_ctx(menu)
     function ctx:ask(prompt, onSubmit, onCancel)                     -- pop a typed prompt from a menu action
         Ess.UI.Input{ prompt = prompt, onSubmit = onSubmit, onCancel = onCancel }
     end
-    function ctx:spawn(template, dist)
+    -- ctx:spawn(template [, dist] [, opts]) -- opts.useView = true places it where you're LOOKING instead
+    -- of where your body is turned. OPT-IN: omit opts and the behaviour is exactly as before.
+    function ctx:spawn(template, dist, opts)
         -- Pg.Spawn("") hard-CRASHES the engine (empty name -> null asset in C++), and pcall canNOT catch
         -- a native crash -- only Lua errors. Reject blank templates up front.
         if type(template) ~= "string" or template:match("^%s*$") then
             self:hint("NO TEMPLATE SET"); return nil
         end
         if not px then self:hint("NO PLAYER POSITION"); return nil end
+        local useYaw = yaw or 0
+        if opts and opts.useView then useYaw = Ess.Player.viewYaw(0) end
         local sx, sz = px, pz
         -- forward projection goes through Ess.Math.pointAhead, never a local copy -- this used to inline
         -- the sin/cos and silently kept the OLD mirrored x sign after the convention was corrected.
-        if dist and dist ~= 0 then sx, sz = Ess.Math.pointAhead(px, pz, yaw or 0, dist) end
+        if dist and dist ~= 0 then sx, sz = Ess.Math.pointAhead(px, pz, useYaw, dist) end
         local ok, u = pcall(Pg.Spawn, template, sx, py, sz)
-        if ok and u then pcall(Object.SetYaw, u, yaw or 0); return u end
+        if ok and u then pcall(Object.SetYaw, u, useYaw); return u end
         self:hint("SPAWN FAILED: " .. tostring(template))
         return nil
     end

@@ -115,6 +115,28 @@ function Ess.Player.targetUnderReticle(i)
     return g, x, y, z
 end
 
+-- Ess.Player.viewYaw(i) -> yaw, bFromReticle
+-- The yaw the player is LOOKING along -- as opposed to Ess.Player.pose's 4th return, which is the CHEST/
+-- BODY yaw. These are genuinely different: stand still and swing the mouse and the view rotates while the
+-- body does not (measured live at up to 111 degrees apart; running forward re-aligns them). So "in front of
+-- the player" has two legitimate meanings, and this is the one a player perceives.
+--
+-- Derived from the reticle hit point (Player.GetTargetUnderReticle) turned into a bearing by Ess.Math.angleTo.
+-- NEVER returns nil while you have a character: if the reticle has no usable hit -- aiming at open SKY is
+-- the known case, and a hit closer than MIN_VIEW_DIST gives a junk bearing -- it FALLS BACK to the body yaw
+-- and returns false as the second value. Callers that care can branch on that; callers that don't still get
+-- a usable yaw, which is what makes the opt-in flags built on this safe by construction.
+local MIN_VIEW_DIST = 3   -- a reticle hit right on top of you yields a meaningless bearing
+function Ess.Player.viewYaw(i)
+    local px, py, pz, bodyYaw = Ess.Player.pose(i)
+    if not px then return nil, false end
+    local _, rx, _, rz = Ess.Player.targetUnderReticle(i)
+    if rx and rz and Ess.Math.dist2D(px, pz, rx, rz) >= MIN_VIEW_DIST then
+        return Ess.Math.angleTo(px, pz, rx, rz), true
+    end
+    return bodyYaw or 0, false
+end
+
 -- Ess.Player.removeBoundaries() -- CONFIRMED (wiki/snippets.md): clears every out-of-bounds volume
 -- currently active, for every connected player at once (co-op safe by construction -- iterates
 -- Player.GetAllPlayers(), not a single index, so this takes no `i` argument). Only clears what's active

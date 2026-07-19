@@ -287,9 +287,13 @@ end
 -- was actually a mirrored x sign in Ess.Math.pointAhead (fixed 2026-07-19 -- see that file's header). Both
 -- effects are real; don't let the body/view explanation talk you out of checking the trig. Calibrate facing
 -- EAST/WEST, where a sign error is maximal -- facing north it is invisible.
-function Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i)
+-- tOpts.useView = true -> project from where the player is LOOKING (Ess.Player.viewYaw) instead of the
+-- body yaw, and face the spawn that way too. OPT-IN and trailing, so every existing call is unchanged.
+-- Safe by construction: viewYaw falls back to the body yaw when the reticle has no usable hit (open sky).
+function Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i, tOpts)
     local px, py, pz, yaw = Ess.Player.pose(i or 0)
     if not px then return nil end
+    if tOpts and tOpts.useView then yaw = Ess.Player.viewYaw(i or 0) end
     -- forward projection lives in exactly one place now: Ess.Math.pointAhead (the same sin/cos this used
     -- to inline). Keeps spawnAhead and pointAhead from drifting apart if the yaw convention is ever retuned.
     local x, z = Ess.Math.pointAhead(px, pz, yaw or 0, nDist or 18)
