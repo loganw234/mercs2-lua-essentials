@@ -28,7 +28,7 @@ end
 
 local LABEL = "SpareParts"          -- the world label the collectible boxes carry
 local RADIUS = 500                  -- detect this far out (streaming is the real cap)
-local RGB = { 0, 255, 100 }         -- marker colour
+local RGB = { 180, 51, 36 }         -- marker colour
 
 local S = _G.CollectibleFinder or { on = false }
 _G.CollectibleFinder = S

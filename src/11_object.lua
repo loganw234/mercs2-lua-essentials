@@ -277,6 +277,11 @@ end
 -- the player is. This hides the forward-projection trig (the yaw -> sin/cos math EVERY "spawn in front of
 -- me" needs and that a beginner has no way to know) behind one call -- the confirmed projection is uilib's
 -- own ctx:spawn recipe. nDist default 18, nHeight default 0 (bump it up for aircraft / a midair drop).
+--
+-- ⚠ "in front of" means in front of the character's BODY (Object.GetYaw = chest orientation), NOT in front
+-- of where the player is LOOKING. Standing still and swinging the mouse turns the view but not the body, so
+-- the spawn can land well off to one side (measured 45deg) -- expected, not a trig bug. See 01_math.lua's
+-- header. For view-relative placement, resolve the look direction yourself and use Ess.Math.pointAhead.
 function Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i)
     local px, py, pz, yaw = Ess.Player.pose(i or 0)
     if not px then return nil end

@@ -3,11 +3,19 @@
 -- checks in a dozen encounter scripts). One confirmed-correct home for each so nobody re-implements -- and
 -- re-mis-signs -- the yaw math again. Loads right after 00_core (pure functions, no Ess deps).
 --
--- ENGINE CONVENTION (load-bearing, live-calibrated -- see the ess-open-world-testing-spot memory): Y is UP;
--- the horizontal plane is X/Z. A yaw's FORWARD vector is (-sin(yaw), +cos(yaw)) in (x,z) -- that's the exact
--- projection Ess.Object.spawnAhead was calibrated against in-engine (accurate to ~4deg, the parallax between
--- the character's facing and the third-person camera). angleTo/pointAhead below are consistent with it, so a
+-- ENGINE CONVENTION (load-bearing, live-calibrated): Y is UP; the horizontal plane is X/Z. A yaw's FORWARD
+-- vector is (-sin(yaw), +cos(yaw)) in (x,z). angleTo/pointAhead below are exact inverses of each other, so a
 -- yaw from angleTo fed to Object.SetYaw faces the way you expect, and pointAhead matches spawnAhead exactly.
+--
+-- ⚠ BODY YAW vs VIEW DIRECTION -- the thing that makes this trig LOOK broken when it isn't (re-confirmed
+-- live 2026-07-19 with an 8-spoke coloured marker ring; supersedes an earlier note here that wrongly called
+-- the gap "~4deg of camera parallax"). Object.GetYaw(character) is the CHEST/BODY orientation. It is NOT
+-- where the player is LOOKING: stand still and swing the mouse and the body stays put while the view
+-- rotates -- a measured 45deg gap, and it can be larger. So "spawn in front of me" via pointAhead/spawnAhead
+-- lands in front of the BODY, which to a player who just swung the camera reads as "it spawned to my right".
+-- That is correct behaviour, not a sign error -- do NOT "fix" the sin/cos. If you want VIEW-relative
+-- placement instead, derive the look direction (e.g. Ess.Player.targetUnderReticle -> angleTo) and pass
+-- THAT yaw in; running forward re-aligns body to view, which is why the ring reads clean while moving.
 --
 -- API:
 --   Ess.Math.clamp(v, lo, hi) -> n            Ess.Math.lerp(a, b, t) -> n            Ess.Math.sign(v) -> -1|0|1
