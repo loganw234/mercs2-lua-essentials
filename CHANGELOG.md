@@ -9,11 +9,62 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
-Closing "creativity gaps" for new modders — the framework is strong on *how* to do things, thinner on *what
-you can do* and on reacting to the player. All additive. **Not yet in-game smoke-run** (built from confirmed
-calls + offline-verified where pure); test in a live game, then bump to `0.3.0` to release.
+## [0.3.0]
+
+**Headline: a mirrored forward vector is fixed.** Everything that placed or aimed something relative to a
+yaw — `spawnAhead`, `Easy.Vehicle.summon`, the menu kit's `ctx:spawn`, `Object.faceToward`/`faceObject`,
+MissionForge's squad grids — was mirrored about the forward axis. Live-verified twice (see **Fixed**). If you
+wrote code that compensated for the old behaviour, remove the compensation.
+
+The rest of this release closes "creativity gaps" for new modders — the framework was strong on *how* to do
+things, thinner on *what you can do* and on reacting to the player. All additive.
+
+**Verification status, honestly:** the yaw fix and the new view-relative placement are **live-verified
+in-game** (exact numbers below). The additive batch below them is built from confirmed engine calls and
+**offline/execute-verified**, but has **not had a full in-game smoke run** — per-entry notes say which parts
+still want a live pass. Nothing in it changes existing behaviour.
+
+### Fixed
+- **The forward vector was mirrored on X.** The engine's forward is `(+sin(yaw), +cos(yaw))`; Ess used
+  `(-sin, +cos)`, with `Ess.Math.angleTo` = `atan2(-dx, dz)`. Both were wrong together (they are exact
+  inverses and must always change as a pair), so "in front of the player" came out mirrored about the
+  forward axis, and `faceToward` aimed objects the wrong way.
+  ```lua
+  pointAhead:  x - sin(yr)*dist   ->   x + sin(yr)*dist
+  angleTo:     atan2(-dx, dz)     ->   atan2(dx, dz)
+  ```
+  **Why it hid for so long:** it is a *mirror*, not a rotation. Facing **north/south** `sin ≈ 0` and both
+  conventions land on the same point — **invisible**. Facing **east/west** it is a full **180° wrong**. In
+  between it is a variable, heading-dependent skew that reads as random. Two earlier calibrations were
+  defeated by exactly this. **Always calibrate facing east/west.**
+  **Proof:** two ground rings placed from the same body yaw, one per convention — facing east the `(+sin)`
+  ring was dead ahead and `(-sin)` directly behind; facing north they coincided. Then numerically: with the
+  reticle aimed along the body, `angleTo(player → reticle)` now equals `Object.GetYaw` to **±0.3°** (it
+  returned the *negative* before).
+- **Three inline re-derivations** of that trig, which would have silently kept the old sign, now call
+  `Ess.Math`: the menu kit's `ctx:spawn`, `CarStunt`'s side camera, and MissionForge's squad-grid rotation
+  matrix (squads were flipping about the forward axis).
 
 ### Added
+- **`Ess.Player.viewYaw(i) -> yaw, bFromReticle`** — the yaw you're **looking** along, as distinct from
+  `Ess.Player.pose`'s 4th return, which is the **chest/body** yaw. These genuinely differ: stand still and
+  swing the mouse and the view rotates while the body does not (measured live at up to **111°** apart;
+  running forward re-aligns them). Derived from the reticle hit point. **Never nil** while you have a
+  character — with no usable hit (aiming at open sky) it falls back to the body yaw and returns `false` as
+  the second value, which is what makes the flags below safe without caller-side guarding.
+- **Opt-in view-relative placement** — all default **off**, so every existing call is unchanged:
+  ```lua
+  Ess.Object.spawnAhead(tmpl, dist, height, i, { useView = true })   -- trailing arg
+  Ess.Easy.Vehicle.summon(tmpl,                { useView = true })   -- existing opts table
+  ctx:spawn(tmpl, dist,                        { useView = true })   -- menu kit
+  ```
+  Live-verified: with body yaw `-1.5` and view yaw `-47.2`, `spawnAhead{useView=true}` placed the vehicle at
+  the computed view point exactly. (A param rather than parallel `LookAhead` functions: `pointAhead` already
+  takes an explicit yaw, and full parity would have doubled the spatial surface with twins that are mostly
+  meaningless — `faceToward` is never view-relative.)
+- **`Ess.Math.rotateOffset(x, z, yaw, localX, localZ)`** — place a local `(right, forward)` offset into world
+  space; the general case that `pointAhead` is the `localX = 0` special case of. Added because a hand-rolled
+  rotation matrix is exactly how the mirrored sign propagated — use this instead of writing one.
 - **`Ess.Support`** + **`Ess.Easy.Airstrike`** — the iconic combat call-ins (airstrike / artillery /
   gunship / bombing run / reinforcements) as standalone one-liners, lifted out of the Contract system so you
   can fire one anywhere. `Ess.Easy.Airstrike.at(x,y,z)` / `.onTarget()` for one-tap. Recipe: `call_in_support`.
