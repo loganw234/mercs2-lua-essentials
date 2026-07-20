@@ -82,6 +82,11 @@ push/PR (the stock-Lua parse check the dev box can't run), so a broken build nev
   three are historical only, superseded by their native `Ess.*` absorptions above and no longer deployed.
 - `mercs2-layer-framework` — the ORIGINAL `LayerFw`, superseded by native `Ess.Layers`. Historical only.
 
+
+## License
+
+[MIT](LICENSE) -- matching the rest of the Mercenaries 2 tooling.
+
 ## Disclaimer
 
 This is an unofficial, non-commercial community fan project. It is **not affiliated with, associated with,
