@@ -16,6 +16,8 @@
 --   Ess.On.playerHurt(fn [,i])            fn(newHp, lost) whenever player i's health DROPS (repeats)
 --   Ess.On.vehicle(fn [,i])               fn(nowVeh, prevVeh) on entering/leaving a vehicle (poll idiom)
 --   Ess.On.tick(interval, fn)             fn() every `interval` seconds (a named, reload-safe Ess.Loop)
+--   Ess.On.labeled(label, r, fn [,i])     fn(uGuid) ONCE per world-labeled object as it streams in near
+--                                         player i (the ObjectFilter + Event.ObjectProximity discovery idiom)
 
 local Ess = _G.Ess
 Ess.On = Ess.On or {}
@@ -99,4 +101,35 @@ function Ess.On.tick(interval, fn)
     local id = nextId("tick")
     Ess.Loop.start(id, interval or 1, function() pcall(fn); return true end)
     return function() Ess.Loop.stop(id) end
+end
+
+-- Ess.On.labeled(sLabel, nRadius, fn, i) -> stop()
+-- fn(uGuid) fires ONCE for each object carrying world label sLabel as it comes within nRadius of player i
+-- (default 300 / player 0). This wraps the CONFIRMED discovery idiom for "find objects by their world
+-- label" -- the game's own wiftutorialcollectibles.lua and our live-tested CollectibleFinder sample both do
+-- exactly this dance: ObjectFilter.GetObjects can NOT query by label; the way to catch label-matching
+-- objects is a proximity event armed on a label filter, which fires as they stream in. After each hit the
+-- object is AddObject(filter, guid, true)-EXCLUDED so it never re-fires (that's also why this hook is
+-- once-per-object by design -- the exclusion IS the dedupe). ObjectFilter's registration was mapped in the
+-- 2026-07-22 bindings pass (wiki namespaces/objectfilter.md); the arg shapes here are the corpus-confirmed
+-- ones, not guesses. Promoted from CollectibleFinder's inline version, which stays as the worked example.
+function Ess.On.labeled(sLabel, nRadius, fn, i)
+    if type(sLabel) ~= "string" or sLabel == "" then return function() end end
+    local char = Ess.Player.character(i or 0)
+    if not char then return function() end end
+    local okf, filter = pcall(ObjectFilter.Create)
+    if not okf or not filter then return function() end end
+    pcall(ObjectFilter.SetFilter, filter, sLabel)
+    local ev
+    local function onProx(tGuids)
+        if type(tGuids) ~= "table" then tGuids = { tGuids } end
+        for _, u in ipairs(tGuids) do
+            pcall(ObjectFilter.AddObject, filter, u, true)   -- exclude: this object never re-fires
+            pcall(fn, u)
+        end
+    end
+    local oke, e = pcall(Event.CreatePersistent, Event.ObjectProximity,
+        { filter, char, "<", nRadius or 300, false, false }, onProx, {})
+    if oke then ev = e end
+    return function() if ev then pcall(Event.Delete, ev); ev = nil end end
 end

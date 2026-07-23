@@ -9,6 +9,65 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+## [0.3.1]
+
+**The 2026-07-22 bindings-pass harvest.** A live-probe mapping of the engine's never-called `luaL_Reg`
+bindings (wiki `namespaces/` pages, updated the same day) confirmed signatures for a batch of natives with
+zero call sites anywhere in the decompiled corpus. Everything below wraps only live-confirmed or
+corpus-confirmed calls, and everything is **additive** — no existing function changed signature or behavior.
+
+### Added
+
+- **`Ess.Pursuit`** (new namespace, `src/17_pursuit.lua`) — the wanted/heat system: `.state()/.level()`,
+  `.start(faction, level)`, **`.clear()`** (the one true reset), `.seconds/.levelTimes/.lock/.custom`,
+  `.capLevel(n)` (⚠ live-confirmed ONE-WAY session ratchet — logs a loud warning), `.restrictAll/
+  .restrictFaction/.clearRestrictions` (gate ORGANIC heat only — they do NOT clear an active chase; the
+  wrapper docs encode both confirmed traps). Plus **`Ess.Easy.World.noPursuit(bOn)`** — stop the current
+  chase and keep new organic heat off, one call. (`Easy.World.clearWanted` is untouched.)
+- **`Ess.Object` motion & geometry** — `.velocity(g)` / `.speed(g)` / `.speedSq(g)` (first motion API in
+  Ess), `.size(g)` (model bbox extents — takes a guid, not a name), `.localToWorld(g, lx,ly,lz)` (the
+  engine's full 3D transform incl. pitch/roll — prefer over yaw-only `Ess.Math.rotateOffset` on tilted
+  objects), `.heightAboveGround(g)` (with the exact-0-placeholder caveat from the terrain project),
+  `.snapToGround(g, offset)`, and `.invincible(g)` (the missing getter).
+- **`Ess.Vehicle`** — `.repair(v)` (RestoreHealth+RestoreAmmo — the vehicle repair long thought missing),
+  `.evictAll(v)` (Ai.EveryoneOut, confirmed), `.isFlipped(v)`, `.land(heliOrPilot)` (Ai.HeliLand, confirmed
+  real descent; resolves the pilot via `.driver` — pairs with `.flyTo`).
+- **`Ess.Probe`** — eight new `nearby()` kinds (`tanks`, `helicopters`, `boats`, `cars`, `jets`, `props`,
+  `usables`, `groundNoTanks`) on the same dispatcher (unknown kinds still fall to `any`, unchanged), and
+  `.allByName(name)` (every matching guid — `Ess.Guid` stays the single-match form).
+- **`Ess.On.labeled(label, r, fn)`** — fires once per world-labeled object as it streams in near the
+  player: the confirmed ObjectFilter + `Event.ObjectProximity` discovery idiom, promoted from the
+  CollectibleFinder sample exactly as its header planned.
+- **`Ess.Relations.getPerceivability/.setPerceivability`** — the per-individual AI detectability stat
+  (confirmed reversible), and **`Ess.Easy.Player.ghost(bOn)`** — floor your detectability, restore your
+  exact original on toggle-off. Registered in the Console + playground.
+- **`Ess.Vec.cross`** — the cross product (dot's missing sibling), pure Lua.
+- **`Ess.Easy.Debug.overlay`** now appends an engine `mem` figure (Sys.MemUsage) to the vehicle/health
+  line — the useful signal is it climbing while your script runs.
+
+### Verification status — live-tested in-game before release
+
+Offline first (checkpure 10/10; test_bundles all green — which caught and fixed a real `Sys`-indexing guard
+bug in the overlay's mem line; merged chunk loadchecks to completion), then a **full in-game pass on the
+release build** (2026-07-22): the whole smoke suite — **42/42 recipes PASS**, including the new
+`control_pursuit` (pursuit start → state-read → clear round-trip, and ghost lowering perceivability then
+restoring the exact original). Targeted live probes, most with exact before/after numbers:
+
+- `localToWorld` offset of 5 measured **5.00**; `heightAboveGround` read **12.05** on a +12 spawn and
+  `snapToGround` took it to **0.00**; `invincible` round-tripped false→true→false; `isFlipped` false upright.
+- `size` and `speed`/`velocity` return real values on settled objects (a human measured 0.98 × 1.93 × 0.33)
+  — and surfaced a **new documented caveat**: both read nil/zeros in the same tick as the spawn (the known
+  fresh-spawn settle class; noted in the file header).
+- `Vehicle.repair`: health **25 → 130/130 max**. `Vehicle.evictAll`: driver went **userdata → nil**.
+- `Vehicle.land`: a second **live-discovered caveat** — a heli on autonomous combat AI overrides the order;
+  under scripted control (`.flyTo` then `.land`) it descended **AGL 35.0 → 19.4** and dropping. The
+  flyTo-then-land pattern is now documented as the confirmed usage.
+- `Probe.allByName` found a spawned template by name (template-name matching confirmed); all 8 new `nearby`
+  kinds dispatch (cars=5 / props=17 / boats=0 / tanks=0 at the test spot); `Pursuit.restrict*` and
+  `Easy.World.noPursuit` execute clean; the overlay's `mem` figure renders; `Vec.cross` returned (0,0,1).
+- `On.labeled` armed and stopped cleanly (no labeled object inside radius at the test spot to fire on — the
+  underlying filter+proximity idiom is already live-proven by the CollectibleFinder sample).
+
 ## [0.3.0]
 
 **Headline: a mirrored forward vector is fixed.** Everything that placed or aimed something relative to a

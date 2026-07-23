@@ -7,6 +7,10 @@
 --   Ess.Vehicle.enterBestSeat(uChar, uVeh) -> ok
 --   Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats) -> ok, sSeatTypeUsed
 --   Ess.Vehicle.exit(uVeh, uChar) -> ok
+--   Ess.Vehicle.evictAll(uVeh) -> ok                                  force EVERY occupant out (Ai.EveryoneOut)
+--   Ess.Vehicle.repair(uVeh) -> ok                                    full heal + rearm (RestoreHealth/RestoreAmmo)
+--   Ess.Vehicle.isFlipped(uVeh) -> bool
+--   Ess.Vehicle.land(uHeliOrPilot) -> ok                              command an AI heli to descend (Ai.HeliLand)
 --   Ess.Vehicle.flyTo(uHeli, x, y, z, opts) -> cancel()               send an AI heli to a point (driver-wait
 --                                        + Ai.Deliver); opts.onReady(driver) fires when the order is issued
 --   Ess.Vehicle.orbitFlight(uHeli, cx,cy,cz, opts) -> totalSeconds    fly a crewed heli a few laps around a
@@ -96,6 +100,50 @@ end
 function Ess.Vehicle.exit(uVeh, uChar)
     local ok, result = pcall(Vehicle.Exit, uVeh, uChar, true)
     return ok and result and true or false
+end
+
+-- Ess.Vehicle.evictAll(uVeh) -> ok -- force EVERY occupant out at once. Ai.EveryoneOut takes the VEHICLE's
+-- own guid (not a rider/pilot guid) -- CONFIRMED LIVE 2026-07-22 (wiki namespaces/ai.md): GetDriver read a
+-- real pilot before the call and nil after. The bulk counterpart to .exit (which moves one known character).
+function Ess.Vehicle.evictAll(uVeh)
+    local ok = pcall(Ai.EveryoneOut, uVeh)
+    return ok and true or false
+end
+
+-- Ess.Vehicle.repair(uVeh) -> ok -- full heal + rearm in one call. Vehicle.RestoreHealth/RestoreAmmo are
+-- both live-confirmed EFFECT calls (2026-07-22 probe pass; zero corpus call sites -- signatures from live
+-- probing). This is the vehicle repair this project long thought the engine didn't expose (the old
+-- workaround era of "no SetMaxHealth -> make bosses regen"): wave-defense between-round fixups, escort
+-- patch-ups, "my ride is smoking" mercy. Returns true if the health call executed (ammo is best-effort).
+function Ess.Vehicle.repair(uVeh)
+    local ok = pcall(Vehicle.RestoreHealth, uVeh)
+    pcall(Vehicle.RestoreAmmo, uVeh)
+    return ok and true or false
+end
+
+-- Ess.Vehicle.isFlipped(uVeh) -> bool -- Vehicle.IsFlipped, live-confirmed boolean (2026-07-22). Coerced
+-- through the 1/0 guard like every other boolean-returning native. NOTE: no unflip() yet -- righting a
+-- vehicle needs a confirmed way to reset roll/pitch, and none is live-verified; don't guess one.
+function Ess.Vehicle.isFlipped(uVeh)
+    local ok, b = pcall(Vehicle.IsFlipped, uVeh)
+    return ok and (b == true or b == 1) or false
+end
+
+-- Ess.Vehicle.land(uHeliOrPilot) -> ok -- command an AI helicopter to descend and set down. Ai.HeliLand
+-- takes the PILOT guid (same convention as Ai.Deliver, NOT the vehicle guid) -- CONFIRMED LIVE 2026-07-22:
+-- a tracked heli went Y 7.5 -> -27.5 (ground) over ~6s after the call. Convenience: pass either the heli
+-- (pilot resolved via .driver) or the pilot directly (used when the arg has no driver of its own).
+--
+-- ★ LIVE-CONFIRMED USAGE PATTERN (0.3.1 release pass): a heli running its own AUTONOMOUS combat AI (a bare
+-- "AH1Z (Full)" milling around) OVERRIDES the land order and keeps flying -- two land calls, zero descent.
+-- Put the pilot under scripted control FIRST, then land: .flyTo(...) then .land(...) measured a real
+-- descent (AGL 35.0 -> 19.4 and dropping in ~9s). Fly somewhere, then land there -- that's the pattern.
+-- (Ai.HeliTakeoff probed INCONCLUSIVE -- not wrapped.)
+function Ess.Vehicle.land(uHeliOrPilot)
+    if not uHeliOrPilot then return false end
+    local pilot = Ess.Vehicle.driver(uHeliOrPilot) or uHeliOrPilot
+    local ok = pcall(Ai.HeliLand, pilot)
+    return ok and true or false
 end
 
 -- Ess.Vehicle.flyTo(uHeli, x, y, z, opts) -> cancel() -- send an AI helicopter to a world point. Wraps the

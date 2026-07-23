@@ -3,6 +3,8 @@
 -- API:
 --   Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf) -> { uGuid, ... }
 --   Ess.Probe.nearest(x, y, z, radius, kind, filter, includeSelf) -> uGuid, nDist | nil  the single closest
+--   Ess.Probe.allByName(sName) -> { uGuid, ... }   EVERY object matching a template/object name (Ess.Guid
+--                                                  returns only one; this is the multi-instance form)
 --   Ess.Probe.getFaction(uGuid) -> sAbbrev | nil
 --   Ess.Probe.describeSafe(uGuid) -> sDescription
 
@@ -22,6 +24,10 @@ end
 -- nearby X" native names) into one dispatcher, deduped by guid string across whichever families `kind`
 -- selects.
 --   kind:        "humans" | "vehicles" | "buildings" | nil/"any" (humans + ground vehicles + flying)
+--                plus the narrower families: "tanks" | "helicopters" | "boats" | "cars" | "jets" |
+--                "props" | "usables" | "groundNoTanks". The last six natives had ZERO corpus call sites
+--                and were live-confirmed 2026-07-22 (wiki namespaces/pg.md) -- same (x,y,z,radius) shape.
+--                An unrecognized kind still falls through to "any" (unchanged pre-existing behavior).
 --   filter:      optional Object.HasLabel string (e.g. "VZ") -- only objects carrying that label are kept
 --   includeSelf: default false. The native FastCollect* calls have no concept of "self" -- a query whose
 --                radius covers the caller's own position returns the local player's own character(s)
@@ -41,6 +47,22 @@ function Ess.Probe.nearby(x, y, z, radius, kind, filter, includeSelf)
         fns = { Pg.FastCollectGroundVehicles, Pg.FastCollectFlying }
     elseif kind == "buildings" then
         fns = { Pg.FastCollectBuildings }
+    elseif kind == "tanks" then
+        fns = { Pg.FastCollectTanks }
+    elseif kind == "helicopters" then
+        fns = { Pg.FastCollectHelicopters }
+    elseif kind == "boats" then
+        fns = { Pg.FastCollectBoats }
+    elseif kind == "cars" then
+        fns = { Pg.FastCollectCars }
+    elseif kind == "jets" then
+        fns = { Pg.FastCollectJets }
+    elseif kind == "props" then
+        fns = { Pg.FastCollectProps }
+    elseif kind == "usables" then
+        fns = { Pg.FastCollectUsables }
+    elseif kind == "groundNoTanks" then
+        fns = { Pg.FastCollectGroundVehiclesExceptTanks }
     else
         fns = { Pg.FastCollectHumans, Pg.FastCollectGroundVehicles, Pg.FastCollectFlying }
     end
@@ -79,6 +101,18 @@ function Ess.Probe.nearest(x, y, z, radius, kind, filter, includeSelf)
         if d and (not bestD or d < bestD) then best, bestD = u, d end
     end
     return best, bestD
+end
+
+-- Ess.Probe.allByName(sName) -> { uGuid, ... } -- EVERY object whose name matches, not just the first.
+-- Pg.GetAllGuidsByName had zero corpus call sites; its table return was live-confirmed 2026-07-22 (wiki
+-- namespaces/pg.md). Ess.Guid(sName) stays the single-match form; use this when a template/name has
+-- multiple live instances (all soldiers of a template, every placed instance of a prop). Empty table on
+-- no match / failure, never nil -- same contract as .nearby.
+function Ess.Probe.allByName(sName)
+    if type(sName) ~= "string" or sName == "" then return {} end
+    local ok, t = pcall(Pg.GetAllGuidsByName, sName)
+    if ok and type(t) == "table" then return t end
+    return {}
 end
 
 -- Ess.Probe.getFaction(uGuid) -> sAbbrev | nil

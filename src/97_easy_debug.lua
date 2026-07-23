@@ -71,13 +71,25 @@ local function nearbyLine(px, py, pz, r)
     return string.format("near(%d): %d hum  %d veh", r, hum, veh)
 end
 
+-- Sys.MemUsage (live-confirmed 2026-07-22, no-arg number return) -- raw engine memory figure, units
+-- unlabeled, so it's shown as the bare number: the useful signal for a mod author is it CLIMBING while
+-- your script runs (a leak), not its absolute value. Cheap enough to read every refresh tick.
+local function memLine()
+    -- guard the INDEX, not just the call: `pcall(Sys.MemUsage)` evaluates Sys.MemUsage before pcall can
+    -- protect it, so an absent Sys (offline harness) would throw right here -- caught by test_bundles.py.
+    if not (Sys and Sys.MemUsage) then return "" end
+    local ok, m = pcall(Sys.MemUsage)
+    if ok and m then return string.format("   mem %.0f", m) end
+    return ""
+end
+
 local function refresh(i, r)
     local p = S.panel
     if not p then return end
     local px, py, pz, yaw = Ess.Player.pose(i)
     p:line(0, "pos: " .. fmtCoord(px, py, pz) .. (px and string.format("  yaw %.0f", yaw or 0) or ""))
     p:line(1, aimLine(i, px, py, pz))
-    p:line(2, vehLine(i) .. "   " .. healthLine(i))
+    p:line(2, vehLine(i) .. "   " .. healthLine(i) .. memLine())
     -- the nearby line is the one expensive part (two native FastCollect passes over the radius); the rest is
     -- cheap. Gate it to ~1x/sec and cache the result so the panel's fast pos/aim refresh doesn't run a world
     -- scan on every tick -- a dev overlay should stay light enough not to perturb what you're measuring.

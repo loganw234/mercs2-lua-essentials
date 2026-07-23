@@ -10,6 +10,8 @@
 --   Ess.Relations.restore(handle)
 --   Ess.Relations.isActive(handle) -> bool
 --   Ess.Relations.getFeeling(uGuidA, uGuidB) -> n / .setFeeling(uGuidA, uGuidB, n)   INDIVIDUAL-pair
+--   Ess.Relations.getPerceivability(uGuid) -> n, nFloor / .setPerceivability(uGuid, n)   per-individual
+--                                        AI detectability (reversible; the stealth stat behind Easy ghost)
 --                                                relation (Ai.GetFeeling/SetFeeling), distinct from the
 --                                                FACTION-level apply/restore above -- no snapshot/restore
 --                                                needed, it's a thin direct wrapper
@@ -106,4 +108,23 @@ end
 
 function Ess.Relations.setFeeling(uGuidA, uGuidB, n)
     pcall(Ai.SetFeeling, uGuidA, uGuidB, n)
+end
+
+-- Ess.Relations.getPerceivability(uGuid) -> n, nFloor / .setPerceivability(uGuid, n)
+-- Per-INDIVIDUAL AI detectability -- how visible a subject is to AI perception, with its engine-side floor.
+-- CONFIRMED LIVE 2026-07-22 (wiki namespaces/ai.md, zero corpus call sites -- signatures from live
+-- probing): GetPerceivability returned (90, 5) on a character and (90, 2.5) on an AI heli pilot;
+-- SetPerceivability is a real REVERSIBLE state change (driven 90 -> 30 -> 90 with reads between steps).
+-- What the number means behaviorally (do AI actually stop spotting you at the floor?) still needs a live
+-- gameplay pass -- the value moving is confirmed, the perception EFFECT is the read-the-name interpretation.
+-- Same fresh-spawn settle caveat as getFeeling above: wait a beat before querying a just-spawned subject.
+function Ess.Relations.getPerceivability(uGuid)
+    local ok, n, floor = pcall(Ai.GetPerceivability, uGuid)
+    if ok and n then return n, floor end
+    return nil
+end
+
+function Ess.Relations.setPerceivability(uGuid, n)
+    local ok = pcall(Ai.SetPerceivability, uGuid, n)
+    return ok and true or false
 end

@@ -45,6 +45,32 @@ function Ess.Easy.Player.freeSupport(bOn)
     pcall(MrxSupportData.SetIgnoreRequirements, bOn and true or false)
 end
 
+-- Ess.Easy.Player.ghost(bOn, i) -- stealth mode: drop your AI detectability to the engine's own floor so AI
+-- perception (mostly) can't see you; call again (or pass false) to restore your original value exactly.
+-- Built on Ess.Relations.setPerceivability -- Ai.SetPerceivability is LIVE-CONFIRMED reversible
+-- (90 -> 30 -> 90, 2026-07-22 probe pass); whether floor-level perceivability makes AI fully blind vs just
+-- near-sighted is the read-the-name interpretation and needs the in-game pass. No arg = toggle. Reload-safe:
+-- the saved original lives in Ess.State, so an OnKey re-run toggles rather than double-saving.
+function Ess.Easy.Player.ghost(bOn, i)
+    local S = Ess.State("EssEasyGhost", { on = false, saved = nil })
+    local char = Ess.Player.character(i or 0)
+    if not char then return false end
+    if bOn == nil then bOn = not S.on end
+    if bOn and not S.on then
+        local n, floor = Ess.Relations.getPerceivability(char)
+        if not n then Ess.Log("ghost: couldn't read perceivability"); return false end
+        S.saved = n
+        Ess.Relations.setPerceivability(char, floor or 0)
+        S.on = true
+        Ess.UI.Toast("Ghost ON -- AI detectability floored")
+    elseif (not bOn) and S.on then
+        Ess.Relations.setPerceivability(char, S.saved or 90)
+        S.on = false
+        Ess.UI.Toast("Ghost OFF -- detectability restored")
+    end
+    return S.on
+end
+
 -- Ess.Easy.Player.skin(sCode, i) -- change the player's whole-figure costume/skin. CONFIRMED
 -- (npc-skin-swap project / WardrobeUnlocker): Player.SetOutfit(char, sModelCode) swaps the entire figure
 -- (individual body PARTS don't work -- whole "*_hum_*" model only). Confirmed codes include "pmc_hum_fiona",

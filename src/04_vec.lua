@@ -68,3 +68,11 @@ end
 function V.lerp(x1, y1, z1, x2, y2, z2, t)
     return x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, z1 + (z2 - z1) * t
 end
+
+-- V.cross(ax, ay, az, bx, by, bz) -> cx, cy, cz -- the cross product (the perpendicular): dot's missing
+-- sibling. Camera-right from forward+up, surface normals from two edges, "is B left or right of A" via the
+-- sign of the vertical component. Pure Lua like the rest of this file (the engine also exposes a native
+-- Math.CrossProduct -- same math, but no reason to leave pure arithmetic to a native call).
+function V.cross(ax, ay, az, bx, by, bz)
+    return ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx
+end

@@ -123,6 +123,8 @@ local REGISTRY = {
       desc = "Unlock every landing zone / every HQ." },
     { ns = "Ess.Easy (Player)", usage = "Ess.Easy.Player.freeSupport() / .giveAllRewards()",
       desc = "Call any airstrike free of stock/requirements, or dispense every reward." },
+    { ns = "Ess.Easy (Player)", usage = "Ess.Easy.Player.ghost(bOn)",
+      desc = "Stealth: floor your AI detectability (toggle; restores your exact original value on off)." },
     { ns = "Ess.Easy (Player)", usage = "Ess.Easy.Player.skin(sCode)",
       desc = "Change your whole-figure skin, e.g. \"pmc_hum_fiona\", \"vz_hum_solano\" (reload restores)." },
     { ns = "Ess.Easy (Fun)", usage = "Ess.Easy.Fun.dance() / .fanfare()",
@@ -354,6 +356,7 @@ local DEMOS = {
     { group = "World", name = "Hellscape", desc = "Recolour the world dark/red (region-gated).", run = function() Ess.Easy.World.hellscape() end },
     { group = "World", name = "Reset atmosphere", desc = "Undo world tints.", run = function() Ess.Easy.World.resetAtmosphere() end },
     -- Player
+    { group = "Player", name = "Ghost mode", desc = "Toggle: floor your AI detectability.", run = function() Ess.Easy.Player.ghost() end },
     { group = "Player", name = "Grappling hook", desc = "Unlock it.", run = function() Ess.Easy.Player.giveGrapplingHook() end },
     { group = "Player", name = "All rewards", desc = "Dispense every reward.", run = function() Ess.Easy.Player.giveAllRewards() end },
     { group = "Player", name = "Give cash", desc = "Add to your wallet.",

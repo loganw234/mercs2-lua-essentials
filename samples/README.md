@@ -66,6 +66,7 @@ handler.
 | `make_them_fight` | set two factions at war and confirm the stance took | Relations |
 | `find_whats_around` | scan for nearby objects | Probe |
 | `call_in_support` | airstrike / artillery / gunship / reinforcements, no contract | Support |
+| `control_pursuit` | start / read / clear a faction pursuit; toggle stealth ghost mode | Pursuit, Relations |
 | `instant_firefight` | drop a hostile squad on yourself in one line | Easy.Spawn, Player |
 
 **Markers, HUD & camera**
