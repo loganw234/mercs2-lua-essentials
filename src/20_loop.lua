@@ -7,6 +7,18 @@
 --   Ess.Loop.start(id, interval, tickFn)   tickFn() returns true to keep going, false/nil to auto-stop
 --   Ess.Loop.stop(id)
 --   Ess.Loop.isRunning(id) -> bool
+--   Ess.Loop.stats(id) -> { interval, ticks, lastDuration, avgDuration, lastError } | nil
+--   Ess.Loop.list() -> { {id=, interval=, ticks=, lastDuration=, avgDuration=, lastError=}, ... }, sorted by id
+--
+-- stats()/list() are purely additive introspection -- every existing call site across this project (20+
+-- files, none of which touch Ess.Loop._reg directly, only the public start/stop/isRunning surface) is
+-- unaffected. Each tick's real wall-clock cost is measured via Ess.Time.stamp() (a call into a file that
+-- loads AFTER this one in build/merge.py's MANIFEST -- safe only because it's invoked from inside the
+-- step() closure below, which never runs until long after the whole merged chunk has finished loading, by
+-- which point Ess.Time exists; do not call Ess.Time.* at this file's top level).
+-- lastDuration/avgDuration exist specifically to catch a tickFn that's expensive relative to its own
+-- interval (a tight poller doing real work) -- compare lastDuration/interval yourself for a "% of budget"
+-- figure; that ratio isn't computed here so this stays a plain data source, not an opinionated monitor.
 
 local Ess = _G.Ess
 Ess.Loop = Ess.Loop or {}
@@ -40,10 +52,28 @@ function Ess.Loop.start(id, interval, tickFn)
     reg.gen = reg.gen + 1
     local myGen = reg.gen
 
+    -- Reset stats on every start() call, even when reusing an existing `reg` (same id, new generation) --
+    -- a fresh start conceptually means a fresh loop, so stale numbers from whatever ran under this id
+    -- before shouldn't linger (e.g. across an OnKey script's re-run, or a hot-reloaded tickFn).
+    reg.interval = interval
+    reg.ticks = 0
+    reg.lastDuration = nil
+    reg.avgDuration = nil
+    reg.lastError = nil
+
     local function step()
         if Ess.Loop._reg[id] ~= reg or reg.gen ~= myGen then return end -- superseded or explicitly stopped
+        local t0 = Ess.Time.stamp()
         local ok, keepGoing = pcall(tickFn)
+        local dt = Ess.Time.elapsed(t0)
+        reg.ticks = reg.ticks + 1
+        reg.lastDuration = dt
+        -- Exponential moving average (weight 0.2) instead of a running total/count -- deliberately favors
+        -- recent behavior over all-time history, so a loop that WAS slow at first but has since settled
+        -- reads as settled, not permanently dragged down by its own startup cost.
+        reg.avgDuration = reg.avgDuration and (reg.avgDuration + (dt - reg.avgDuration) * 0.2) or dt
         if not ok then
+            reg.lastError = tostring(keepGoing)
             Ess.Log("Loop '" .. tostring(id) .. "' tick error: " .. tostring(keepGoing))
             keepGoing = false
         end
@@ -66,5 +96,42 @@ end
 
 function Ess.Loop.isRunning(id)
     return Ess.Loop._reg[id] ~= nil
+end
+
+-- Ess.Loop.stats(id) -> { interval, ticks, lastDuration, avgDuration, lastError } | nil
+-- A snapshot, not a live reference -- safe to hold onto and print without it changing under you.
+function Ess.Loop.stats(id)
+    local reg = Ess.Loop._reg[id]
+    if not reg then return nil end
+    return {
+        interval = reg.interval,
+        ticks = reg.ticks,
+        lastDuration = reg.lastDuration,
+        avgDuration = reg.avgDuration,
+        lastError = reg.lastError,
+    }
+end
+
+-- Ess.Loop.list() -> array of { id=, interval=, ticks=, lastDuration=, avgDuration=, lastError= }
+-- Sorted by id for stable, predictable ordering across repeated calls (plain pairs() iteration order
+-- isn't guaranteed) -- the shape a dashboard/monitor wants to poll on an interval and just render.
+function Ess.Loop.list()
+    local ids = {}
+    for id in pairs(Ess.Loop._reg) do ids[#ids + 1] = id end
+    table.sort(ids, function(a, b) return tostring(a) < tostring(b) end)
+
+    local out = {}
+    for _, id in ipairs(ids) do
+        local reg = Ess.Loop._reg[id]
+        out[#out + 1] = {
+            id = id,
+            interval = reg.interval,
+            ticks = reg.ticks,
+            lastDuration = reg.lastDuration,
+            avgDuration = reg.avgDuration,
+            lastError = reg.lastError,
+        }
+    end
+    return out
 end
 

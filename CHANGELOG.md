@@ -9,6 +9,17 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+### Added
+
+- **`Ess.Loop.stats(id)` / `Ess.Loop.list()`** — introspection into the shared heartbeat registry: each
+  loop's `interval`, `ticks` (count since last `start()`), `lastDuration`/`avgDuration` (real wall-clock
+  tick cost, via `Ess.Time.stamp()`/`.elapsed()`, EMA-smoothed), and `lastError`. Lets a monitor catch a
+  loop whose tick is expensive relative to its own interval — the actual, measurable version of "this
+  poller feels heavy" instead of guessing from framerate. Purely additive: `start()`/`stop()`/`isRunning()`
+  are unchanged, and every existing call site (20+ files) only ever used that public surface, never
+  `Ess.Loop._reg`'s internal shape directly, so extending it is backwards-compatible by construction —
+  confirmed by grep before making the change, not assumed.
+
 ## [0.3.2]
 
 ### Changed

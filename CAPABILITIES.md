@@ -76,7 +76,7 @@ what's used above, see [wiki.mercs2.tools/reference.html](https://wiki.mercs2.to
 | Namespace | What it's for | Key calls |
 |---|---|---|
 | `Ess.Time` | All wall-clock timing (survives world-pause) | `.stamp()`/`.elapsed(s)`/`.mark(s)` (explicit, real-time), `.mainStamp()` (the pausable/scaled GAME clock — freezes with pause and tracks `.scale`; use it for gameplay cooldowns, `.stamp()` for UI/real-world timing), `.cooldown(seconds)` → `ready()`, `.clock(maxDelta)` → `:delta()` (auto-advancing per-frame dt), `.scale(n)`/`.restoreScale()`, `.format(sec, tenths)`; `Ess.Easy.Time.slowmo(n, seconds)` |
-| `Ess.Loop` | The one shared reload-safe heartbeat | `.start(id, interval, tickFn)`, `.stop(id)`, `.isRunning(id)` |
+| `Ess.Loop` | The one shared reload-safe heartbeat | `.start(id, interval, tickFn)`, `.stop(id)`, `.isRunning(id)`; `.stats(id)` / `.list()` — introspection (interval, tick count, last/avg real tick duration via `Ess.Time`, last error) for spotting a loop whose tick is expensive relative to its own interval |
 | `Ess.Input` | The only correct key-polling shape + device query | `.poll()` → `{pressed, down(vk)}` (owns the edge events), `.held(vk)` (level check — "is it down right now"; safe to call from any number of loops without eating `.poll()`'s edges), `.clear()` (flush the key buffer), `.VkToChar(vk, shift)`, `.usingController()`, `.hijackController(onInput)` |
 | `Ess.Keys` | Bind several hotkeys in ONE script (a toolkit) | `.on(key, fn)` (key = VK or name `"F5"`/`"space"`/`"a"`; `fn(bShift)`), `.off/.clear/.isBound`, `.vk(name)` — edge-triggered dispatch on one shared loop |
 | `Ess.TextConsole` | A typed-input console, no `.gfx` asset needed | `.open{ onSubmit=, … }`, `.close()`, `.isOpen()` |
