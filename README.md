@@ -16,7 +16,8 @@ helpers rather than being absorbed itself.
 
 **New here?** [GETTING_STARTED.md](GETTING_STARTED.md) — install Ess and write your first keypress mod in a
 few minutes. **Full reference:** [CAPABILITIES.md](CAPABILITIES.md) — a clean, current-state map of
-everything `Ess` does, organized by what you reach for and tier-aware. For the design rationale and full
+everything `Ess` does, organized by what you reach for and tier-aware. Something not working?
+[TROUBLESHOOTING.md](TROUBLESHOOTING.md) covers the common failure points. For the design rationale and full
 build history (every bug found, every pivot), see [FEATURE_SHEET.md](FEATURE_SHEET.md). **Extending Ess** (or
 writing your own Mercs2 Lua)? [CONTRIBUTING.md](CONTRIBUTING.md) covers the build, the three verification
 gates, and the confirmed engine rules to respect.
@@ -24,6 +25,7 @@ gates, and the confirmed engine rules to respect.
 ## Layout
 
 - `CAPABILITIES.md` — **current-state capability reference; read this first** to see what Ess can do now.
+- `TROUBLESHOOTING.md` — symptom-first fixes for the common install/mod-authoring failure points.
 - `FEATURE_SHEET.md` — the original design doc + append-only build log (the *why* and the history).
 - `src/` — per-namespace source files, `NN_name.lua` (numeric prefix = load/dependency order, not
   alphabetical — see `build/merge.py`'s own comments for why). Roughly: `00`–`14` core/identity/query,
@@ -35,11 +37,13 @@ gates, and the confirmed engine rules to respect.
   "Tiered access model" section.
 - `build/merge.py` — concatenates `src/*.lua` (in an explicit dependency order, not alphabetical) into
   one deployable `dist/Ess.lua`. Run `python build/merge.py` from anywhere; it resolves its own paths.
-- `build/package.py` — the **release build action**: runs `merge.py`, then zips a fresh `1_Ess.lua`, the
-  `data/vz-patch.wad` UI patch, the `samples/OnKey/` demos, and the recipe catalog into
-  `dist/Ess-<version>.zip`, laid out in the game's own folder structure (`scripts/OnLoad/` + `scripts/OnKey/`
-  + `data/`) so a user just extracts it over their Mercenaries 2 install. `Ess-README.txt` inside carries the
-  `lua_loader.ini` lines. Attach the zip to a GitHub Release (`gh release create v<version> dist/Ess-<version>.zip`).
+- `build/package.py` — the **release build action**: runs `merge.py`, then zips a fresh `1_Ess.lua` and the
+  `data/vz-patch.wad` UI patch into `dist/Ess-<version>.zip`'s game folder structure (`scripts/OnLoad/` +
+  `data/`) so a user just extracts it over their Mercenaries 2 install — plus the recipe catalog and the
+  `samples/demos/` bind-to-a-key demos, bundled as **reference only** under `Ess-samples/` (not deployed
+  anywhere; copy one into your own `scripts/OnKey/` if you want it running). `Ess-README.txt` inside
+  carries the `lua_loader.ini` line. Attach the zip to a GitHub Release
+  (`gh release create v<version> dist/Ess-<version>.zip`).
 - `dist/` — the generated file(s). **Gitignored, not committed** — build/package them yourself before shipping.
 - `tools/` — testing infrastructure (not part of the `Ess` library itself). `xpad.py` is a virtual
   Xbox 360 controller (ViGEmBus + `vgamepad`), driven over a local TCP socket — must be started before the

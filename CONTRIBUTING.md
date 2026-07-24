@@ -12,7 +12,7 @@ build/merge.py       concatenates src/ (in an explicit dependency order) into di
 build/package.py      builds the release zip in game-folder layout
 dist/                 generated, gitignored -- build it, don't commit it
 samples/recipes/      short "how do I X?" scripts; each is a living doc AND a smoke test
-samples/OnKey/        bind-to-a-key interactive demos
+samples/demos/         bind-to-a-key interactive demos (reference only -- not deployed by Ess itself)
 tools/                testing infra (checkpure / smoke / lua_repl / launch / xpad) -- see tools/README.md
 ```
 

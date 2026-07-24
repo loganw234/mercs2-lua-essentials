@@ -1,13 +1,16 @@
-local KEYVAL = "f11"   -- toggle key (add "RoadLogger.lua=f11" under [OnKey])
+local KEYVAL = "free"   -- toggle key -- F1-F12 are the suggested keys for this folder's other demos, so
+                        -- bind this to whatever's free for you
 
 -- RoadLogger.lua -- summon an INVINCIBLE Veyron and auto-log your position every 0.25s as you drive, to
--- build a dense road map with real height (y) data. Press F11 to START (summons the car in front + hops
--- you in, or reuses the car you're already in); press F11 again to STOP and print how many points you got.
--- The Veyron is a low car, so its logged y sits close to the road surface -- a good height reference.
+-- build a dense road map with real height (y) data. Press your bound key to START (summons the car in
+-- front + hops you in, or reuses the car you're already in); press it again to STOP and print how many
+-- points you got. The Veyron is a low car, so its logged y sits close to the road surface -- a good
+-- height reference.
 --
 -- Read the trail back with:  grep "\[ROAD\]" "<game>/scripts/lua_loader_printf.log"
 --   -> lines like:  [ROAD] 142  x=2739.70  y=-13.80  z=-786.10  yaw=92.8
--- DEPLOY: Ess (dist/Ess.lua) as an OnLoad script; this under scripts/OnKey/ with  RoadLogger.lua=f11.
+-- DEPLOY: this is reference code, not installed by Ess. Copy it into scripts/OnKey/ yourself and bind it
+-- to any free key, e.g.  RoadLogger.lua=Insert  under [OnKey].
 
 local Ess = _G.Ess
 if not (Ess and Ess.Easy and Ess.Easy.Vehicle and Ess.Loop) then
@@ -42,7 +45,7 @@ if not veh then Ess.Log("[roadlog] couldn't get or summon a vehicle"); return en
 Ess.Object.setInvincible(veh, true, "RoadLogger")
 
 S.on, S.veh, S.n, S.lx, S.lz = true, veh, 0, nil, nil
-Ess.Log("[roadlog] STARTED -- logging every " .. INTERVAL .. "s in an invincible Veyron (F11 again to stop)")
+Ess.Log("[roadlog] STARTED -- logging every " .. INTERVAL .. "s in an invincible Veyron (press your bound key again to stop)")
 
 Ess.Loop.start(LOOP_ID, INTERVAL, function()
     if not S.on then return false end

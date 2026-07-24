@@ -75,5 +75,5 @@ line. Same call, nicer feedback — nothing to change unless you were relying on
 
 ## Reference
 
-`samples/OnKey/CustomMenu.lua` (F4) is a complete working menu on `Ess.UI.Menu` — diff your script against
+`samples/demos/CustomMenu.lua` (F4) is a complete working menu on `Ess.UI.Menu` — diff your script against
 it if anything looks off.

@@ -9,6 +9,37 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+## [0.3.2]
+
+### Changed
+
+- **`samples/OnKey/` renamed to `samples/demos/`** and reframed as reference-only, matching
+  `samples/recipes/`. The bind-to-a-key demos are no longer auto-deployed into `scripts/OnKey/` or
+  pre-bound to keys by the release zip (`build/package.py`) — earlier releases shipped all 12 official
+  demos pre-registered across F1-F12, which silently claimed every F-key before a new modder had bound
+  their own first mod (the exact key `GETTING_STARTED.md`'s own tutorial suggests). Copy a demo into your
+  own `scripts/OnKey/` and bind it yourself; each file's header comment says what it does and suggests a
+  key.
+- `samples/README.md`'s Interactive scripts table now also documents `CollectibleFinder`, `LocationLogger`,
+  `RoadLogger`, and `TrailerHitch` — four working demos that existed in the folder but weren't catalogued
+  or shipped. `LocationLogger`/`RoadLogger` no longer hardcode a default key that collided with the
+  documented `CreatorToolkit` (F8) / `WaveSurvival` (F11) bindings; all four now suggest "free" like
+  `CollectibleFinder`/`TrailerHitch` already did.
+
+### Added
+
+- **`TROUBLESHOOTING.md`** — symptom-first fixes for the common install and mod-authoring failure points,
+  composed from facts already confirmed elsewhere in this repo. Linked from `README.md` and
+  `GETTING_STARTED.md`, and bundled into the release zip.
+- `GETTING_STARTED.md` and `CAPABILITIES.md` now link to the community loader/resources hub
+  ([mercs2.tools](https://mercs2.tools/)) and the magic-strings reference
+  ([wiki.mercs2.tools/reference.html](https://wiki.mercs2.tools/reference.html)).
+
+### Fixed
+
+- `GETTING_STARTED.md`'s example ready-line was still `[Ess] v0.1.1 ready` against a current `0.3.1` —
+  now worded version-agnostically so it won't go stale at the next release.
+
 ## [0.3.1]
 
 **The 2026-07-22 bindings-pass harvest.** A live-probe mapping of the engine's never-called `luaL_Reg`

@@ -1,12 +1,15 @@
 # Ess samples
 
 Everything here is meant to keep working release to release — it's the framework's **living documentation**
-and its **pre-release smoke test** at the same time.
+and its **pre-release smoke test** at the same time. Nothing under `samples/` is deployed by Ess itself —
+copy in whatever you actually want to run.
 
 - **`recipes/`** — short "**how do I achieve X?**" scripts, one task each. Read them to learn the idiom; run
   them to prove the framework still works. Each ends with a self-verifying `[SMOKE] <name>: PASS/FAIL` log
   line, and any that spawn things clean up after themselves a few seconds later.
-- **`OnKey/`** — larger interactive demos you bind to a key and watch.
+- **`demos/`** — larger interactive demos you bind to a key and watch. Copy the ones you want into your own
+  `scripts/OnKey/` and add a line for each under `[OnKey]` in `lua_loader.ini` — each file's header comment
+  says what it does and suggests a key.
 
 Each file guards on `_G.Ess` and bails cleanly if the framework isn't loaded, so nothing errors deep in a
 handler.
@@ -90,10 +93,13 @@ handler.
 | `an_arena` | run a save-safe ephemeral "arena" / minigame mode | Sandbox |
 | `override_safely` | change game logic without the tail-call crash; merge into a live table | Override |
 
-## Interactive scripts (`samples/OnKey/`)
+## Interactive scripts (`samples/demos/`)
 
-Larger bind-to-a-key scripts — demos to watch, plus the mission-authoring tool. Deploy the ones you want into
-the game's `scripts/OnKey/` and bind them in `lua_loader.ini` (e.g. `MissionForge.lua=F7` under `[OnKey]`).
+Larger bind-to-a-key scripts — demos to watch, plus the mission-authoring tool. None of these ship
+pre-installed or pre-bound; copy the ones you want into the game's `scripts/OnKey/` and bind them in
+`lua_loader.ini` (e.g. `MissionForge.lua=F7` under `[OnKey]`). The twelve below suggest the F1-F12 keys
+they were built and tested against — free to reassign. The four after that don't suggest a specific key
+(bind them to anything you're not already using).
 
 | Script | Key | What it is |
 |---|---|---|
@@ -109,6 +115,10 @@ the game's `scripts/OnKey/` and bind them in `lua_loader.ini` (e.g. `MissionForg
 | `WaveSurvival` | F11 | **a horde mode** — escalating enemy waves rush you; clear one to heal (+ a crate every 3rd), press G for a danger-close airstrike. A HUD tracks wave/kills. (Spawn.enemies + On.death + Support + UI + Keys) |
 | `BossFight` | F12 | **a mini-boss** with a live health bar that regenerates until 50%, then enrages (adds + screen shake); beat it for cash. (UI.Bar + On.healthBelow + On.death + Camera + Loop) |
 | `EncounterDirector` | F1 | **a random-encounter roller** — each press spawns a different beat: ambush / bounty / guarded supply drop / dodge-the-artillery / 3-checkpoint time trial. (RNG:pick + Objective + Quest + Support) |
+| `CollectibleFinder` | free | **a proximity-marker fix-up** — an Ess reimplementation of a community collectible-finder script: marks pickups on radar/PDA/world as you approach and clears each marker the instant you grab it, with leak-proof teardown on toggle-off. (Mark + On.death + Track) |
+| `LocationLogger` | free | **name-a-spot logger** — pop the Ess text console, type a label for where you're standing, press Enter to log that label + your exact coords. (TextConsole + Player.pose) |
+| `RoadLogger` | free | **road-trace logger** — summon an invincible car and auto-log your position (with real height) every 0.25s as you drive, to build a dense road map. (Easy.Vehicle + Loop) |
+| `TrailerHitch` | free | **rigid-hitch demo** — spawn a truck + trailer and weld the trailer onto the truck's hitch hardpoint; follows through movement. (Object.Attach) |
 
 ## Running the smoke test
 

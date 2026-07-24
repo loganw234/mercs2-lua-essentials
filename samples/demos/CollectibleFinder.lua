@@ -1,4 +1,5 @@
-local KEYVAL = "free"   -- toggle key -- F1-F12 are taken by the bundled demos, so bind this to a free slot
+local KEYVAL = "free"   -- toggle key -- F1-F12 are the suggested keys for this folder's other demos, so
+                        -- bind this to whatever's free for you
 
 -- CollectibleFinder.lua -- an Ess reimplementation of a community proximity-marker script. Marks "SpareParts"
 -- collectible boxes on radar / PDA / world as you approach, and CLEARS each marker the instant you collect

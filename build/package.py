@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """build/package.py -- build the release zip for Ess.
 
-Produces dist/Ess-<version>.zip laid out in the GAME'S OWN folder structure, so a user just extracts it
-into their Mercenaries 2 install and every file lands where it belongs:
+Produces dist/Ess-<version>.zip laid out so a user just extracts it into their Mercenaries 2 install and
+the framework lands where it belongs:
 
     data/vz-patch.wad            the UI .gfx movies Ess.UI renders through (menus/toasts/board/chat)
     scripts/OnLoad/1_Ess.lua     the framework itself -- a FRESH build (this runs build/merge.py first)
-    scripts/OnKey/*.lua          the bind-to-a-key demos (CustomMenu, CoopChat, MissionForge, ...)
-    Ess-samples/                 the recipe catalog + docs (reference only -- Ess-* prefixed so it's
-                                 obviously separate from the files that deploy into the game)
-    Ess-README.txt               what's in the zip + install steps (incl. the lua_loader.ini lines)
+    Ess-samples/recipes/         the recipe catalog (reference only -- also the smoke test)
+    Ess-samples/demos/           the bind-to-a-key demos (CustomMenu, CoopChat, MissionForge, ...) --
+                                 reference only, NOT deployed into scripts/OnKey/. A modder who wants one
+                                 copies it in themselves and picks their own key; see each file's header.
+    Ess-README.txt               what's in the zip + install steps (incl. the lua_loader.ini line)
+
+Only the framework itself (1_Ess.lua + vz-patch.wad) is actually installed by this zip. Earlier releases
+also auto-deployed the OnKey demos into scripts/OnKey/ with pre-suggested keys covering all of F1-F12 --
+that silently ate every F-key before a new modder had bound their own first mod. Demos are reference-only
+now, same tier as the recipes.
 
 Deliberately does NOT bundle a scripts/lua_loader.ini: extracting over a game install would clobber the
-user's existing loader config (and their lua-bridge line). The exact [OnLoad]/[OnKey] lines to MERGE in
-are in Ess-README.txt instead -- matching how ContractFramework0.1.zip shipped.
+user's existing loader config (and their lua-bridge line). The exact [OnLoad] line to MERGE in is in
+Ess-README.txt instead -- matching how ContractFramework0.1.zip shipped.
 
 Usage: python build/package.py   (run from anywhere -- paths resolve off this file's own location)
 Output: dist/Ess-<version>.zip
@@ -31,19 +37,6 @@ DATA = ROOT / "data"
 SAMPLES = ROOT / "samples"
 TOOLS = ROOT / "tools"
 
-# the bind-to-a-key demos to ship (deployable into scripts/OnKey/). Kept as an explicit list, not a glob,
-# so adding a WIP demo to samples/OnKey/ doesn't silently ship it in a release.
-ONKEY = ["StarterMod.lua", "Playground.lua", "CreatorToolkit.lua", "VehicleInspector.lua", "CustomMenu.lua",
-         "CoopChat.lua", "MissionForge.lua", "CinematicDemo.lua", "CarStunt.lua",
-         "WaveSurvival.lua", "BossFight.lua", "EncounterDirector.lua"]
-
-# the suggested key bindings shown in the install notes (must match samples/README.md's OnKey table).
-ONKEY_KEYS = {
-    "StarterMod.lua": "F5", "Playground.lua": "F3", "CreatorToolkit.lua": "F8", "VehicleInspector.lua": "F6",
-    "CustomMenu.lua": "F4", "CoopChat.lua": "F2", "MissionForge.lua": "F7", "CinematicDemo.lua": "F9",
-    "CarStunt.lua": "F10", "WaveSurvival.lua": "F11", "BossFight.lua": "F12", "EncounterDirector.lua": "F1",
-}
-
 
 def version():
     txt = (SRC / "00_core.lua").read_text(encoding="utf-8")
@@ -52,30 +45,31 @@ def version():
 
 
 def install_notes(ver):
-    onkey_lines = "\n".join("        %s=%s" % (n, ONKEY_KEYS[n]) for n in ONKEY)
     return (
         "Ess -- foundational Lua library for Mercenaries 2  (v%(ver)s)\n"
         "==========================================================\n\n"
         "WHAT'S IN THIS ZIP\n"
         "  data/vz-patch.wad          the UI .gfx movies Ess.UI renders through (menus/toasts/board/chat)\n"
         "  scripts/OnLoad/1_Ess.lua   the framework itself (one merged file)\n"
-        "  scripts/OnKey/*.lua        optional demos you bind to keys (see below)\n"
-        "  Ess-samples/               short \"how do I X?\" recipe scripts + docs (reference; also the smoke test)\n"
+        "  Ess-samples/recipes/       short \"how do I X?\" recipe scripts + docs (reference; also the smoke test)\n"
+        "  Ess-samples/demos/         bigger bind-to-a-key demos -- reference only, not installed for you (see below)\n"
         "  Ess-GETTING_STARTED.md     install -> your first keypress mod (start here); Ess-CAPABILITIES.md = full API\n"
+        "  Ess-TROUBLESHOOTING.md     what to check if something doesn't work\n"
         "  mercs2-lua-ide.html        a browser Lua editor -- double-click it, hit Connect, write Ess in your live game\n\n"
         "INSTALL\n"
         "  1. Extract this zip INTO your Mercenaries 2 folder (the one with Mercenaries2.exe). The data/\n"
         "     and scripts/ folders merge into the game's existing ones; nothing here touches a save.\n"
-        "  2. Register the scripts in scripts/lua_loader.ini -- ADD these lines (MERGE into any existing\n"
-        "     [OnLoad]/[OnKey] sections; do NOT overwrite the file, it also holds your lua-bridge setup):\n\n"
+        "  2. Register Ess in scripts/lua_loader.ini -- ADD this line (MERGE into any existing [OnLoad]\n"
+        "     section; do NOT overwrite the file, it also holds your lua-bridge setup):\n\n"
         "        [OnLoad]\n"
         "        1_Ess.lua=5\n\n"
-        "        [OnKey]\n"
-        "%(onkey)s\n\n"
-        "  3. Launch the game. \"[Ess] v%(ver)s ready\" appears in scripts/lua_loader_printf.log once it loads.\n\n"
-        "  Only 1_Ess.lua + data/vz-patch.wad are required; the OnKey demos are optional. Every other mod\n"
-        "  just reads the global _G.Ess table. Learn the API by example from Ess-samples/recipes/.\n"
-    ) % {"ver": ver, "onkey": onkey_lines}
+        "  3. Launch the game. \"[Ess] v%(ver)s ready\" appears in scripts/lua_loader_printf.log once it loads.\n"
+        "     Nothing? See Ess-TROUBLESHOOTING.md.\n\n"
+        "  That's it -- every other mod just reads the global _G.Ess table. Learn the API by example from\n"
+        "  Ess-samples/recipes/. Want to try one of the bind-to-a-key demos in Ess-samples/demos/? Copy the\n"
+        "  .lua file into scripts/OnKey/ and add a line for it under [OnKey] in lua_loader.ini -- each\n"
+        "  file's own header comment says what it does and suggests a key.\n"
+    ) % {"ver": ver}
 
 
 def main():
@@ -99,22 +93,21 @@ def main():
         z.write(ess, "scripts/OnLoad/1_Ess.lua"); files += 1
         z.write(wad, "data/vz-patch.wad"); files += 1
 
-        for name in ONKEY:
-            p = SAMPLES / "OnKey" / name
-            if p.exists():
-                z.write(p, "scripts/OnKey/" + name); files += 1
-            else:
-                print("[package] WARN: OnKey demo not found, skipping: %s" % name)
-
         for p in sorted((SAMPLES / "recipes").glob("*.lua")):
             z.write(p, "Ess-samples/recipes/" + p.name); files += 1
+        # the bind-to-a-key demos, bundled as REFERENCE ONLY (Ess-samples/, not scripts/OnKey/) -- a
+        # modder who wants one copies it into their own scripts/OnKey/ and picks their own key. Earlier
+        # releases deployed these directly with pre-suggested keys covering all of F1-F12, which silently
+        # claimed every F-key before a new modder had bound their own first mod.
+        for p in sorted((SAMPLES / "demos").glob("*.lua")):
+            z.write(p, "Ess-samples/demos/" + p.name); files += 1
         # every top-level doc under samples/ (README.md, PORTING_MENUS.md, and anything added later) --
         # a glob so a new sample doc is shipped automatically instead of silently left out of the zip.
         for p in sorted(SAMPLES.glob("*.md")):
             z.write(p, "Ess-samples/" + p.name); files += 1
 
         # the top-level guides, so a downloaded zip is self-contained for LEARNING, not just installing
-        for doc in ("GETTING_STARTED.md", "CAPABILITIES.md"):
+        for doc in ("GETTING_STARTED.md", "CAPABILITIES.md", "TROUBLESHOOTING.md"):
             p = ROOT / doc
             if p.exists():
                 z.write(p, "Ess-" + doc); files += 1

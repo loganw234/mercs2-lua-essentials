@@ -40,7 +40,8 @@ each is one guessable call:
 | `Ess.Easy.Fun.dance()` / `.fanfare(win)` | technoviking dance / victory-or-fail music sting |
 
 All use confirmed template names / real engine functions. `Ess.Easy.Console.open()` browses the full set
-in-game.
+in-game. For the full catalog of spawn templates, FX names, skin codes, and other magic strings beyond
+what's used above, see [wiki.mercs2.tools/reference.html](https://wiki.mercs2.tools/reference.html).
 
 ---
 

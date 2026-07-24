@@ -1,4 +1,5 @@
-local KEYVAL = "free"   -- toggle key -- F1-F12 are taken by the bundled demos, so bind this to a free slot
+local KEYVAL = "free"   -- toggle key -- F1-F12 are the suggested keys for this folder's other demos, so
+                        -- bind this to whatever's free for you
 
 -- TrailerHitch.lua -- spawn a truck + a fuel trailer ahead of you and rigidly HITCH the trailer to the
 -- truck's hitch hardpoint. Demonstrates the engine's "weld object B onto a hardpoint on object A" primitive:

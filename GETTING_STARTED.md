@@ -8,20 +8,23 @@ rediscovering which call crashes the engine.
 
 This guide gets you from nothing to a working keypress mod. It assumes the lua-bridge loader is already
 installed in your game (that's the one prerequisite Ess doesn't provide — if `scripts/lua_loader.ini` exists
-in your game folder, you have it).
+in your game folder, you have it). Don't have it yet? Community resources, including the loader, live at
+**[mercs2.tools](https://mercs2.tools/)** — start there.
 
 ---
 
 ## 1. Install Ess
 
 From a release zip (recommended — [Releases](https://github.com/loganw234/mercs2-lua-essentials/releases)),
-extract it over your game folder. It drops three things into place:
+extract it over your game folder. It drops two things into place:
 
 ```
 <game>/data/vz-patch.wad             the .gfx movies Ess.UI renders through (menus, toasts, chat)
 <game>/scripts/OnLoad/1_Ess.lua      the framework itself
-<game>/scripts/OnKey/*.lua           optional bind-to-a-key demos
 ```
+
+(The zip also carries `Ess-samples/` — recipes and bigger bind-to-a-key demos — but those are reference
+only, not installed anywhere; see "Where to go next" below.)
 
 Then register the framework in `scripts/lua_loader.ini` — **add** this line (merge it into any existing
 `[OnLoad]` section; don't overwrite the file):
@@ -31,8 +34,9 @@ Then register the framework in `scripts/lua_loader.ini` — **add** this line (m
 1_Ess.lua=5
 ```
 
-Launch the game. When a level loads you'll see `[Ess] v0.1.1 ready` in `scripts/lua_loader_printf.log`.
-That's it — every other script can now use the global `Ess` table.
+Launch the game. When a level loads you'll see something like `[Ess] v0.3.2 ready` in
+`scripts/lua_loader_printf.log` (the version number bumps every release). That's it — every other script
+can now use the global `Ess` table. Don't see it? See [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ---
 
@@ -79,12 +83,17 @@ Bind it in `scripts/lua_loader.ini`:
 MyFirstMod.lua=F5
 ```
 
+(Any unused key works — F5 is just an example. Ess doesn't pre-install anything else, so nothing is
+already using it.)
+
 Relaunch (new script + new binding), load a game, press **F5**. A Veyron appears ahead of you and you're in
 it. You just wrote a mod.
 
 Everything you'll build is variations on this: guard on `_G.Ess`, then call into it. The
 [`samples/recipes/`](samples/recipes) folder is a couple dozen more of these, each a short "how do I *X*?" —
-read them to learn the idioms, they're the fastest way in.
+read them to learn the idioms, they're the fastest way in. Don't know a template name other than
+`"Veyron"`? The full reference of spawn templates, FX names, skin codes, and other magic strings lives at
+**[wiki.mercs2.tools/reference.html](https://wiki.mercs2.tools/reference.html)**.
 
 ---
 
@@ -154,10 +163,15 @@ every recipe as a self-test — a fast way to confirm a change didn't break a pu
 ## Where to go next
 
 - **[samples/recipes/](samples/recipes)** — short, runnable "how do I *X*?" scripts. The best way to learn.
-- **[samples/OnKey/](samples/OnKey)** — bigger bind-to-a-key demos, including the MissionForge mission
-  authoring tool.
+- **[samples/demos/](samples/demos)** — bigger bind-to-a-key demos, including the MissionForge mission
+  authoring tool. Reference only — copy the ones you want into your own `scripts/OnKey/` and bind them
+  yourself; see `samples/README.md` for what each one does and its suggested key.
 - **[CAPABILITIES.md](CAPABILITIES.md)** — the full, current API surface, grouped by what you reach for.
-- **`Ess.Easy.Console.open()`** — the same surface, browsable in-game.
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** — what to check if something didn't do what this guide said.
+- **[wiki.mercs2.tools/reference.html](https://wiki.mercs2.tools/reference.html)** — the full catalog of
+  spawn templates, FX names, skin codes, and other magic strings the recipes/demos only sample from.
+- **`Ess.Easy.Console.open()`** — the same API surface, browsable in-game.
 - **`Ess.Easy.Console.play()`** — the interactive **playground**: drill into the `Ess.Easy.*` one-liners by
   topic, *run* one live, and cycle its parameters to see exactly what each does — without writing any code.
-  Bind the `Playground` OnKey demo to a key (it ships in the release zip on **F3**) and press it in-game.
+  Copy `samples/demos/Playground.lua` into `scripts/OnKey/`, bind it to a key (F3 is what it was built and
+  tested against), and press it in-game.

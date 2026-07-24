@@ -1,11 +1,14 @@
-local KEYVAL = "f8"   -- must be in the first 10 lines (add "LocationLogger.lua=f8" under [OnKey])
+local KEYVAL = "free"   -- toggle key -- F1-F12 are the suggested keys for this folder's other demos, so
+                        -- bind this to whatever's free for you
 
 -- LocationLogger.lua -- a tiny worked example: pop up the Ess text console, type a name for the spot
 -- you're standing on, and on Enter log that label + your exact coordinates to lua_loader_printf.log.
 -- Shows Ess.TextConsole (typed input, no .gfx asset needed) + Ess.Player.pose (position + facing).
 --
--- Press F8, type e.g. "airfield south gate", press Enter -> the log gets a [LOCATION] line you can grep.
--- DEPLOY: Ess (dist/Ess.lua) as an OnLoad script; this under scripts/OnKey/ with  LocationLogger.lua=f8.
+-- Press your bound key, type e.g. "airfield south gate", press Enter -> the log gets a [LOCATION] line
+-- you can grep.
+-- DEPLOY: this is reference code, not installed by Ess. Copy it into scripts/OnKey/ yourself and bind it
+-- to any free key, e.g.  LocationLogger.lua=Insert  under [OnKey].
 
 local Ess = _G.Ess
 if not (Ess and Ess.TextConsole) then
