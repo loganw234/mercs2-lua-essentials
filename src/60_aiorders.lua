@@ -81,13 +81,23 @@ BEHAVIORS.move = function(tracker, o, guids)
     -- o.onComplete (optional) fires once every guid's own MoveTo goal has reported back, regardless of
     -- each individual outcome -- good enough for "the group is done moving," not a per-unit success guarantee.
     local pending = #guids
+    local function onUnitDone()
+        pending = pending - 1
+        if pending <= 0 then pcall(o.onComplete) end
+    end
     for _, g in ipairs(guids) do
         local a = actor(g)
-        aiGoal({ AIGuid = a, Goal = "MoveTo", Target = anchor, Priority = p, Force = true,
-                 Callback = o.onComplete and function()
-                     pending = pending - 1
-                     if pending <= 0 then pcall(o.onComplete) end
-                 end or nil })
+        -- CONFIRMED LIVE 2026-07-25: Ai.Goal can silently refuse to register at all (aiGoal returns a
+        -- falsy handle, no error -- the same class of silent no-op this file's header already documents
+        -- for other cases) -- when that happens for even ONE guid in the group, no native Callback EVER
+        -- arrives for it, so `pending` never reaches 0 and o.onComplete never fires for the WHOLE group,
+        -- even guids who completed fine. Confirmed via Ess.Followers.order("move", ...) issued to a
+        -- 2-unit team: neither unit's auto-resume-follow ever ran, while the identical order to a lone
+        -- unit worked every time. Counting an immediate registration failure as "done" right away (instead
+        -- of waiting on a Callback that's never coming) closes that hang.
+        local h = aiGoal({ AIGuid = a, Goal = "MoveTo", Target = anchor, Priority = p, Force = true,
+                 Callback = o.onComplete and onUnitDone or nil })
+        if o.onComplete and not h then onUnitDone() end
         haste(a, o.speed)
     end
 end
@@ -174,6 +184,12 @@ BEHAVIORS.patrol = function(tracker, o, guids)
     -- o.onComplete (optional, and only for a NON-looping route -- a loop never "finishes") fires once
     -- every guid has stepped off the end of its route.
     local pending = #guids
+    local function finishGuid()
+        if o.onComplete then
+            pending = pending - 1
+            if pending <= 0 then pcall(o.onComplete) end
+        end
+    end
     for _, g in ipairs(guids) do
         local a = actor(g); haste(a, o.speed)
         local i = 0
@@ -182,16 +198,19 @@ BEHAVIORS.patrol = function(tracker, o, guids)
             if i > #pts then
                 if loop then i = 1
                 else
-                    if o.onComplete then
-                        pending = pending - 1
-                        if pending <= 0 then pcall(o.onComplete) end
-                    end
+                    finishGuid()
                     return
                 end
             end
             local anchor = anchors[i]; if not anchor then return end
-            aiGoal({ AIGuid = a, Goal = "MoveTo", Target = anchor, Priority = p, Force = true,
+            -- CONFIRMED LIVE 2026-07-25 (see move's own identical fix): Ai.Goal can silently refuse to
+            -- register at all -- no handle, no error, and no Callback EVER arrives for this waypoint. Left
+            -- unhandled, this guid's route (and, for a non-looping route, the WHOLE group's onComplete)
+            -- hangs forever on a single blocked waypoint. Ending this guid's route right there (same as
+            -- running off the end of pts) beats waiting on a Callback that's never coming.
+            local h = aiGoal({ AIGuid = a, Goal = "MoveTo", Target = anchor, Priority = p, Force = true,
                      Callback = function(_, State) if State == 1 then step() end end })
+            if not h then finishGuid() end
         end
         step()
     end

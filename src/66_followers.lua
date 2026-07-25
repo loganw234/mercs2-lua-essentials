@@ -18,8 +18,17 @@
 --   Ess.Followers.count() -> n
 --   Ess.Followers.isFollower(guid) -> bool
 --   Ess.Followers.order(behavior, opts)           command the whole roster -- any of AIOrders' 11 behaviors
+--   Ess.Followers._orderScoped(scope, guids, behavior, opts)   the scoped core order() itself calls with
+--                                                  scope="__all__" -- Ess.Squad.orderTeam reuses this
+--                                                  directly to command a SUBSET without racing order()
+--   Ess.Followers._issue(guids, behavior, opts)    _orderScoped's own core, no marker/auto-resume wiring --
+--                                                  Ess.Squad.queue reuses this for step-by-step sequencing,
+--                                                  which needs its OWN completion signal per step instead
 --   Ess.Followers.setMarkersEnabled(bOn)           opt-in floating world markers, see below
 --   Ess.Followers.markersEnabled() -> bool
+--   Ess.Followers.on(eventName, fn) -> stop()      generic pub/sub -- "onRecruit"/"onDismiss"(guid,wasKilled)
+--                                                  /"onFollowerDown" today; Ess.Squad forwards its own
+--                                                  .on(...) to this SAME bus for its higher-level events
 --
 -- opts (recruit): same target/minDistance/maxDistance/moveDistance/speed opts BEHAVIORS.follow accepts,
 -- plus opts.target (defaults to Ess.Player.character(0), same as AIOrders' own follow default).
@@ -44,12 +53,21 @@
 -- Follow role. Ai.Role("Follow") wants its subject to board a vehicle WITH the target, so reissuing it on a
 -- follower who's currently DRIVING their own vehicle (after orderEnter, say) makes them climb back OUT to
 -- go do that instead -- the "gunner runs out the instant an order finishes" bug this exists to prevent. A
--- driver instead gets a reissued-MoveTo escort loop (the pre-native-Role approach this project's own
--- `follow` used before, scoped here to just the driver); a passenger/gunner is left completely alone (they
--- already go wherever the vehicle goes, and touching their Role/Goal at all risks ejecting them for
--- nothing); on foot uses the plain native Follow role, unchanged. No separate "who's in which vehicle"
--- tracker needed for any of this -- Ess.Object.vehicleOf(guid) answers it live, same confirmed finding as
--- Ess.Easy.Followers.orderEnter's own header.
+-- driver gets a reissued-MoveTo escort loop (see startFollowLoop); a passenger/gunner is left completely
+-- alone (they already go wherever the vehicle goes, and touching their Role/Goal at all risks ejecting them
+-- for nothing). No separate "who's in which vehicle" tracker needed for any of this -- Ess.Object.vehicleOf
+-- (guid) answers it live, same confirmed finding as Ess.Easy.Followers.orderEnter's own header.
+--
+-- RESUME ALSO USES THE LOOP ON FOOT (CONFIRMED LIVE 2026-07-25, superseding an earlier assumption in this
+-- section that on-foot just reissues the plain native Follow role unchanged): it doesn't. A follower taken
+-- off native Follow for ANY order snaps back hostile toward `target` within 1-3 seconds on its own, and
+-- reissuing Ai.Role("Follow") afterward returns a truthy handle but never actually moves them -- both
+-- confirmed side-by-side against an untouched follower on native Follow the whole time, who never drifted
+-- and moved fine. Native Follow is reliable ONLY on its first engagement, straight from recruit() (left
+-- unchanged) -- every RESUME, on foot or not, now goes through startFollowLoop instead, which also re-pins
+-- feeling every tick to stop the drift. See startFollowLoop's own header for the full account and the one
+-- accepted tradeoff (a resumed follower loses native Follow's free vehicle-boarding-with-you convenience
+-- until explicitly orderEnter()'d again).
 
 local Ess = _G.Ess
 Ess.Followers = Ess.Followers or {}
@@ -57,15 +75,49 @@ Ess.Followers = Ess.Followers or {}
 local roster = {}      -- guid-key -> { stop = <Ess.On.death stop fn>, target = <the guid it follows> }
 local order_ = {}      -- insertion-ordered guid list, for a stable list()
 local marks = {}       -- guid-key -> Ess.Mark.object handle (only populated while markers are enabled)
-local orderMarks = {}  -- Ess.Mark.zone handles from the CURRENT order's destination(s)
+local orderMarksByScope = {}  -- scope -> Ess.Mark.zone handles from THAT scope's current order destination(s)
+                              -- -- keyed (not a single shared slot) so Ess.Squad can issue an order to one
+                              -- team without clearing/racing another team's own in-flight order. "__all__"
+                              -- is Ess.Followers.order()'s own scope (the whole roster).
 local markersOn = true
 local colorStep = 0
-local escortLoops = {}   -- guid-key -> Ess.Loop id, for a vehicle DRIVER being escorted via reissued MoveTo
-                          -- instead of the native Follow role -- see smartFollow() below for why
-local escortAnchors = {} -- guid-key -> the ONE disposable TinyGeometry each escort loop repositions and
-                          -- targets every tick (see startEscort) -- removed the moment the loop stops
+local followLoops = {}   -- guid-key -> Ess.Loop id, for a guid being followed-back via reissued MoveTo
+                          -- instead of the native Follow role -- see smartFollow() below for why. Used for
+                          -- BOTH a vehicle driver's escort AND an on-foot follower's RESUME (see
+                          -- startFollowLoop's header -- native Follow turned out not to be reliably
+                          -- re-engageable once broken, on foot or not).
+local followLoopAnchors = {} -- guid-key -> the ONE disposable TinyGeometry each loop repositions and
+                              -- targets every tick (see startFollowLoop) -- removed the moment the loop stops
 
 local function key(guid) return tostring(guid) end
+
+-- ---- generic event bus ----------------------------------------------------------------------------------
+-- A plain string-keyed pub/sub, the one piece neither Ess.On (engine-signal-specific: death/area/health/
+-- vehicle/tick/labeled) nor Ess.Event (raw engine Event handles) provides. Lives here because Followers'
+-- own lifecycle (recruit/dismiss/death) is the first thing worth observing without polling; Ess.Squad
+-- forwards Ess.Squad.on to this SAME bus (see 67_squad.lua) rather than keeping a second one, so its own
+-- higher-level events (onStepComplete, onVehicleMounted, ...) fire through the identical mechanism.
+local listeners = {}   -- event name -> { fn, fn, ... }
+
+-- Ess.Followers.on(eventName, fn) -> stop() -- fn(...) whenever that event fires. Unknown event names are
+-- fine (just never fire) -- no fixed registry to keep in sync as new events get added elsewhere.
+function Ess.Followers.on(eventName, fn)
+    if not (eventName and fn) then return function() end end
+    listeners[eventName] = listeners[eventName] or {}
+    local bucket = listeners[eventName]
+    bucket[#bucket + 1] = fn
+    return function()
+        for i, f in ipairs(bucket) do
+            if f == fn then table.remove(bucket, i); break end
+        end
+    end
+end
+
+function Ess.Followers._emit(eventName, ...)
+    local bucket = listeners[eventName]
+    if not bucket then return end
+    for _, fn in ipairs(bucket) do pcall(fn, ...) end
+end
 
 -- ---- color cycling for the marker toggle -- see header for why golden-angle stepping ------------------
 local function hslToRgb(h, s, l)
@@ -125,14 +177,16 @@ end
 
 local ORDER_MARK_RGB = { 255, 255, 255 }   -- neutral white -- distinct from any follower's own cycled color
 
-local function clearOrderMarks()
-    for _, h in ipairs(orderMarks) do Ess.Mark.clear(h) end
-    orderMarks = {}
+local function clearOrderMarks(scope)
+    local existing = orderMarksByScope[scope]
+    if not existing then return end
+    for _, h in ipairs(existing) do Ess.Mark.clear(h) end
+    orderMarksByScope[scope] = nil
 end
 
--- markDestination(opts) -> handles -- returns the marks it created (rather than pushing straight onto the
--- shared orderMarks) so order() can clear THIS SPECIFIC batch when ITS order naturally completes, without
--- racing a newer order() call that's already replaced orderMarks with its own batch by then.
+-- markDestination(opts) -> handles -- returns the marks it created (rather than pushing straight into
+-- orderMarksByScope) so _orderScoped can clear THIS SPECIFIC batch when ITS order naturally completes,
+-- without racing a newer order in the SAME scope that's already replaced that scope's entry by then.
 local function markDestination(opts)
     local created = {}
     if not markersOn then return created end
@@ -179,55 +233,80 @@ local function vehicleRoleOf(guid)
     return "passenger"
 end
 
-local function stopEscort(guid)
+local function stopFollowLoop(guid)
     local k = key(guid)
-    if escortLoops[k] then Ess.Loop.stop(escortLoops[k]); escortLoops[k] = nil end
-    if escortAnchors[k] then Ess.Object.remove(escortAnchors[k]); escortAnchors[k] = nil end
+    if followLoops[k] then Ess.Loop.stop(followLoops[k]); followLoops[k] = nil end
+    if followLoopAnchors[k] then Ess.Object.remove(followLoopAnchors[k]); followLoopAnchors[k] = nil end
 end
 
--- startEscort(guid, target, minDist, maxDist) -- the pre-native-Role approach this project's own `follow`
--- behavior used before BEHAVIORS.follow was rewritten onto Ai.Role, scoped here specifically to a vehicle's
--- driver. Two confirmed-live fixes stacked on top of each other:
+-- Ess.Followers._stopFollowLoop(guid) -- exposed on the Ess table (crosses the per-file do...end scope
+-- boundary, see _issue's own header) so Ess.Squad.Formation can clear an existing vehicle-escort/on-foot
+-- resume loop before handing the same guid over to ITS OWN formation-slot loop -- otherwise both would
+-- fight over the guid's movement every tick.
+Ess.Followers._stopFollowLoop = stopFollowLoop
+
+-- startFollowLoop(guid, target, minDist, maxDist, stillEligibleFn) -- the reissued-MoveTo mechanism behind
+-- BOTH a vehicle driver's escort AND (CONFIRMED LIVE 2026-07-25, see below) an on-foot follower's RESUME --
+-- native Follow turned out not to be the universal answer this file originally assumed. Three confirmed-live
+-- fixes stacked on top of each other:
 --   1. Naively reissuing "MoveTo target" (targeting the player object directly, no stopping distance)
---      drives the vehicle straight into the player -- Goal="MoveTo" closes ALL the way to the target's
---      exact position, unlike the native Follow role's own MinDistance/MaxDistance/MoveDistance holding
---      pattern, which this loop reimplements by hand since it isn't a Role: idle once within minDist, only
---      starts closing again once past maxDist (hysteresis, so it doesn't twitch at the boundary).
---   2. The computed stand-off point (minDist out from the player, toward the vehicle's current heading)
---      first tried "MoveToPos" directly, on the theory that -- unlike for an on-foot human, see
+--      drives straight into the player -- Goal="MoveTo" closes ALL the way to the target's exact position,
+--      unlike the native Follow role's own MinDistance/MaxDistance/MoveDistance holding pattern, which this
+--      loop reimplements by hand since it isn't a Role: idle once within minDist, only starts closing again
+--      once past maxDist (hysteresis, so it doesn't twitch at the boundary).
+--   2. The computed stand-off point (minDist out from the player, toward the guid's current heading) first
+--      tried "MoveToPos" directly, on the theory that -- unlike for an on-foot human generally, see
 --      60_aiorders.lua's file header -- a vehicle driver was the ONE confirmed corpus use of that goal.
 --      CONFIRMED LIVE this doesn't hold for a bare Ai.Goal call the way it seemed to from the corpus alone:
---      Ai.Goal({Goal="MoveToPos",...}) returned nil for this driver, while "MoveTo" targeting a real object
+--      Ai.Goal({Goal="MoveToPos",...}) returned nil for a driver, while "MoveTo" targeting a real object
 --      (the same anchorAt() trick 60_aiorders.lua's own move/defend/patrol/flee use) worked immediately.
 --      So this reuses ONE disposable TinyGeometry anchor, repositioned every tick instead of retargeted by
 --      coordinate, rather than spawning a fresh one each time.
--- Self-stops (and removes its anchor) once the driver dies or genuinely leaves the seat for good.
---
--- CONFIRMED LIVE 2026-07-24: stopping on the FIRST "not driver anymore" reading was too eager -- a single
--- transient bad read (e.g. right as another follower nearby was recruited/spawned) permanently killed a
--- perfectly good escort loop, since Ess.Loop treats a false return as final, not "retry me." Debounced to 3
--- CONSECUTIVE misses (this loop's own 1s interval, so ~3 real seconds) before concluding they've actually
--- left, rather than trusting any single vehicleRoleOf() read on its own.
-local function startEscort(guid, target, minDist, maxDist)
-    stopEscort(guid)
+--   3. CONFIRMED LIVE 2026-07-25, the reason this is used for an on-foot RESUME too, not just vehicles: a
+--      follower taken off native Follow for ANY order (even a plain "move") has their Ai.Feeling toward
+--      `target` snap back hostile within 1-3 SECONDS on its own once away from it -- side-by-side tested
+--      against an untouched follower who stayed on native Follow the whole time and never drifted at all,
+--      so the native Role itself is what's suppressing it, not the one-time LivingWorld/Vip/feeling setup
+--      recruit() already did. Worse: even with feeling hammered stable and Vip/LivingWorld re-asserted
+--      fresh, reissuing Ai.Role("Follow") returned a valid handle but never actually moved the unit -- while
+--      a plain "move" Goal at that EXACT same spot worked immediately. Native Follow is therefore only
+--      reliable on its FIRST engagement (straight from recruit(), see that function -- left unchanged, it's
+--      the one confirmed-good path); every RESUME (order("follow",...)/auto-resume) now goes through this
+--      loop instead of trying to re-engage the Role, on foot or not -- see smartFollow() below. The
+--      tradeoff, accepted since there's no demonstrated alternative: a RESUMED follower loses native
+--      Follow's own free vehicle-boarding-with-the-player convenience (the ContextAction prompt is tied to
+--      the Role) until explicitly orderEnter()'d -- a fresh recruit still gets it.
+-- `stillEligibleFn(guid)` decides what "has this guid left the situation this loop is for" means (a vehicle
+-- escort stops once they're no longer the driver; an on-foot resume stops once they've boarded ANY vehicle).
+-- Debounced to 3 CONSECUTIVE misses (this loop's own 1s interval, so ~3 real seconds), not a single reading
+-- -- confirmed live 2026-07-24 that a single transient bad read (e.g. right as another follower nearby was
+-- recruited/spawned) permanently killed a perfectly good loop, since Ess.Loop treats a false return as
+-- final, not "retry me." Self-stops (and removes its anchor) once the guid or target dies.
+local function startFollowLoop(guid, target, minDist, maxDist, stillEligibleFn)
+    stopFollowLoop(guid)
     minDist = minDist or 10
     maxDist = maxDist or 20
     local k = key(guid)
-    local id = "Ess.Followers.escort:" .. k
-    escortLoops[k] = id
+    local id = "Ess.Followers.followLoop:" .. k
+    followLoops[k] = id
     local gx0, gy0, gz0 = Ess.Object.pos(guid)
     local anchor = gx0 and Ess.Object.spawn("TinyGeometry", gx0, gy0, gz0)
-    if anchor then escortAnchors[k] = anchor end
+    if anchor then followLoopAnchors[k] = anchor end
     local moving = false
-    local missedDriverChecks = 0
+    local missedChecks = 0
     Ess.Loop.start(id, 1, function()
         if not anchor or not Object.IsAlive(guid) or not Object.IsAlive(target) then return false end
-        if vehicleRoleOf(guid) ~= "driver" then
-            missedDriverChecks = missedDriverChecks + 1
-            if missedDriverChecks >= 3 then return false end
+        if not stillEligibleFn(guid) then
+            missedChecks = missedChecks + 1
+            if missedChecks >= 3 then return false end
             return true   -- possibly-transient miss -- skip this tick's movement, keep the loop alive
         end
-        missedDriverChecks = 0
+        missedChecks = 0
+        -- see point 3 above -- re-pin every tick, not just once, for as long as this guid is off native
+        -- Follow; a threshold (not "always SetFeeling") so this never fights a caller's OWN deliberate
+        -- negative-feeling change toward some OTHER guid (this only ever touches guid<->target).
+        local fok, feeling = pcall(Ai.GetFeeling, guid, target)
+        if fok and feeling and feeling < 50 then pcall(Ai.SetFeeling, guid, target, 100) end
         local gx, gy, gz = Ess.Object.pos(guid)
         local tx, ty, tz = Ess.Object.pos(target)
         if not (gx and tx) then return true end
@@ -246,12 +325,28 @@ local function startEscort(guid, target, minDist, maxDist)
     end)
 end
 
+-- startEscort(guid, ...) -- the vehicle-DRIVER-specific case: stops once `guid` is no longer that vehicle's
+-- driver (they got out, or someone else took the wheel).
+local function startEscort(guid, target, minDist, maxDist)
+    startFollowLoop(guid, target, minDist, maxDist, function(g) return vehicleRoleOf(g) == "driver" end)
+end
+
+-- startFootFollowLoop(guid, ...) -- the on-foot-RESUME case (see point 3 in startFollowLoop's header):
+-- stops the moment `guid` boards ANY vehicle (driver or passenger) -- at that point smartFollow's own
+-- vehicle-aware dispatch takes back over next time it's called (order("follow",...) or the next
+-- auto-resume), same as it always has for a vehicle occupant.
+local function startFootFollowLoop(guid, target, minDist, maxDist)
+    startFollowLoop(guid, target, minDist, maxDist, function(g) return vehicleRoleOf(g) == nil end)
+end
+
 -- smartFollow(guid, target, minDist, maxDist) -- the vehicle-aware "go back to following" ONE guid needs;
 -- used by both an explicit order("follow", ...) and the internal auto-resume below. A passenger/gunner is
 -- left COMPLETELY alone -- they're already going wherever their vehicle goes, and touching their Role/Goal
--- at all risks pulling them out of their seat for no reason. On foot is the plain native Follow role,
--- unchanged (minDist/maxDist only apply to the vehicle-escort case -- the native Role has its own
--- MinDistance/MaxDistance defaults, see BEHAVIORS.follow).
+-- at all risks pulling them out of their seat for no reason. On foot goes through startFollowLoop, NOT a
+-- reissued native Ai.Role("Follow") -- see startFollowLoop's header, point 3, for why re-engaging the Role
+-- on a RESUMING follower turned out not to work at all (looked accepted, never actually moved them, AND
+-- left them drifting back hostile). recruit()'s own FIRST engagement is unaffected -- it's the one
+-- confirmed-reliable native-Role path, left exactly as it was.
 local function smartFollow(guid, target, minDist, maxDist)
     local role = vehicleRoleOf(guid)
     if role == "driver" then
@@ -259,8 +354,7 @@ local function smartFollow(guid, target, minDist, maxDist)
     elseif role == "passenger" then
         -- ride along -- no order needed, and issuing one risks ejecting them for nothing
     else
-        stopEscort(guid)   -- e.g. just got out of a vehicle they were being escort-looped in
-        Ess.AIOrders.command({ guid }, "follow", { target = target })
+        startFootFollowLoop(guid, target, minDist, maxDist)
     end
 end
 
@@ -275,16 +369,24 @@ function Ess.Followers.dismiss(guid)
     local k = key(guid)
     local entry = roster[k]
     if not entry then return false end
+    -- checked BEFORE the roster/state teardown below, since Object.IsAlive would trivially read false
+    -- afterward regardless of why dismiss() was actually called -- this is the one place that can tell
+    -- "died" (fires onFollowerDown, the auto-dismiss path from recruit()'s own Ess.On.death hook) apart
+    -- from "dismissed while still alive" (fires onDismiss) without needing a second call-site flag.
+    local ok, alive = pcall(Object.IsAlive, guid)
+    local wasKilled = ok and alive == false
     entry.stop()
     roster[k] = nil
     for i, g in ipairs(order_) do
         if key(g) == k then table.remove(order_, i); break end
     end
     if marks[k] then Ess.Mark.clear(marks[k]); marks[k] = nil end
-    stopEscort(guid)
+    stopFollowLoop(guid)
     pcall(Ai.Role, { AIGuid = guid, Role = "Idle", Priority = "hiPri" })
     pcall(Ai.LivingWorld, { AIGuid = guid, Attrib = "LivingWorldBehaviour", State = true })
     pcall(Ai.SetState, { AIGuid = guid, State = "Vip", Value = false })
+    if wasKilled then Ess.Followers._emit("onFollowerDown", guid) end
+    Ess.Followers._emit("onDismiss", guid, wasKilled)
     return true
 end
 
@@ -327,6 +429,7 @@ function Ess.Followers.recruit(guid, opts)
     order_[#order_ + 1] = guid
     if markersOn then marks[k] = Ess.Mark.object(guid, { world = true, radar = false, pda = false, rgb = nextColor() }) end
     if role == "driver" then startEscort(guid, target, opts.escortMinDistance, opts.escortMaxDistance) end
+    Ess.Followers._emit("onRecruit", guid)
     return true
 end
 
@@ -338,14 +441,29 @@ function Ess.Followers.dismissAll()
     for _, g in ipairs(snapshot) do Ess.Followers.dismiss(g) end
 end
 
+-- Ess.Followers.list() -> guids
+-- Self-healing: also PRUNES order_ in place of any guid whose roster entry is already gone (confirmed live
+-- 2026-07-25 that this can happen -- a death-triggered auto-dismiss racing a manual dismissAll() call left
+-- order_ holding 2 already-nil-rostered guids, so count()/list() kept reporting dead followers no further
+-- dismiss() call could clear, since dismiss() itself only removes an entry it can still find in roster).
+-- Same lazy-prune-on-read idiom Ess.Squad.team() already uses over this same roster for the same reason.
 function Ess.Followers.list()
     local out = {}
-    for _, g in ipairs(order_) do out[#out + 1] = g end
+    local i = 1
+    while i <= #order_ do
+        local g = order_[i]
+        if roster[key(g)] then
+            out[#out + 1] = g
+            i = i + 1
+        else
+            table.remove(order_, i)
+        end
+    end
     return out
 end
 
 function Ess.Followers.count()
-    return #order_
+    return #Ess.Followers.list()
 end
 
 function Ess.Followers.isFollower(guid)
@@ -365,18 +483,22 @@ local function resumeFollow(guids)
     end
 end
 
--- Ess.Followers.order(behavior, opts) -> ok
--- Commands the WHOLE current roster at once -- any of Ess.AIOrders' 11 behaviors (guard/patrol/attack/...),
--- same opts shape as Ess.AIOrders.command. Empty roster is a safe no-op (command() already handles an empty
--- guids list per-behavior).
+-- Ess.Followers._issue(list, behavior, opts) -> ok
+-- The "make a fresh order actually take" mechanics -- clears leftover goal/role state and (deferred,
+-- confirmed-necessary settle time) issues `behavior` to exactly these guids. NO marker tracking, NO
+-- auto-resume-follow wiring -- just the raw issuing primitive. Shared by Ess.Followers._orderScoped below
+-- (whole-order/team semantics, which layers marker tracking + auto-resume on top) AND Ess.Squad.queue
+-- (67_squad_queue.lua -- step-by-step semantics, which needs its OWN completion wiring per step instead of
+-- auto-resume-follow between steps). Exposed on the Ess table, not local, so it crosses the per-file
+-- do...end scope boundary build/merge.py wraps each src file in.
 --
 -- CONFIRMED LIVE 2026-07-24: recruit()'s Ai.Role("Follow", HardPriority=true) keeps reasserting itself over
 -- a one-shot Ai.Goal issued the SAME tick -- an "attack" order silently did nothing while a follower's Role
 -- stayed Follow, even though the Goal call itself returned a valid handle. Releasing the Role AND issuing
 -- the new order in the same call never worked in live testing; a short deferred delay between the two
--- (Event.TimerRelative) is what made it reliably take effect -- so order() returns optimistically and the
+-- (Event.TimerRelative) is what made it reliably take effect -- so this returns optimistically and the
 -- actual command fires a beat later, same as every other deferred call in this codebase.
-function Ess.Followers.order(behavior, opts)
+function Ess.Followers._issue(list, behavior, opts)
     opts = opts or {}
     -- CONFIRMED LIVE 2026-07-24, the actual root cause behind the priority-vs-priority confusion above:
     -- Ess.AIOrders' own per-behavior defaults (e.g. attack's "med") are NOT reliably enough to override a
@@ -385,11 +507,6 @@ function Ess.Followers.order(behavior, opts)
     -- Follow role needs to win decisively, so default to "hi" here specifically (NOT changed in
     -- Ess.AIOrders.command itself, whose own callers never have this Role-preemption problem to begin with).
     opts.priority = opts.priority or "hi"
-    local list = Ess.Followers.list()
-    clearOrderMarks()                     -- clear whatever the LAST order left behind (see below for why
-                                           -- a naturally-completed order might already have cleared itself)
-    local thisOrderMarks = markDestination(opts)
-    orderMarks = thisOrderMarks
 
     -- CONFIRMED LIVE 2026-07-24: a follower can still be mid-way through a PRIOR order's goal (e.g. still
     -- walking to an old guard point) when a new one comes in -- Force=true on the new goal doesn't reliably
@@ -412,26 +529,11 @@ function Ess.Followers.order(behavior, opts)
         return true
     end
 
-    -- stop any active vehicle-escort loop before a NEW non-follow order -- a driver being escort-looped
-    -- who's now being ordered to e.g. attack shouldn't have the escort loop fighting the new order for
-    -- control every 3 seconds.
-    for _, g in ipairs(list) do stopEscort(g) end
+    -- stop any active follow-loop (vehicle escort OR on-foot resume) before a NEW non-follow order -- a
+    -- guid mid-loop who's now being ordered to e.g. attack shouldn't have that loop fighting the new order
+    -- for control every 1-3 seconds.
+    for _, g in ipairs(list) do stopFollowLoop(g) end
     for _, g in ipairs(list) do pcall(Ai.Role, { AIGuid = g, Role = "Idle", Priority = "hiPri" }) end
-
-    -- onDone: fires on natural completion only (see header) -- clears THIS order's own destination marker(s)
-    -- (confirmed live 2026-07-24: they used to linger after the unit arrived) and resumes Follow. Compares
-    -- against the CURRENT orderMarks (not just clearing blindly) so a newer order() call that already ran
-    -- its own clearOrderMarks()/replaced orderMarks isn't stepped on by this older callback firing late.
-    local function onDone()
-        for _, h in ipairs(thisOrderMarks) do Ess.Mark.clear(h) end
-        if orderMarks == thisOrderMarks then orderMarks = {} end
-        resumeFollow(list)
-    end
-    if behavior == "attack" and opts.target then
-        Ess.On.death(opts.target, onDone)
-    elseif behavior == "move" or (behavior == "patrol" and opts.loop == false) then
-        opts.onComplete = onDone
-    end
 
     -- 1.5s -- confirmed live 2026-07-24 that BOTH 0.1s and 0.5s were unreliable settle time after releasing
     -- the Role for the deferred Goal to actually take (every manual reissue several real seconds later
@@ -442,4 +544,49 @@ function Ess.Followers.order(behavior, opts)
         Ess.AIOrders.command(list, behavior, opts)
     end)
     return true
+end
+
+-- Ess.Followers._orderScoped(scope, list, behavior, opts) -> ok
+-- The whole-order layer on top of _issue: marker tracking + auto-resume-follow on natural completion,
+-- scoped so Ess.Squad.orderTeam(teamName, ...) can command an arbitrary SUBSET of the roster without racing
+-- Ess.Followers.order()'s own whole-roster orders (or another team's). `scope` is just a string key for
+-- orderMarksByScope/clearOrderMarks -- "__all__" (Ess.Followers.order's own scope) and a team name are
+-- otherwise handled identically. See Ess.Followers.order() below for the public, whole-roster entry point
+-- this wraps.
+function Ess.Followers._orderScoped(scope, list, behavior, opts)
+    opts = opts or {}
+    opts.priority = opts.priority or "hi"
+    clearOrderMarks(scope)                -- clear whatever the LAST order in THIS scope left behind (see
+                                           -- below for why a naturally-completed order might already have)
+    local thisOrderMarks = markDestination(opts)
+    orderMarksByScope[scope] = thisOrderMarks
+
+    if behavior ~= "follow" then
+        -- onDone: fires on natural completion only (see header) -- clears THIS order's own destination
+        -- marker(s) (confirmed live 2026-07-24: they used to linger after the unit arrived) and resumes
+        -- Follow. Compares against THIS SCOPE's current entry (not just clearing blindly) so a newer order
+        -- in the SAME scope that already ran its own clearOrderMarks()/replaced the entry isn't stepped on
+        -- by this older callback firing late -- a DIFFERENT scope's entry is never touched at all.
+        local function onDone()
+            for _, h in ipairs(thisOrderMarks) do Ess.Mark.clear(h) end
+            if orderMarksByScope[scope] == thisOrderMarks then orderMarksByScope[scope] = nil end
+            resumeFollow(list)
+        end
+        if behavior == "attack" and opts.target then
+            Ess.On.death(opts.target, onDone)
+        elseif behavior == "move" or (behavior == "patrol" and opts.loop == false) then
+            opts.onComplete = onDone
+        end
+    end
+
+    return Ess.Followers._issue(list, behavior, opts)
+end
+
+-- Ess.Followers.order(behavior, opts) -> ok
+-- Commands the WHOLE current roster at once -- any of Ess.AIOrders' 11 behaviors (guard/patrol/attack/...),
+-- same opts shape as Ess.AIOrders.command. Empty roster is a safe no-op (command() already handles an empty
+-- guids list per-behavior). Just the "__all__"-scoped case of _orderScoped above -- see it for the actual
+-- mechanics and every CONFIRMED LIVE note behind them.
+function Ess.Followers.order(behavior, opts)
+    return Ess.Followers._orderScoped("__all__", Ess.Followers.list(), behavior, opts)
 end

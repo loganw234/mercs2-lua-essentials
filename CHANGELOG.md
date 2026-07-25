@@ -9,8 +9,61 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+## [0.3.4]
+
+**The `Ess.Squad` team/orchestration pass.** A full team/role/queue/tactics/formation layer over
+`Ess.Followers`, plus three more real engine bugs found and fixed via live verification along the way —
+on top of the `orderEnter`/vehicle-aware-follow work already sitting unreleased from the previous pass.
+
 ### Added
 
+- **`Ess.Squad`** — an opt-in team/role layer over `Ess.Followers` for scripts managing enough followers
+  that "the whole roster" stops being the right unit of command. `Ess.Squad.createTeam(name, guids)` /
+  `.team(name)` / `.teamOf(guid)` / `.assignRole(guid, roleType)` / `.roleOf(guid)`, and
+  `.orderTeam(name, behavior, opts)` — `Ess.Followers.order()` scoped to just that team. Built entirely on
+  `Ess.Followers` (specifically the new `Ess.Followers._orderScoped` core `order()` itself now calls) — no
+  new native calls, no separate roster. `Ess.Easy.Squad` mirrors `Ess.Easy.Followers`' own shape
+  (`createTeam`/`assignRole`/`orderTeamAttack`/`orderTeamPatrol`/`orderTeamGuard`/`orderTeamFollow`).
+  CONFIRMED LIVE: ordering one team leaves every other follower (in another team or in none) completely
+  undisturbed — destination markers and the natural-completion auto-resume-follow callback are tracked PER
+  SCOPE (`orderMarksByScope`, keyed by team name or `"__all__"` for the whole-roster case), not against one
+  shared "last order" slot, specifically so two teams ordered independently can't clear or resume-follow
+  each other's still-in-flight order.
+- **`Ess.Followers.on(eventName, fn)` / `Ess.Squad.on(...)`** — a generic string-keyed pub/sub (the one
+  piece neither `Ess.On`, engine-signal-specific, nor `Ess.Event`, raw engine handles, provided).
+  `"onRecruit"`, `"onDismiss"(guid, wasKilled)`, `"onFollowerDown"` (a `wasKilled` dismiss, fired
+  immediately alongside `onDismiss`) fire today; `Ess.Squad.on` forwards to the SAME bus so its own later,
+  higher-level events reuse it rather than standing up a second one.
+- **`Ess.Squad.queue(targetGroup, steps, queueOpts)` / `.cancelQueue(targetGroup)`** — an asynchronous
+  multi-step sequence (e.g. enter a vehicle → wait until seated → move to the LZ → wait for arrival →
+  deploy), for a team name or a raw guid list. Built on the new `Ess.Followers._issue` (the raw
+  order-issuing core `_orderScoped` itself now layers marker-tracking + auto-resume-follow on top of) —
+  deliberately does NOT go through `_orderScoped`, since auto-resuming Follow the instant one step
+  naturally completes is exactly wrong mid-sequence. Step completion reuses whatever signal the behavior
+  already provides (`onComplete` for move/non-looping patrol, `Ess.On.death` for attack, polling
+  `Ess.Object.vehicleOf` for enter), and EVERY step also gets a timeout watchdog regardless — CONFIRMED
+  LIVE this matters: a single unit's silently-failed `Ai.Goal` (see the `move`/`patrol` fix below) would
+  otherwise hang the entire sequence forever, not just that one step. `cancelQueue` reverts the group to
+  Follow, its documented safe fallback. Fires `"onStepComplete"`/`"onQueueComplete"` on the same event bus.
+- **`Ess.Squad.Tactics.mountUp(vehGuid, targetGroup, opts)` / `.dismountAndSecure(targetGroup, atPos,
+  radius)`** — role-aware vehicle boarding (whoever's `assignRole(guid, "driver")`'d boards first, as
+  driver; everyone else as passenger/`opts.passengerRole`) and disembark-then-defend. CONFIRMED LIVE:
+  `Ai.Deploy` only ejects PASSENGERS — a vehicle's driver stayed seated straight through it in testing, so
+  `dismountAndSecure` also explicitly `Vehicle.Exit`s whoever's still driving (the corpus's own
+  `resident/mrxsupportcopterdelivery.lua` confirms this exact "make the driver get out" call shape).
+  `mountUp` fires `"onVehicleMounted"` once every guid in the group is seated in some vehicle, or gives up
+  silently past its own timeout (default 20s) — a blocked/full vehicle is a real, expected outcome, not an
+  error.
+- **`Ess.Squad.setFormation(targetGroup, formationType, opts)` / `.clearFormation(targetGroup)`** — on-foot
+  positional formations (`"wedge"`/`"column"`/`"line"`/`"diamond"`) for a squad operating independently of
+  the player, recomputed every tick as `opts.leader` (default the local player) moves. Deliberately opt-in
+  and explicitly "visual sugar," not a precision tactical system: native `Ai.Role("Follow")` has no notion
+  of a per-slot offset, so a formation member is taken off the Role entirely and driven by the same
+  reissued-`MoveTo`-to-an-anchor loop `Ess.Followers.startFollowLoop` already proved out for vehicle
+  escort/on-foot resume (see that file), just with per-slot offset math (`Ess.Math.rotateOffset`, the same
+  right/forward convention the `MissionForge` sample's own squad grid already uses) instead of a hysteresis
+  band. CONFIRMED LIVE: a 4-unit wedge and diamond both converged on their expected slot positions relative
+  to the player's facing.
 - **`Ess.Easy.Followers.orderEnter(vehicleGuid, role)`** — orders the whole current roster to board a
   vehicle (`role` defaults to `"driver"`, not `Ess.AIOrders`' own `"passenger"` default). CONFIRMED LIVE: no
   secondary "which guid is currently driving which vehicle" tracker is needed — a follower who's currently
@@ -35,6 +88,30 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ### Fixed
 
+- **A follower taken off native `Ai.Role("Follow")` for ANY order (even a plain `move`) snapped back
+  hostile toward its target within 1-3 seconds on its own, and reissuing `Ai.Role("Follow")` afterward
+  returned a valid handle but never actually moved them again** — both confirmed live side-by-side against
+  an untouched follower who stayed on native Follow the whole time and never drifted at all, so the native
+  Role itself is what suppresses this, not the one-time `Ai.LivingWorld`/`Ai.SetState("Vip")`/feeling setup
+  `recruit()` already does. Native Follow turns out to be reliable ONLY on its first engagement, straight
+  from `recruit()` (left unchanged); every RESUME (`order("follow", ...)`/auto-resume/`Ess.Squad.orderTeam`)
+  now goes through `startFollowLoop` instead of trying to re-engage the Role at all — the same
+  reissued-`MoveTo`-plus-hysteresis mechanism this file already used for a vehicle driver's escort,
+  generalized to on-foot too, with a per-tick feeling re-pin added to stop the drift. Accepted tradeoff: a
+  RESUMED follower loses native Follow's own free vehicle-boarding-with-you convenience (the ContextAction
+  prompt is tied to the Role) until explicitly `orderEnter()`'d again — a fresh `recruit()` still gets it.
+- **`Ess.AIOrders.command(..., "move"/"patrol", { onComplete = ... })` could hang forever for an ENTIRE
+  group over a single unit** — `Ai.Goal` can silently refuse to register at all (no handle, no error), and
+  when that happens for even one guid, no native `Callback` ever arrives for it, so the group's own
+  fan-out completion counter never reaches zero and `onComplete` never fires — not even for guids who
+  finished fine. Confirmed live: a 2-unit team's `move` order never triggered auto-resume-follow, while the
+  identical order to a lone unit worked every time. Both behaviors now count an immediate registration
+  failure as "done" right away instead of waiting on a `Callback` that's never coming.
+- **`Ess.Followers.list()`/`.count()` could report stale, already-dead followers no further `dismiss()`
+  call could clear** — confirmed live: a death-triggered auto-dismiss racing a manual `dismissAll()` call
+  left the ordered roster list holding 2 guids whose actual roster entry was already gone. `list()` is now
+  self-healing (prunes the ordered list in place of any guid missing from the roster on every read), the
+  same lazy-prune-on-read idiom `Ess.Squad.team()` already uses over this same roster.
 - **`Ess.AIOrders.command(..., "enter", ...)`'s `target` had the exact same gap `attack`'s `target` did** —
   only ever resolved a registered group name or a string name via `Pg.GetGuidByName`, so a raw vehicle uGuid
   (e.g. from the new `orderEnter`) silently resolved to `nil` and the whole behavior no-op'd, no error.
