@@ -38,6 +38,18 @@
 -- move/patrol resumes once every follower finishes its route (onComplete, see 60_aiorders.lua). Guard/hold/
 -- a LOOPING patrol/anything else has no natural "done" -- it stays on that order until you explicitly
 -- order("follow", opts) again.
+--
+-- VEHICLE-AWARE FOLLOW (confirmed live 2026-07-24): "return to following" -- whether from auto-resume above
+-- or an explicit order("follow", ...) -- goes through smartFollow, not a blanket re-issue of the native
+-- Follow role. Ai.Role("Follow") wants its subject to board a vehicle WITH the target, so reissuing it on a
+-- follower who's currently DRIVING their own vehicle (after orderEnter, say) makes them climb back OUT to
+-- go do that instead -- the "gunner runs out the instant an order finishes" bug this exists to prevent. A
+-- driver instead gets a reissued-MoveTo escort loop (the pre-native-Role approach this project's own
+-- `follow` used before, scoped here to just the driver); a passenger/gunner is left completely alone (they
+-- already go wherever the vehicle goes, and touching their Role/Goal at all risks ejecting them for
+-- nothing); on foot uses the plain native Follow role, unchanged. No separate "who's in which vehicle"
+-- tracker needed for any of this -- Ess.Object.vehicleOf(guid) answers it live, same confirmed finding as
+-- Ess.Easy.Followers.orderEnter's own header.
 
 local Ess = _G.Ess
 Ess.Followers = Ess.Followers or {}
@@ -48,6 +60,10 @@ local marks = {}       -- guid-key -> Ess.Mark.object handle (only populated whi
 local orderMarks = {}  -- Ess.Mark.zone handles from the CURRENT order's destination(s)
 local markersOn = true
 local colorStep = 0
+local escortLoops = {}   -- guid-key -> Ess.Loop id, for a vehicle DRIVER being escorted via reissued MoveTo
+                          -- instead of the native Follow role -- see smartFollow() below for why
+local escortAnchors = {} -- guid-key -> the ONE disposable TinyGeometry each escort loop repositions and
+                          -- targets every tick (see startEscort) -- removed the moment the loop stops
 
 local function key(guid) return tostring(guid) end
 
@@ -146,12 +162,115 @@ local function markDestination(opts)
     return created
 end
 
+-- ---- vehicle-aware "return to following" ---------------------------------------------------------------
+-- CONFIRMED LIVE 2026-07-24: the native Ai.Role("Follow") wants a follower to board a vehicle WITH the
+-- player -- reissuing it on a follower who's currently DRIVING their own vehicle (a tank you just put them
+-- in, say) makes them get back OUT to go do that instead, exactly the "gunner runs out the moment an order
+-- finishes" bug this section exists to prevent. No separate "who's in which vehicle" bookkeeping is needed
+-- to detect this, though -- Ess.Object.vehicleOf(guid) (Vehicle.GetFromRider under it) answers "is this guid
+-- CURRENTLY riding in a vehicle" live, same confirmed-no-tracker-needed finding as orderEnter's own header.
+
+-- vehicleRoleOf(guid) -> "driver" | "passenger" | nil (nil = on foot).
+local function vehicleRoleOf(guid)
+    local veh = Ess.Object.vehicleOf(guid)
+    if not veh then return nil end
+    local ok, driver = pcall(Vehicle.GetDriver, veh)
+    if ok and driver == guid then return "driver" end
+    return "passenger"
+end
+
+local function stopEscort(guid)
+    local k = key(guid)
+    if escortLoops[k] then Ess.Loop.stop(escortLoops[k]); escortLoops[k] = nil end
+    if escortAnchors[k] then Ess.Object.remove(escortAnchors[k]); escortAnchors[k] = nil end
+end
+
+-- startEscort(guid, target, minDist, maxDist) -- the pre-native-Role approach this project's own `follow`
+-- behavior used before BEHAVIORS.follow was rewritten onto Ai.Role, scoped here specifically to a vehicle's
+-- driver. Two confirmed-live fixes stacked on top of each other:
+--   1. Naively reissuing "MoveTo target" (targeting the player object directly, no stopping distance)
+--      drives the vehicle straight into the player -- Goal="MoveTo" closes ALL the way to the target's
+--      exact position, unlike the native Follow role's own MinDistance/MaxDistance/MoveDistance holding
+--      pattern, which this loop reimplements by hand since it isn't a Role: idle once within minDist, only
+--      starts closing again once past maxDist (hysteresis, so it doesn't twitch at the boundary).
+--   2. The computed stand-off point (minDist out from the player, toward the vehicle's current heading)
+--      first tried "MoveToPos" directly, on the theory that -- unlike for an on-foot human, see
+--      60_aiorders.lua's file header -- a vehicle driver was the ONE confirmed corpus use of that goal.
+--      CONFIRMED LIVE this doesn't hold for a bare Ai.Goal call the way it seemed to from the corpus alone:
+--      Ai.Goal({Goal="MoveToPos",...}) returned nil for this driver, while "MoveTo" targeting a real object
+--      (the same anchorAt() trick 60_aiorders.lua's own move/defend/patrol/flee use) worked immediately.
+--      So this reuses ONE disposable TinyGeometry anchor, repositioned every tick instead of retargeted by
+--      coordinate, rather than spawning a fresh one each time.
+-- Self-stops (and removes its anchor) once the driver dies or genuinely leaves the seat for good.
+--
+-- CONFIRMED LIVE 2026-07-24: stopping on the FIRST "not driver anymore" reading was too eager -- a single
+-- transient bad read (e.g. right as another follower nearby was recruited/spawned) permanently killed a
+-- perfectly good escort loop, since Ess.Loop treats a false return as final, not "retry me." Debounced to 3
+-- CONSECUTIVE misses (this loop's own 1s interval, so ~3 real seconds) before concluding they've actually
+-- left, rather than trusting any single vehicleRoleOf() read on its own.
+local function startEscort(guid, target, minDist, maxDist)
+    stopEscort(guid)
+    minDist = minDist or 10
+    maxDist = maxDist or 20
+    local k = key(guid)
+    local id = "Ess.Followers.escort:" .. k
+    escortLoops[k] = id
+    local gx0, gy0, gz0 = Ess.Object.pos(guid)
+    local anchor = gx0 and Ess.Object.spawn("TinyGeometry", gx0, gy0, gz0)
+    if anchor then escortAnchors[k] = anchor end
+    local moving = false
+    local missedDriverChecks = 0
+    Ess.Loop.start(id, 1, function()
+        if not anchor or not Object.IsAlive(guid) or not Object.IsAlive(target) then return false end
+        if vehicleRoleOf(guid) ~= "driver" then
+            missedDriverChecks = missedDriverChecks + 1
+            if missedDriverChecks >= 3 then return false end
+            return true   -- possibly-transient miss -- skip this tick's movement, keep the loop alive
+        end
+        missedDriverChecks = 0
+        local gx, gy, gz = Ess.Object.pos(guid)
+        local tx, ty, tz = Ess.Object.pos(target)
+        if not (gx and tx) then return true end
+        local dx, dz = gx - tx, gz - tz
+        local dist = math.sqrt(dx * dx + dz * dz)
+        if dist > maxDist then moving = true
+        elseif dist <= minDist then moving = false end
+        if moving then
+            if dist < 0.01 then dx, dz, dist = 1, 0, 1 end   -- degenerate (right on top) -- pick a direction
+            local px = tx + dx / dist * minDist
+            local pz = tz + dz / dist * minDist
+            Ess.Object.setPos(anchor, px, ty, pz)
+            pcall(Ai.Goal, { AIGuid = guid, Goal = "MoveTo", Target = anchor, Priority = "HiPri", Force = true })
+        end
+        return true
+    end)
+end
+
+-- smartFollow(guid, target, minDist, maxDist) -- the vehicle-aware "go back to following" ONE guid needs;
+-- used by both an explicit order("follow", ...) and the internal auto-resume below. A passenger/gunner is
+-- left COMPLETELY alone -- they're already going wherever their vehicle goes, and touching their Role/Goal
+-- at all risks pulling them out of their seat for no reason. On foot is the plain native Follow role,
+-- unchanged (minDist/maxDist only apply to the vehicle-escort case -- the native Role has its own
+-- MinDistance/MaxDistance defaults, see BEHAVIORS.follow).
+local function smartFollow(guid, target, minDist, maxDist)
+    local role = vehicleRoleOf(guid)
+    if role == "driver" then
+        startEscort(guid, target, minDist, maxDist)
+    elseif role == "passenger" then
+        -- ride along -- no order needed, and issuing one risks ejecting them for nothing
+    else
+        stopEscort(guid)   -- e.g. just got out of a vehicle they were being escort-looped in
+        Ess.AIOrders.command({ guid }, "follow", { target = target })
+    end
+end
+
 -- ---- roster lifecycle -----------------------------------------------------------------------------------
 
 -- Ess.Followers.dismiss(guid) -> ok
 -- Reverts exactly what recruit()'s sequence set: Role back to "Idle" (matches resident/mrxfollow.lua's own
 -- _ToggleFollowingBehavior(false) in the decompiled game corpus), LivingWorldBehaviour back on, Vip state
--- off, and clears its marker if one was placed. A guid that was never recruited is a safe no-op.
+-- off, stops any active vehicle-escort loop, and clears its marker if one was placed. A guid that was never
+-- recruited is a safe no-op.
 function Ess.Followers.dismiss(guid)
     local k = key(guid)
     local entry = roster[k]
@@ -162,6 +281,7 @@ function Ess.Followers.dismiss(guid)
         if key(g) == k then table.remove(order_, i); break end
     end
     if marks[k] then Ess.Mark.clear(marks[k]); marks[k] = nil end
+    stopEscort(guid)
     pcall(Ai.Role, { AIGuid = guid, Role = "Idle", Priority = "hiPri" })
     pcall(Ai.LivingWorld, { AIGuid = guid, Attrib = "LivingWorldBehaviour", State = true })
     pcall(Ai.SetState, { AIGuid = guid, State = "Vip", Value = false })
@@ -173,17 +293,40 @@ end
 -- of the sequence, not two copies to keep in sync -- then remembers the guid (and what it's following, for
 -- order()'s own auto-resume) so order()/list() can find it, and wires Ess.On.death so a follower that dies
 -- prunes itself with no polling.
+--
+-- CONFIRMED LIVE 2026-07-24: this needs the SAME vehicle-awareness as smartFollow (see that function's own
+-- header just above) -- a guid that's already sitting in a vehicle at recruit time (real game state, so
+-- this can happen even right after a fresh Lua reload wipes the roster) got the native Follow role applied
+-- while seated, same as the auto-resume bug this section already fixed once. Checked with vehicleRoleOf()
+-- up front instead of always running the native sequence: a driver skips straight to the escort loop (the
+-- Vip/LivingWorld/Role prerequisites are specific to Ai.Role("Follow"), which the escort path never uses --
+-- only the hostility-neutralize step still applies), a passenger/gunner is registered as-is with nothing
+-- touched, and on-foot is the unchanged original sequence.
 function Ess.Followers.recruit(guid, opts)
     if not guid then return false end
     local k = key(guid)
     if roster[k] then return true end                 -- already a follower -- idempotent, not an error
     opts = opts or {}
     local target = opts.target or Ess.Player.character(0)
-    local ok = Ess.AIOrders.command({ guid }, "follow", opts)
-    if not ok then return false end
-    roster[k] = { stop = Ess.On.death(guid, function() Ess.Followers.dismiss(guid) end), target = target }
+    local role = vehicleRoleOf(guid)
+    if role == "driver" then
+        local ok, feeling = pcall(Ai.GetFeeling, guid, target)
+        if ok and feeling and feeling < 0 then pcall(Ai.SetFeeling, guid, target, 100) end
+    elseif role ~= "passenger" then
+        local ok = Ess.AIOrders.command({ guid }, "follow", opts)
+        if not ok then return false end
+    end
+    -- minDist/maxDist are for the VEHICLE-escort case specifically (see startEscort) -- distinct from
+    -- opts.minDistance/maxDistance/moveDistance, which BEHAVIORS.follow already consumed above for the
+    -- native Role's own on-foot holding pattern. Remembered here so a later auto-resume/order("follow", ...)
+    -- reuses whatever this recruit() call asked for instead of startEscort's own bare defaults.
+    roster[k] = {
+        stop = Ess.On.death(guid, function() Ess.Followers.dismiss(guid) end),
+        target = target, minDist = opts.escortMinDistance, maxDist = opts.escortMaxDistance,
+    }
     order_[#order_ + 1] = guid
     if markersOn then marks[k] = Ess.Mark.object(guid, { world = true, radar = false, pda = false, rgb = nextColor() }) end
+    if role == "driver" then startEscort(guid, target, opts.escortMinDistance, opts.escortMaxDistance) end
     return true
 end
 
@@ -211,12 +354,14 @@ end
 
 -- resumeFollow(guids) -- re-issues follow for exactly these guids using each one's OWN remembered follow
 -- target from recruit() (not necessarily the player -- recruit(guid, {target=...}) lets it be anyone).
--- Internal to order()'s auto-resume; a caller wanting to resume everyone deliberately should just call
+-- Goes through smartFollow so a vehicle driver/passenger among them is handled correctly (see that
+-- function's own header) instead of blindly re-issuing the native Follow role at everyone. Internal to
+-- order()'s auto-resume; a caller wanting to resume everyone deliberately should just call
 -- order("follow", {target=...}) themselves.
 local function resumeFollow(guids)
     for _, g in ipairs(guids) do
         local entry = roster[key(g)]
-        if entry then Ess.AIOrders.command({ g }, "follow", { target = entry.target }) end
+        if entry then smartFollow(g, entry.target, entry.minDist, entry.maxDist) end
     end
 end
 
@@ -254,9 +399,23 @@ function Ess.Followers.order(behavior, opts)
     for _, g in ipairs(list) do pcall(Ai.RemoveGoal, { AIGuid = g, Handle = 0 }) end
 
     if behavior == "follow" then
-        return Ess.AIOrders.command(list, behavior, opts)
+        -- per-guid via smartFollow, not one blanket Ess.AIOrders.command -- a vehicle driver/passenger
+        -- among the roster needs different handling than an on-foot follower (see smartFollow's header).
+        -- opts.escortMinDistance/escortMaxDistance override each guid's own recruit()-time default if given.
+        local target = opts.target or Ess.Player.character(0)
+        for _, g in ipairs(list) do
+            local entry = roster[key(g)]
+            local minDist = opts.escortMinDistance or (entry and entry.minDist)
+            local maxDist = opts.escortMaxDistance or (entry and entry.maxDist)
+            smartFollow(g, target, minDist, maxDist)
+        end
+        return true
     end
 
+    -- stop any active vehicle-escort loop before a NEW non-follow order -- a driver being escort-looped
+    -- who's now being ordered to e.g. attack shouldn't have the escort loop fighting the new order for
+    -- control every 3 seconds.
+    for _, g in ipairs(list) do stopEscort(g) end
     for _, g in ipairs(list) do pcall(Ai.Role, { AIGuid = g, Role = "Idle", Priority = "hiPri" }) end
 
     -- onDone: fires on natural completion only (see header) -- clears THIS order's own destination marker(s)

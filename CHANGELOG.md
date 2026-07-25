@@ -15,9 +15,23 @@ version? It still releases, with auto-generated commit notes.) See the README's 
   vehicle (`role` defaults to `"driver"`, not `Ess.AIOrders`' own `"passenger"` default). CONFIRMED LIVE: no
   secondary "which guid is currently driving which vehicle" tracker is needed — a follower who's currently
   driving IS already the correct `AIGuid` for a later `order()` to steer the vehicle through, since
-  `Ess.Raw.AIOrders.actor()` already implements the established "target the driver, not the hull" rule. A
-  `move` order issued through a driving follower's own stored guid (unchanged) drove the car to the point,
-  then auto-resume-follow fired as usual and they got back out on foot.
+  `Ess.Raw.AIOrders.actor()` already implements the established "target the driver, not the hull" rule.
+- **Vehicle-aware "return to following"** — the native `Ai.Role("Follow")` wants its subject to board a
+  vehicle WITH the target, so reissuing it on a follower currently DRIVING their own vehicle (after
+  `orderEnter`, say) made them climb back OUT to go do that instead — confirmed live, the exact "gunner
+  runs out the instant an order finishes" bug this closes. `resumeFollow`/`order("follow", ...)` now route
+  through a vehicle-aware check: a driver gets a reissued-`MoveTo` escort loop instead of the Role (holding
+  10–20 units off by default, hysteresis so it doesn't twitch at the boundary — first tried retargeting the
+  stand-off point via `"MoveToPos"` directly since a vehicle driver was the corpus's one confirmed use of
+  that goal, but CONFIRMED LIVE a bare `Ai.Goal` call still returned `nil` for it; switched to the same
+  reused-`TinyGeometry`-anchor + `"MoveTo"` trick `move`/`defend`/`patrol`/`flee` already use); a
+  passenger/gunner is left completely alone (touching their Role/Goal at all risks ejecting them for
+  nothing); on foot is the unchanged native Role. `Ess.Followers.recruit` itself needed the same
+  vehicle-awareness — a guid already sitting in a vehicle at recruit time (real game state persists across
+  a Lua-side reload) got the native Follow role applied while seated otherwise. The escort loop's own
+  "has the driver left?" check is debounced to 3 consecutive misses, not a single reading — a transient bad
+  read (e.g. right as another follower was recruited/spawned nearby) was otherwise enough to permanently
+  kill a perfectly good escort loop.
 
 ### Fixed
 
