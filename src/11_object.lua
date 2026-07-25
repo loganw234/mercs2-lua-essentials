@@ -52,7 +52,7 @@ local function truthy(v) return v == true or v == 1 end
 -- the shipped source: Vehicle.GetFromRider(char) -> vehicle guid (driver OR passenger) or nil.
 function Ess.Object.vehicleOf(uChar)
     if not uChar then return nil end
-    local ok, v = pcall(Vehicle.GetFromRider, uChar)
+    local ok, v = Ess.Safe.quiet(Vehicle.GetFromRider, uChar)
     if ok then return v end
     return nil
 end
@@ -66,7 +66,7 @@ function Ess.Object.setInvincible(uGuid, bOn, sReason)
         Ess.Log("Object.setInvincible: sReason is required (got " .. tostring(sReason) .. ") -- using 'Ess'")
         sReason = "Ess"
     end
-    local ok = pcall(Object.SetInvincible, uGuid, bOn and true or false, sReason)
+    local ok = Ess.Safe.quiet(Object.SetInvincible, uGuid, bOn and true or false, sReason)
     return ok and true or false
 end
 
@@ -74,7 +74,7 @@ end
 -- live-confirmed to return a boolean (wiki namespaces/object.md, 2026-07-22 probe); coerced through
 -- truthy() anyway so a 1/0-returning build can't fool a naive `if` (the engine's not-0-falsy trap).
 function Ess.Object.invincible(uGuid)
-    local ok, b = pcall(Object.GetInvincible, uGuid)
+    local ok, b = Ess.Safe.quiet(Object.GetInvincible, uGuid)
     return ok and truthy(b)
 end
 
@@ -115,18 +115,18 @@ end
 -- name per concept" principle -- one call instead of remembering which shape to use.
 function Ess.Object.distance(uGuidA, uGuidBOrX, yOrIgnoreY, z, bIgnoreY)
     if type(uGuidBOrX) == "number" then
-        local ok, n = pcall(Object.GetDistanceFrom, uGuidA, uGuidBOrX, yOrIgnoreY, z, bIgnoreY)
+        local ok, n = Ess.Safe.quiet(Object.GetDistanceFrom, uGuidA, uGuidBOrX, yOrIgnoreY, z, bIgnoreY)
         return (ok and n) or nil
     end
-    local ok, n = pcall(Object.GetDistanceFrom, uGuidA, uGuidBOrX, yOrIgnoreY)
+    local ok, n = Ess.Safe.quiet(Object.GetDistanceFrom, uGuidA, uGuidBOrX, yOrIgnoreY)
     return (ok and n) or nil
 end
 
 -- Ess.Object.heal(uGuid) -- CONFIRMED "heal to full" idiom seen in real scripts:
 -- Object.SetHealth(uGuid, Object.GetMaxHealth(uGuid)).
 function Ess.Object.heal(uGuid)
-    local ok, maxHp = pcall(Object.GetMaxHealth, uGuid)
-    if ok and maxHp then pcall(Object.SetHealth, uGuid, maxHp) end
+    local ok, maxHp = Ess.Safe.quiet(Object.GetMaxHealth, uGuid)
+    if ok and maxHp then Ess.Safe.quiet(Object.SetHealth, uGuid, maxHp) end
 end
 
 -- ============================================================
@@ -134,7 +134,7 @@ end
 -- ============================================================
 -- Ess.Object.pos(uGuid) -> x, y, z | nil -- Object.GetPosition, pcall'd (it throws on an invalid/dead guid).
 function Ess.Object.pos(uGuid)
-    local ok, x, y, z = pcall(Object.GetPosition, uGuid)
+    local ok, x, y, z = Ess.Safe.quiet(Object.GetPosition, uGuid)
     if ok then return x, y, z end
 end
 -- Ess.Object.setPos(uGuid, x, y, z) -- teleport an OBJECT. CAVEAT (confirmed elsewhere in this project):
@@ -142,16 +142,16 @@ end
 -- moving the PLAYER use Ess.Player.teleport, and for a dynamic ghost-follow use Ess.Vehicle.followGhost.
 -- It's solid for props/vehicles and for placing a just-spawned object before it streams in.
 function Ess.Object.setPos(uGuid, x, y, z)
-    pcall(Object.SetPosition, uGuid, x, y, z)
+    Ess.Safe.quiet(Object.SetPosition, uGuid, x, y, z)
 end
 -- Ess.Object.yaw / .setYaw -- unit (deg vs rad) is unconfirmed on this engine (the wiki's own sample
 -- scripts disagree); read-modify-write a yaw you got from GetYaw and it's self-consistent regardless.
 function Ess.Object.yaw(uGuid)
-    local ok, n = pcall(Object.GetYaw, uGuid)
+    local ok, n = Ess.Safe.quiet(Object.GetYaw, uGuid)
     if ok then return n end
 end
 function Ess.Object.setYaw(uGuid, n)
-    pcall(Object.SetYaw, uGuid, n)
+    Ess.Safe.quiet(Object.SetYaw, uGuid, n)
 end
 
 -- Ess.Object.faceToward(uGuid, x, y, z) -- turn the object to face a world point (ground-plane yaw; the y
@@ -160,7 +160,7 @@ end
 function Ess.Object.faceToward(uGuid, x, y, z)
     local px, _, pz = Ess.Object.pos(uGuid)
     if not px or x == nil then return end
-    pcall(Object.SetYaw, uGuid, Ess.Math.angleTo(px, pz, x, z))
+    Ess.Safe.quiet(Object.SetYaw, uGuid, Ess.Math.angleTo(px, pz, x, z))
 end
 
 -- Ess.Object.faceObject(uGuid, uTarget) -- same, but face another object's CURRENT position.
@@ -173,14 +173,14 @@ end
 -- Health & life
 -- ============================================================
 function Ess.Object.health(uGuid)
-    local ok, n = pcall(Object.GetHealth, uGuid)
+    local ok, n = Ess.Safe.quiet(Object.GetHealth, uGuid)
     if ok then return n end
 end
 function Ess.Object.setHealth(uGuid, n)
-    pcall(Object.SetHealth, uGuid, n)
+    Ess.Safe.quiet(Object.SetHealth, uGuid, n)
 end
 function Ess.Object.maxHealth(uGuid)
-    local ok, n = pcall(Object.GetMaxHealth, uGuid)
+    local ok, n = Ess.Safe.quiet(Object.GetMaxHealth, uGuid)
     if ok then return n end
 end
 -- Ess.Object.damage(uGuid, nAmount) -> nNewHealth | nil -- deal nAmount of damage. There is NO native
@@ -189,11 +189,11 @@ end
 -- reliably register as death here. Returns the new health (0 if it killed), or nil if health couldn't be
 -- read. The natural complement to .heal (full up) and .setHealth (set exactly).
 function Ess.Object.damage(uGuid, nAmount)
-    local ok, hp = pcall(Object.GetHealth, uGuid)
+    local ok, hp = Ess.Safe.quiet(Object.GetHealth, uGuid)
     if not ok or not hp then return nil end
     local nw = hp - (nAmount or 0)
-    if nw <= 0 then pcall(Object.Kill, uGuid); return 0 end
-    pcall(Object.SetHealth, uGuid, nw)
+    if nw <= 0 then Ess.Safe.quiet(Object.Kill, uGuid); return 0 end
+    Ess.Safe.quiet(Object.SetHealth, uGuid, nw)
     return nw
 end
 -- Ess.Object.kill / .remove -- both one-way per the Object namespace's own notes: Kill destroys (leaves a
@@ -202,18 +202,25 @@ end
 -- CONFIRMED (this wrapper's testing): Kill is NOT instantaneous -- Ess.Object.alive(uGuid) still reads true
 -- in the same tick as a kill (the death sequence has to begin first) and flips to false a moment later.
 -- Poll alive() over a couple ticks rather than reading it right after kill() if you need to know it landed.
-function Ess.Object.kill(uGuid)   pcall(Object.Kill, uGuid)   end
-function Ess.Object.remove(uGuid) pcall(Object.Remove, uGuid) end
+--
+-- CONFIRMED LIVE 2026-07-25: **Remove is deferred the same way**, which this comment previously claimed only
+-- of Kill. Straight after Ess.Object.remove(g), alive(g) is still TRUE; it reads false roughly half a second
+-- later. And valid(g) stays TRUE even after alive() has flipped -- the guid handle outlives the object, so
+-- `valid` is not a usable "is it gone yet" test at all; `alive` is, once you give it a tick or two. Found by
+-- samples/recipes/compose_one_cleanup asserting removal synchronously and failing for a reason that had
+-- nothing to do with the teardown it was actually testing.
+function Ess.Object.kill(uGuid)   Ess.Safe.quiet(Object.Kill, uGuid)   end
+function Ess.Object.remove(uGuid) Ess.Safe.quiet(Object.Remove, uGuid) end
 -- Ess.Object.revive(uGuid, nDelay) -- confirmed with an optional delay second arg (e.g. Object.Revive(u, 0.5)).
 function Ess.Object.revive(uGuid, nDelay)
-    if nDelay then pcall(Object.Revive, uGuid, nDelay) else pcall(Object.Revive, uGuid) end
+    if nDelay then Ess.Safe.quiet(Object.Revive, uGuid, nDelay) else Ess.Safe.quiet(Object.Revive, uGuid) end
 end
 function Ess.Object.alive(uGuid)
-    local ok, b = pcall(Object.IsAlive, uGuid)
+    local ok, b = Ess.Safe.quiet(Object.IsAlive, uGuid)
     return ok and truthy(b)
 end
 function Ess.Object.valid(uGuid)
-    local ok, b = pcall(Object.IsValid, uGuid)
+    local ok, b = Ess.Safe.quiet(Object.IsValid, uGuid)
     return ok and truthy(b)
 end
 
@@ -223,23 +230,23 @@ end
 -- Ess.Object.visible / .setVisible -- Object.IsVisible IS a real boolean-returning native here (distinct
 -- from the FlashWidget GetVisible footgun over in Ess.Gfx -- different namespace, different call).
 function Ess.Object.visible(uGuid)
-    local ok, b = pcall(Object.IsVisible, uGuid)
+    local ok, b = Ess.Safe.quiet(Object.IsVisible, uGuid)
     return ok and truthy(b)
 end
 function Ess.Object.setVisible(uGuid, bOn)
-    pcall(Object.SetVisible, uGuid, bOn and true or false)
+    Ess.Safe.quiet(Object.SetVisible, uGuid, bOn and true or false)
 end
 -- Labels: a free-form string tag the engine and other scripts read (e.g. "PMC", "Disposable", "garage").
 function Ess.Object.hasLabel(uGuid, sLabel)
-    local ok, b = pcall(Object.HasLabel, uGuid, sLabel)
+    local ok, b = Ess.Safe.quiet(Object.HasLabel, uGuid, sLabel)
     return ok and truthy(b)
 end
-function Ess.Object.addLabel(uGuid, sLabel)    pcall(Object.AddLabel, uGuid, sLabel)    end
-function Ess.Object.removeLabel(uGuid, sLabel) pcall(Object.RemoveLabel, uGuid, sLabel) end
+function Ess.Object.addLabel(uGuid, sLabel)    Ess.Safe.quiet(Object.AddLabel, uGuid, sLabel)    end
+function Ess.Object.removeLabel(uGuid, sLabel) Ess.Safe.quiet(Object.RemoveLabel, uGuid, sLabel) end
 -- Ess.Object.displayName(uGuid) -> localized, human-readable name for HUD/labels (Object.GetLocalizedName).
 -- Distinct from Ess.Name(guid), which is the guid's HASH string (Sys.GuidToString) -- different concept.
 function Ess.Object.displayName(uGuid)
-    local ok, s = pcall(Object.GetLocalizedName, uGuid)
+    local ok, s = Ess.Safe.quiet(Object.GetLocalizedName, uGuid)
     if ok and type(s) == "string" then return s end
 end
 -- Ess.Object.playerControlled(uGuid) -> bool -- LIVE DISCOVERY (this wrapper's testing): despite the wiki
@@ -248,15 +255,15 @@ end
 -- check would wrongly report the real player as NOT controlled (a guid isn't == true or == 1). Coerce
 -- "returned a real value" -> true instead.
 function Ess.Object.playerControlled(uGuid)
-    local ok, v = pcall(Object.IsPlayerControlled, uGuid)
+    local ok, v = Ess.Safe.quiet(Object.IsPlayerControlled, uGuid)
     return ok and v ~= nil and v ~= false and v ~= 0
 end
 
 -- ============================================================
 -- Physics
 -- ============================================================
-function Ess.Object.enablePhysics(uGuid)  pcall(Object.EnablePhysics, uGuid)  end
-function Ess.Object.disablePhysics(uGuid) pcall(Object.DisablePhysics, uGuid) end
+function Ess.Object.enablePhysics(uGuid)  Ess.Safe.quiet(Object.EnablePhysics, uGuid)  end
+function Ess.Object.disablePhysics(uGuid) Ess.Safe.quiet(Object.DisablePhysics, uGuid) end
 -- Ess.Object.impulse(uGuid, x, y, z, bLocal) -- Object.ApplyImpulse, the confirmed "launch/knock something
 -- around" primitive (real call sites scale the impulse by the object's mass, e.g.
 -- Object.ApplyImpulse(u, 0, 10000, 6 * mass, true) -- so heavier things need a bigger push). bLocal defaults
@@ -264,7 +271,7 @@ function Ess.Object.disablePhysics(uGuid) pcall(Object.DisablePhysics, uGuid) en
 -- mass-scaling + directional + speedBoost/launch/knockback helpers see the Ess.Impulse system (16_impulse.lua).
 function Ess.Object.impulse(uGuid, x, y, z, bLocal)
     if bLocal == nil then bLocal = true end
-    pcall(Object.ApplyImpulse, uGuid, x or 0, y or 0, z or 0, bLocal and true or false)
+    Ess.Safe.quiet(Object.ApplyImpulse, uGuid, x or 0, y or 0, z or 0, bLocal and true or false)
 end
 
 -- ============================================================
@@ -282,7 +289,7 @@ end
 -- Ess.Object.velocity(uGuid) -> vx, vy, vz | nil -- the object's velocity vector (Object.GetVelocityVector).
 -- Ess had no motion API at all before this; feeds race checks, chase-camera damping, "has it stopped yet."
 function Ess.Object.velocity(uGuid)
-    local ok, vx, vy, vz = pcall(Object.GetVelocityVector, uGuid)
+    local ok, vx, vy, vz = Ess.Safe.quiet(Object.GetVelocityVector, uGuid)
     if ok and vx then return vx, vy, vz end
     return nil
 end
@@ -290,7 +297,7 @@ end
 -- Ess.Object.speed(uGuid) -> n | nil -- scalar speed. One native call (Object.GetVelocitySquared) + a sqrt.
 -- Ess.Object.speedSq(uGuid) -> n | nil -- the squared form for threshold checks (no sqrt, cheapest).
 function Ess.Object.speedSq(uGuid)
-    local ok, n = pcall(Object.GetVelocitySquared, uGuid)
+    local ok, n = Ess.Safe.quiet(Object.GetVelocitySquared, uGuid)
     return (ok and n) or nil
 end
 function Ess.Object.speed(uGuid)
@@ -302,7 +309,7 @@ end
 -- Takes a GUID, not a template/model name (easy to assume otherwise for a "model" function -- flagged in the
 -- wiki row). First size information Ess has ever had: spawn spacing, camera-orbit radius, attach offsets.
 function Ess.Object.size(uGuid)
-    local ok, ex, ey, ez = pcall(Junk.GetModelBBoxExtents, uGuid)
+    local ok, ex, ey, ez = Ess.Safe.quiet(Junk.GetModelBBoxExtents, uGuid)
     if ok and ex then return ex, ey, ez end
     return nil
 end
@@ -311,7 +318,7 @@ end
 -- (Object.TransformLocalToWorld), including pitch/roll. Prefer this over Ess.Math.rotateOffset (yaw-only,
 -- assumes level ground) whenever the object can be tilted -- a vehicle on a slope, a listing boat.
 function Ess.Object.localToWorld(uGuid, lx, ly, lz)
-    local ok, x, y, z = pcall(Object.TransformLocalToWorld, uGuid, lx or 0, ly or 0, lz or 0)
+    local ok, x, y, z = Ess.Safe.quiet(Object.TransformLocalToWorld, uGuid, lx or 0, ly or 0, lz or 0)
     if ok and x then return x, y, z end
     return nil
 end
@@ -321,7 +328,7 @@ end
 -- EXACTLY 0 can be the engine's unstreamed-geometry placeholder rather than real contact -- near the player
 -- it's almost always real, but treat exact-0 from far-away/just-streamed cells with suspicion.
 function Ess.Object.heightAboveGround(uGuid)
-    local ok, n = pcall(Object.GetHeightAboveTerrain, uGuid)
+    local ok, n = Ess.Safe.quiet(Object.GetHeightAboveTerrain, uGuid)
     return (ok and n) or nil
 end
 
@@ -348,12 +355,12 @@ function Ess.Object.spawn(sTemplate, x, y, z, yaw)
         Ess.Log("Object.spawn: blank/invalid template refused (a blank Pg.Spawn hard-crashes the engine)")
         return nil
     end
-    local ok, u = pcall(Pg.Spawn, sTemplate, x, y, z)
+    local ok, u = Ess.Safe.quiet(Pg.Spawn, sTemplate, x, y, z)
     if not ok or not u then
         Ess.Log("Object.spawn: Pg.Spawn failed for '" .. sTemplate .. "'")
         return nil
     end
-    if yaw then pcall(Object.SetYaw, u, yaw) end
+    if yaw then Ess.Safe.quiet(Object.SetYaw, u, yaw) end
     return u
 end
 
@@ -377,7 +384,10 @@ end
 -- Safe by construction: viewYaw falls back to the body yaw when the reticle has no usable hit (open sky).
 function Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i, tOpts)
     local px, py, pz, yaw = Ess.Player.pose(i or 0)
-    if not px then return nil end
+    if not px then
+        return Ess.Safe.reject("Ess.Object.spawnAhead", "no pose for player " .. tostring(i or 0)
+            .. " -- nothing spawned (no character yet, or asking for a co-op partner in single-player)")
+    end
     if tOpts and tOpts.useView then yaw = Ess.Player.viewYaw(i or 0) end
     -- forward projection lives in exactly one place now: Ess.Math.pointAhead (the same sin/cos this used
     -- to inline). Keeps spawnAhead and pointAhead from drifting apart if the yaw convention is ever retuned.

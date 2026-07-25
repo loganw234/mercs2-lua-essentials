@@ -49,7 +49,7 @@ local function factionOf(faction)
 end
 
 function Ess.Pursuit.state()
-    local ok, t = pcall(Pg.GetPursuitState)
+    local ok, t = Ess.Safe.quiet(Pg.GetPursuitState)
     if ok and type(t) == "table" then return t end
     return nil
 end
@@ -62,51 +62,51 @@ end
 function Ess.Pursuit.start(faction, nLevel)
     local f = factionOf(faction)
     if not f then Ess.Log("Pursuit.start: unknown faction " .. tostring(faction)); return false end
-    local ok = pcall(Pg.SetPursuit, f, nLevel or 1, true)
+    local ok = Ess.Safe.quiet(Pg.SetPursuit, f, nLevel or 1, true)
     return ok and true or false
 end
 
 function Ess.Pursuit.clear()
-    local ok = pcall(Pg.ClearPursuitLock, true)
+    local ok = Ess.Safe.quiet(Pg.ClearPursuitLock, true)
     return ok and true or false
 end
 
 function Ess.Pursuit.seconds(faction, n)
     local f = factionOf(faction)
     if not f then return false end
-    local ok = pcall(Pg.SetPursuitSeconds, f, n or 0, true)
+    local ok = Ess.Safe.quiet(Pg.SetPursuitSeconds, f, n or 0, true)
     return ok and true or false
 end
 
 function Ess.Pursuit.levelTimes(n1, n2)
-    local ok = pcall(Pg.SetPursuitLevelTimes, n1 or 120, n2 or 300)
+    local ok = Ess.Safe.quiet(Pg.SetPursuitLevelTimes, n1 or 120, n2 or 300)
     return ok and true or false
 end
 
 function Ess.Pursuit.lock(faction, nLevel)
     local f = factionOf(faction)
     if not f then return false end
-    local ok = pcall(Pg.LockPursuit, f, nLevel or 1)
+    local ok = Ess.Safe.quiet(Pg.LockPursuit, f, nLevel or 1)
     return ok and true or false
 end
 
 function Ess.Pursuit.custom(faction, nDur, tSettings)
     local f = factionOf(faction)
     if not f then return false end
-    local ok = pcall(Pg.SetCustomPursuit, f, nDur or 60, tSettings or {})
+    local ok = Ess.Safe.quiet(Pg.SetCustomPursuit, f, nDur or 60, tSettings or {})
     return ok and true or false
 end
 
 function Ess.Pursuit.capLevel(nLevel)
     Ess.Log("Pursuit.capLevel(" .. tostring(nLevel) .. "): ONE-WAY for this session -- nothing raises the "
         .. "ceiling again until a save-load/restart (live-confirmed)")
-    local ok = pcall(Pg.SetMaxPursuitLevel, nLevel or 1)
+    local ok = Ess.Safe.quiet(Pg.SetMaxPursuitLevel, nLevel or 1)
     return ok and true or false
 end
 
 function Ess.Pursuit.restrictAll(bOn)
     if bOn == nil then bOn = true end
-    local ok = pcall(Pg.RestrictAllPursuit, bOn and true or false)
+    local ok = Ess.Safe.quiet(Pg.RestrictAllPursuit, bOn and true or false)
     return ok and true or false
 end
 
@@ -114,12 +114,12 @@ function Ess.Pursuit.restrictFaction(faction, bOn)
     local f = factionOf(faction)
     if not f then return false end
     if bOn == nil then bOn = true end
-    local ok = pcall(Pg.RestrictPursuitFaction, f, bOn and true or false)
+    local ok = Ess.Safe.quiet(Pg.RestrictPursuitFaction, f, bOn and true or false)
     return ok and true or false
 end
 
 function Ess.Pursuit.clearRestrictions()
-    local ok = pcall(Pg.ClearPursuitRestrictions)
+    local ok = Ess.Safe.quiet(Pg.ClearPursuitRestrictions)
     return ok and true or false
 end
 

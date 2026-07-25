@@ -39,7 +39,7 @@ end
 function Ess.Easy.Spawn.airstrike(sRound)
     local px, py, pz = Ess.Object.pos(Ess.Player.character(0))
     if not px then return end
-    pcall(Airstrike.SpawnOrdnance, sRound or "Artillery Shell", px, py + 250, pz, 0, -100, 0, "impact", 1)
+    Ess.Safe.quiet(Airstrike.SpawnOrdnance, sRound or "Artillery Shell", px, py + 250, pz, 0, -100, 0, "impact", 1)
 end
 
 -- ============================================================

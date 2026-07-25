@@ -54,19 +54,19 @@ local ECON_NS = "EssSandboxEconomy"
 Ess.Raw.Sandbox.register("economy", {
     apply = function(id, opts)
         local sv = Ess.SaveVar.ns(ECON_NS)
-        local ok, cash = pcall(MrxPmc.GetCashQty)
+        local ok, cash = Ess.Safe.quiet(MrxPmc.GetCashQty)
         cash = (ok and cash) or 0
         sv:set(id .. "_saved", cash)
-        pcall(MrxPmc.AddCashQty, -cash, false, "[Ess.Sandbox]")
-        if opts and opts.startCash then pcall(MrxPmc.AddCashQty, opts.startCash, false, "[Ess.Sandbox]") end
+        Ess.Safe.quiet(MrxPmc.AddCashQty, -cash, false, "[Ess.Sandbox]")
+        if opts and opts.startCash then Ess.Safe.quiet(MrxPmc.AddCashQty, opts.startCash, false, "[Ess.Sandbox]") end
     end,
     restore = function(id)
         local sv = Ess.SaveVar.ns(ECON_NS)
         local saved = sv:get(id .. "_saved", nil)
         if saved == nil then return end
-        local ok, cur = pcall(MrxPmc.GetCashQty)
+        local ok, cur = Ess.Safe.quiet(MrxPmc.GetCashQty)
         cur = (ok and cur) or 0
-        pcall(MrxPmc.AddCashQty, saved - cur, false, "[Ess.Sandbox]")
+        Ess.Safe.quiet(MrxPmc.AddCashQty, saved - cur, false, "[Ess.Sandbox]")
         sv:set(id .. "_saved", nil)
     end,
 })
@@ -79,7 +79,7 @@ Ess.Raw.Sandbox.register("economy", {
 -- ============================================================
 Ess.Raw.Sandbox._supportSnaps = Ess.Raw.Sandbox._supportSnaps or {}
 local function supportWidget()
-    local okp, p = pcall(Player.GetLocalPlayer)
+    local okp, p = Ess.Safe.quiet(Player.GetLocalPlayer)
     if not okp or not p then return nil end
     pcall(function() import("MrxGuiBase") end)
     local G = _G.MrxGuiBase

@@ -17,7 +17,7 @@ Ess.Raw.Mark = Ess.Raw.Mark or {}
 
 local function guidName(uGuid)
     local sName = tostring(uGuid)
-    local ok, s = pcall(Sys.GuidToString, uGuid)
+    local ok, s = Ess.Safe.quiet(Sys.GuidToString, uGuid)
     if ok and s then sName = s end
     return sName
 end
@@ -60,19 +60,19 @@ end
 -- MissionForge, ForgeCam and the contract markers each picked differently before this was configurable).
 function Ess.Raw.Mark.world(uGuid, tex, rgb, size, dist)
     local r, g, b = rgbOf(rgb)
-    local ok, m = pcall(Marker.AddBlip, uGuid, tex or "HUD_objective_action", size or 32, r, g, b, 255, 2, 5, dist or 175)
+    local ok, m = Ess.Safe.quiet(Marker.AddBlip, uGuid, tex or "HUD_objective_action", size or 32, r, g, b, 255, 2, 5, dist or 175)
     if ok then return m end
     return nil
 end
 function Ess.Raw.Mark.removeWorld(handle)
-    if handle then pcall(Marker.Remove, handle) end
+    if handle then Ess.Safe.quiet(Marker.Remove, handle) end
 end
 
 -- Ess.Raw.Mark.worldDisc(uGuid, radius, rgb, alpha) -> handle|nil -- a ground ring (Marker.AddDisc), the
 -- "go here" zone marker, distinct from a floating icon.
 function Ess.Raw.Mark.worldDisc(uGuid, radius, rgb, alpha)
     local r, g, b = rgbOf(rgb)
-    local ok, m = pcall(Marker.AddDisc, uGuid, radius or 15, r, g, b, alpha or 0.15)
+    local ok, m = Ess.Safe.quiet(Marker.AddDisc, uGuid, radius or 15, r, g, b, alpha or 0.15)
     if ok then return m end
     return nil
 end
@@ -83,10 +83,10 @@ end
 -- handle, unlike every other function in this file.
 function Ess.Raw.Mark.pulse(uGuid, rgb)
     local r, g, b = rgbOf(rgb)
-    pcall(Marker.Pulse, uGuid, r, g, b)
+    Ess.Safe.quiet(Marker.Pulse, uGuid, r, g, b)
 end
 function Ess.Raw.Mark.haltPulse(uGuid)
-    pcall(Marker.HaltPulse, uGuid)
+    Ess.Safe.quiet(Marker.HaltPulse, uGuid)
 end
 
 -- Ess.Raw.Mark.showPlayerMarkers(bOn) -- CONFIRMED (mrxbriefing.lua): Gui.EnablePlayerMarkers(bEnabled),
@@ -94,5 +94,5 @@ end
 -- players' HUD markers render at all. Real confirmed use: hide during a cutscene/briefing, restore after --
 -- the same "temporarily quiet the HUD for a scripted moment" need Ess.Camera.fade/Ess.Hud already serve.
 function Ess.Raw.Mark.showPlayerMarkers(bOn)
-    pcall(Gui.EnablePlayerMarkers, bOn and true or false)
+    Ess.Safe.quiet(Gui.EnablePlayerMarkers, bOn and true or false)
 end

@@ -24,7 +24,15 @@ jobs:
         run: |
           python3 build/merge.py
           luac5.1 -p dist/Ess.lua        # parse the merged chunk -- fails the build on any syntax error
+          python3 build/manifest.py      # generate dist/ess.json (package.py bundles it into the zip)
           python3 build/package.py
+
+      # The API drift gate. ess.json can't drift from src/ -- it's generated from it -- but the HAND-WRITTEN
+      # surfaces can: the in-game console's REGISTRY, CAPABILITIES.md's tables, and each file's own header
+      # comments. This fails the build if any of them names a function that isn't defined, which is otherwise
+      # exactly the kind of divergence nobody notices until a beginner types something that doesn't exist.
+      - name: API drift gate (docs vs. real functions)
+        run: python3 build/manifest.py --check
 
       - name: Offline behavioral tests (pure namespaces + intent bundles)
         run: |

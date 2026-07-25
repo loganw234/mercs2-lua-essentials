@@ -145,7 +145,58 @@ end)
 
 ---
 
-## 6. The dev loop (if you're building from source)
+## 6. When it does nothing and says nothing
+
+This will happen, and it's the one failure mode worth learning up front. Ess fails **quietly on purpose** — a
+helper returns `nil` instead of crashing your script — so a bad guid or a missing argument produces no error,
+no log line, and no effect. There's nothing to search for.
+
+One line fixes that:
+
+```lua
+Ess.DEBUG = true
+```
+
+Now anything Ess gives up on says so, by name and with a reason:
+
+```
+[Ess] DEBUG Ess.AIOrders.move rejected (#1): no opts.at destination given -- the order is dropped
+[Ess] DEBUG Ess.Object.spawnAhead rejected (#1): no pose for player 1 -- nothing spawned
+```
+
+`Ess.lastError()` gives you the most recent one, and `Ess.Safe.stats()` lists every one this session with the
+worst offender first. Turn it back off when you're done (`Ess.DEBUG = false`) — it survives a level reload,
+and it's chatty. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for the two things that most often look like
+bugs but aren't.
+
+## 7. Turning things off
+
+Most Ess calls that *start* something hand you back something to *stop* it — but the shape differs by
+namespace (a function to call, a handle to pass somewhere, an id you chose, an object with a method). You
+don't have to remember which:
+
+```lua
+local stopHook  = Ess.On.death(guid, fn)        -- gives you a function
+local markHandle = Ess.Easy.Mark.enemy(guid)     -- gives you a handle table
+Ess.Loop.start("MyMod.tick", 0.2, fn)            -- you supplied an id
+
+Ess.stop(stopHook)          -- all three work
+Ess.stop(markHandle)
+Ess.stop("MyMod.tick")
+```
+
+Better still for a real mod, collect as you go and tear down once:
+
+```lua
+local tracker = Ess.Track.new()
+tracker:any(Ess.On.death(guid, fn))
+tracker:any(Ess.Easy.Mark.enemy(guid))
+tracker:guid(Ess.Object.spawnAhead("Veyron", 8))
+-- ...later, on cleanup:
+tracker:closeAll()
+```
+
+## 8. The dev loop (if you're building from source)
 
 The repo builds to a single file:
 
@@ -163,6 +214,13 @@ every recipe as a self-test — a fast way to confirm a change didn't break a pu
 ## Where to go next
 
 - **[samples/recipes/](samples/recipes)** — short, runnable "how do I *X*?" scripts. The best way to learn.
+- **[samples/recipes/compose_*.lua](samples/recipes)** — the **composition track**, and the answer to "why
+  write Lua when the [visual editor](https://visual.mercs2.tools) can wire this up for me?" For a sequence of
+  one-liners, it can, and you can *see* the wiring. These seven recipes show what a node graph structurally
+  can't hold: a closure that remembers things between ticks, iteration over however many things a query
+  returned, a hook that keeps firing after the script has finished, an abstraction of your own you then build
+  the rest of the mod out of, and an encounter described as data instead of one node per unit. That's the
+  actual reason to graduate — not more functions, but *programs* instead of sequences.
 - **[samples/demos/](samples/demos)** — bigger bind-to-a-key demos, including the MissionForge mission
   authoring tool. Reference only — copy the ones you want into your own `scripts/OnKey/` and bind them
   yourself; see `samples/README.md` for what each one does and its suggested key.

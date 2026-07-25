@@ -26,14 +26,14 @@ Ess.Vehicle = Ess.Vehicle or {}
 
 -- Ess.Vehicle.driver(uVeh) -> uCharGuid | nil
 function Ess.Vehicle.driver(uVeh)
-    local ok, d = pcall(Vehicle.GetDriver, uVeh)
+    local ok, d = Ess.Safe.quiet(Vehicle.GetDriver, uVeh)
     if ok then return d end
     return nil
 end
 
 -- Ess.Vehicle.riders(uVeh) -> { uCharGuid, ... } (empty table if none/unreadable, never nil)
 function Ess.Vehicle.riders(uVeh)
-    local ok, r = pcall(Vehicle.GetRiders, uVeh)
+    local ok, r = Ess.Safe.quiet(Vehicle.GetRiders, uVeh)
     if ok and type(r) == "table" then return r end
     return {}
 end
@@ -43,7 +43,7 @@ end
 -- GetSeatFromRider/GetRiderFromSeat/GetFromSeat/GetSeatByType) down to the 3 shapes actually needed day
 -- to day; the raw namespace stays available for anything more exotic.
 function Ess.Vehicle.seatOf(uChar)
-    local ok, s = pcall(Vehicle.GetSeatFromRider, uChar)
+    local ok, s = Ess.Safe.quiet(Vehicle.GetSeatFromRider, uChar)
     if ok then return s end
     return nil
 end
@@ -61,7 +61,7 @@ end
 -- interior cell again without Logan's review, and if testing this elsewhere, don't immediately chain a
 -- follow-up query in the same breath -- leave a beat and re-probe first.
 function Ess.Vehicle.enterBestSeat(uChar, uVeh)
-    local ok = pcall(MrxUtil.EnterBestAvailableSeat, uChar, uVeh)
+    local ok = Ess.Safe.quiet(MrxUtil.EnterBestAvailableSeat, uChar, uVeh)
     return ok and true or false
 end
 
@@ -80,9 +80,9 @@ function Ess.Vehicle.enterSeatExcluding(uChar, uVeh, excludeSeats)
     for _, s in ipairs(excludeSeats or {}) do excl[s] = true end
     for _, sType in ipairs(ALL_SEAT_TYPES) do
         if not excl[sType] then
-            local okSeat, uSeat = pcall(Vehicle.GetSeatByType, uVeh, sType, true)
+            local okSeat, uSeat = Ess.Safe.quiet(Vehicle.GetSeatByType, uVeh, sType, true)
             if okSeat and uSeat then
-                local okEnter, entered = pcall(Vehicle.EnterBySeatGuid, uVeh, uChar, uSeat, true)
+                local okEnter, entered = Ess.Safe.quiet(Vehicle.EnterBySeatGuid, uVeh, uChar, uSeat, true)
                 if okEnter and entered then return true, sType end
             end
         end
@@ -98,7 +98,7 @@ end
 -- its exact semantics (beyond "make this happen right now" by naming convention) aren't pinned down by
 -- call-site evidence alone.
 function Ess.Vehicle.exit(uVeh, uChar)
-    local ok, result = pcall(Vehicle.Exit, uVeh, uChar, true)
+    local ok, result = Ess.Safe.quiet(Vehicle.Exit, uVeh, uChar, true)
     return ok and result and true or false
 end
 
@@ -106,7 +106,7 @@ end
 -- own guid (not a rider/pilot guid) -- CONFIRMED LIVE 2026-07-22 (wiki namespaces/ai.md): GetDriver read a
 -- real pilot before the call and nil after. The bulk counterpart to .exit (which moves one known character).
 function Ess.Vehicle.evictAll(uVeh)
-    local ok = pcall(Ai.EveryoneOut, uVeh)
+    local ok = Ess.Safe.quiet(Ai.EveryoneOut, uVeh)
     return ok and true or false
 end
 
@@ -116,8 +116,8 @@ end
 -- workaround era of "no SetMaxHealth -> make bosses regen"): wave-defense between-round fixups, escort
 -- patch-ups, "my ride is smoking" mercy. Returns true if the health call executed (ammo is best-effort).
 function Ess.Vehicle.repair(uVeh)
-    local ok = pcall(Vehicle.RestoreHealth, uVeh)
-    pcall(Vehicle.RestoreAmmo, uVeh)
+    local ok = Ess.Safe.quiet(Vehicle.RestoreHealth, uVeh)
+    Ess.Safe.quiet(Vehicle.RestoreAmmo, uVeh)
     return ok and true or false
 end
 
@@ -125,7 +125,7 @@ end
 -- through the 1/0 guard like every other boolean-returning native. NOTE: no unflip() yet -- righting a
 -- vehicle needs a confirmed way to reset roll/pitch, and none is live-verified; don't guess one.
 function Ess.Vehicle.isFlipped(uVeh)
-    local ok, b = pcall(Vehicle.IsFlipped, uVeh)
+    local ok, b = Ess.Safe.quiet(Vehicle.IsFlipped, uVeh)
     return ok and (b == true or b == 1) or false
 end
 
@@ -142,7 +142,7 @@ end
 function Ess.Vehicle.land(uHeliOrPilot)
     if not uHeliOrPilot then return false end
     local pilot = Ess.Vehicle.driver(uHeliOrPilot) or uHeliOrPilot
-    local ok = pcall(Ai.HeliLand, pilot)
+    local ok = Ess.Safe.quiet(Ai.HeliLand, pilot)
     return ok and true or false
 end
 
@@ -159,7 +159,7 @@ function Ess.Vehicle.flyTo(uHeli, x, y, z, opts)
     Ess.Loop.start(id, 0.15, function()
         local drv = Ess.Vehicle.driver(uHeli)
         if not drv then return true end                 -- keep waiting for the pilot to exist
-        pcall(Ai.Deliver, drv, x, y, z, opts.height or 0.5, opts.careless and true or false)
+        Ess.Safe.quiet(Ai.Deliver, drv, x, y, z, opts.height or 0.5, opts.careless and true or false)
         if opts.onReady then pcall(opts.onReady, drv) end
         return false                                    -- done
     end)
@@ -208,26 +208,26 @@ function Ess.Vehicle.followGhost(template, x, y, z)
         Ess.Log("Vehicle.followGhost: blank template rejected (would CTD Pg.Spawn)")
         return nil
     end
-    local ok, u = pcall(Pg.Spawn, template, x, y, z)
+    local ok, u = Ess.Safe.quiet(Pg.Spawn, template, x, y, z)
     if not ok or not u then return nil end
 
     local ghost = { guid = u }
 
     function ghost:update(nx, ny, nz)
-        pcall(Object.SetPosition, self.guid, nx, ny, nz)
-        local okp, cx, cy, cz = pcall(Object.GetPosition, self.guid)
+        Ess.Safe.quiet(Object.SetPosition, self.guid, nx, ny, nz)
+        local okp, cx, cy, cz = Ess.Safe.quiet(Object.GetPosition, self.guid)
         if okp and cx then
             local dx, dz = cx - nx, cz - nz
             if dx * dx + dz * dz > 9 then -- didn't take (likely human/AI) -- respawn at the new spot
-                pcall(Object.Remove, self.guid)
-                local ok2, u2 = pcall(Pg.Spawn, template, nx, ny, nz)
+                Ess.Safe.quiet(Object.Remove, self.guid)
+                local ok2, u2 = Ess.Safe.quiet(Pg.Spawn, template, nx, ny, nz)
                 if ok2 and u2 then self.guid = u2 end
             end
         end
     end
 
     function ghost:remove()
-        pcall(Object.Remove, self.guid)
+        Ess.Safe.quiet(Object.Remove, self.guid)
     end
 
     return ghost

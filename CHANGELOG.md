@@ -9,6 +9,145 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+## [0.4.0]
+
+**The diagnosability pass.** Ess's oldest structural weakness was that it fails *silently* on purpose — a
+wrapper returns `nil` instead of propagating a problem, so a mod calling something with a stale guid or a nil
+argument produced no log line, no error, and no effect. That is the single most common "why isn't my mod doing
+anything" wall, and until now there was no way to see through it. `Ess.DEBUG` opens it up.
+
+Also: `Ess.Safe` — documented since 0.1.0 as "the single most duplicated shape in this whole project" — was
+being used by the framework itself **exactly once**. That was an oversight, not a decision. It is now the
+mechanism the whole diagnostic layer runs through.
+
+### Added
+
+- **`Ess.DEBUG`** (default `false`) — set it true, from a script or live over the bridge, and everything Ess
+  quietly gave up on starts reporting itself. Read at call time, so flipping it mid-session takes effect
+  immediately; survives a level reload. Two separate channels, because there are two genuinely different
+  silences:
+  - **Thrown failures** — an engine call raised a Lua error and a `pcall` swallowed it. Recorded by
+    `Ess.Safe.*`.
+  - **Guard rejections** — Ess looked at the arguments, decided the call couldn't work, and returned early
+    *without ever calling the engine*. Recorded by `Ess.Safe.reject()`.
+
+  CONFIRMED LIVE 2026-07-25: 14 deliberately-malformed native calls (nil / garbage / stale guids across
+  `Object`, `Player`, `Vehicle`, `Human`, `Ai`, `Marker`, `Camera`, `Sys`, `Pg`) threw **zero** Lua errors —
+  they fail safe, returning `nil` or, for a stale guid, stale values. So the *guard-rejection* channel is the
+  one that answers a beginner's "nothing happened", and a diagnostic built only on caught errors would have
+  been quiet in exactly the case it exists for. This is **not** a reason to drop the `pcall` guards, and none
+  were dropped: the crash cases in CONTRIBUTING.md were recorded defensively (deliberate breadth over pinpoint
+  reproduction), so a rare throw in another location or game state stays plausible. Only the relative
+  frequency of the two channels is now known.
+- **`Ess.Safe.reject(label, reason)`** — the guard-rejection recorder. Always returns `nil`, so a wrapper's
+  early-out stays one line: `if not uGuid then return Ess.Safe.reject("Ess.Object.heal", "no guid") end`.
+  Unlike a thrown error, a rejection knows *why*, because Ess is what decided — so the log line is specific
+  ("no guid") rather than a generic engine error string.
+- **`Ess.Safe.named(label, fn, ...)`** — `.quiet` with the label supplied up front, for closures. A closure is
+  a fresh function object per call, so it can never appear in the reverse-name map; this is the only way to
+  attribute one. CONFIRMED LIVE: `type(_G.debug)` is `nil` on this engine — the debug library is *absent*, not
+  merely unused (zero occurrences in the decompiled corpus), so a `debug.getinfo` fallback was confirmed dead
+  code and removed rather than left in looking like it might work.
+- **`Ess.lastError()`** — the most recent swallowed failure as `{ msg, label, count, rejected }`, or `nil`.
+- **`Ess.Safe.stats()`** → per-callsite tallies worst-first, plus the unconditional session total as a second
+  return. Throws and rejections share one tally, so it reads as a single "what is going wrong" list.
+- **`Ess.Safe.reset()`** — clears the tally, total and last error, and drops the cached name map so it
+  rebuilds (it is a snapshot of whatever engine globals existed at first use).
+
+### Changed
+
+- **`Ess.Safe.call` / `.quiet` now pass through 6 return values, up from 4.** The widest native return in the
+  whole corpus is 4 (`Player.GetTargetUnderReticle`'s x,y,z,guid), so this is headroom rather than a fix — but
+  the old ceiling would have silently truncated a wider call. Still fixed-arity and still allocation-free:
+  these sit inside per-frame heartbeats, where a throwaway table per engine call would be a real cost.
+  Verified live at 6 values through the game's own VM.
+- **`Ess.Safe.quiet` now means "quiet unless you asked to hear it"**, not "invisible". Its failures are always
+  counted, and log when `Ess.DEBUG` is on. Previously they were unconditionally undiagnosable.
+- **Failure-name resolution** builds a reverse map (function reference → `"Namespace.FnName"`) by walking the
+  engine globals once, lazily, only on the first failure while `Ess.DEBUG` is on — so it costs nothing in the
+  normal debug-off case. CONFIRMED LIVE: **1,889 functions mapped**, correct on 4/4 spot checks
+  (`Object.GetPosition`, `Player.GetLocalCharacter`, `Ai.Goal`, `Pg.Spawn`), including the one-level-deep
+  nested tables `Graphics.Camera` and `Graphics.Effect`. (`pairs(Object)` returns exactly 87 functions,
+  matching the wiki's own live dump.)
+
+- **`Ess.stop(x)` / `Ess.stopAll(t)` / `Ess.Track:any(x)`** (`src/98_stop.lua`) — one teardown verb for any
+  handle shape. Ess grew **27 distinct teardown verbs** across **five structurally different** disposal
+  idioms — a closure to call (`Ess.On.*`), a handle table to hand back (`Ess.Mark`, `Ess.Relations`), an id
+  string you supplied (`Ess.Loop`, `Ess.Sandbox`), an object with a method (`Ess.Objective:cancel`), a tracker
+  (`Ess.Track:closeAll`) — because each namespace picked the word that read best locally. Every one still
+  works and none is deprecated; `Ess.stop` is what you reach for when you're just holding a handle and want it
+  gone, and what a teaching example can use without a detour into per-namespace spelling. Dispatch is
+  duck-typed on the same discriminators `Ess.Mark.clear`/`Ess.Relations.restore` already use, with real
+  methods checked first; string ids are resolved by *asking* each registry which one owns the id rather than
+  guessing. `nil` and unrecognised input are safe no-ops returning `false` — teardown never throws.
+- **`Ess.RNG:pick` now works on a plain array.** Entries that aren't tables weigh 1, giving a uniform pick.
+  Previously every entry was indexed as `e[weightKey]` unconditionally, so `rng:pick({guidA, guidB})` — the
+  obvious reading of a function called "pick" — **threw** `attempt to index a userdata value`. Weighted
+  behaviour for table entries is unchanged (verified: a `w = 0` entry is still never chosen in 200 draws).
+  Found by a new recipe doing exactly that against a list of spawned guids.
+- **Seven `compose_*` recipes** (`samples/recipes/`) — the **composition track**, and an explicit answer to
+  "why write Lua when the visual editor can wire this up?" Every other recipe is a sequence of one-liners,
+  which the node editor does better. These demonstrate what a node graph structurally *can't* hold: a closure
+  keeping private state between ticks, iteration over a query result of unknown length, an author-defined
+  vocabulary the rest of the mod is then written in, behaviour that keeps reacting after the script has
+  finished (without leaking on re-run), an encounter described as validated/scalable data, unified teardown,
+  and the `Ess.DEBUG` workflow itself. All seven pass live.
+- **`dist/ess.json`** (`python build/manifest.py`) — a generated, machine-readable manifest of all **548**
+  public functions: namespace, tier, params, returns, description, source file+line, and whether documented.
+  Parsed from `src/` itself, which is authoritative — a doc mentioning a function never conjures one into
+  existence. Ships in the release zip as `api/ess.json`.
+- **`build/manifest.py --check`, the API drift gate**, now running in CI. `ess.json` can't drift from `src/`
+  (it's generated from it), but the hand-written surfaces can: the in-game console's registry,
+  `CAPABILITIES.md`, and every source header comment. The gate fails the build if any of them names a function
+  that doesn't exist. It earned its place immediately — its first run flagged `Ess.Squad.on` and
+  `Ess.Time.since` as documented-but-undefined, which turned out to be a hole in the parser (both are plain
+  function-reference aliases, `Ess.Time.since = Ess.Time.elapsed`), and its second flagged a real one.
+- **`dist/natives.json`** (`python tools/dump_natives.py`, needs a live game) — the whole engine surface, from
+  a `pairs(_G)` walk inside the running VM: **4,316 functions** across 81 **engine-native** namespaces (C++,
+  no source anywhere) and 197 **resident-game-script** ones (ordinary Lua, each with its path in the
+  decompiled corpus). Classification is evidence-based, not guessed — the live `_MODULES` registry *is* the
+  discriminator. Deduped by **table identity** rather than by name, which matters in both directions: the
+  module system puts an imported module's table onto every importer (`MrxPmc.MrxUtil` *is* `MrxUtil`, and
+  `oPda` *is* `Pda` — 240 such aliases folded away), while some same-*named* tables are genuinely distinct
+  (`SubtitleBuffer ~= Pda.SubtitleBuffer`). Each namespace records which of its functions Ess already reaches,
+  so the remainder is the coverage gap. Ships as `api/natives.json`.
+
+### Fixed
+
+- **`Ess.Event.on`'s failure log said `nil`.** The one place the `pcall` → `Ess.Safe` conversion silently
+  degraded something: it logged its second return value as the error message, which under `Ess.Safe` is a bare
+  `false`/`nil` by design. Now reads the message from `Ess.lastError()`. Found by sweeping every converted site
+  for a second-return read inside its own failure branch (10 others turned out to be `if not ok or not val`
+  nil-tests, which behave identically).
+
+### Documented (confirmed live, previously unrecorded)
+
+- **`Object.Remove` is DEFERRED, exactly like `Object.Kill`.** `Ess.Object.alive(g)` still reads `true` on the
+  same tick you remove something and flips false roughly half a second later. `11_object.lua` documented this
+  for `Kill` only. Worse, **`Ess.Object.valid(g)` stays `true` even after `alive()` has flipped** — the guid
+  handle outlives the object, so `valid` is not a usable "is it gone yet" test at all. Found by a new recipe
+  asserting removal synchronously and failing for a reason unrelated to what it was testing.
+- **The `debug` library does not exist on this engine.** `type(_G.debug)` is `nil` — absent outright, not
+  merely unused by the shipped scripts (zero occurrences in the whole decompiled corpus). A guarded
+  `debug.getinfo` fallback for naming closures was confirmed dead code and removed rather than left in looking
+  like it might work; `Ess.Safe.named` is the only way to attribute a closure.
+- **`io` does not exist either** (`type(_G.io) == "nil"`), which is why `tools/dump_natives.py` transports its
+  dump through `Loader.Printf` and the log file rather than writing a file from inside the game.
+- **`FEATURE_SHEET.md`** now says plainly that its opening design section and its "open questions" are
+  historical and resolved, rather than reading as current pending work. `README.md` no longer points at it for
+  "the full API" — that's `CAPABILITIES.md`, as the same README already said two paragraphs earlier.
+
+### Notes
+
+- Fully backwards compatible. `Ess.Safe.call`/`.quiet` keep their existing contract of returning a **bare
+  `false`** on failure — deliberately *not* `pcall`'s `false, errMessage`, since handing the error string back
+  in the slot callers read as "the value" would turn a clean nil-on-failure into a garbage-on-failure footgun.
+  Read the message via `Ess.lastError()`.
+- A variadic `Ess.Safe.callv` was written and then deliberately **removed** rather than shipped: nothing in
+  Ess needs it, so it would have been an untested code path for a hypothetical caller. `unpack` (76 corpus
+  occurrences) and `select` (live-exercised by `a_quick_mission.lua` every smoke run) both exist on this
+  engine, so it is buildable the day a >6-value native call is actually found.
+
 ## [0.3.4]
 
 **The `Ess.Squad` team/orchestration pass.** A full team/role/queue/tactics/formation layer over

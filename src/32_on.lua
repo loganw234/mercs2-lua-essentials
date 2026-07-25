@@ -25,7 +25,13 @@ Ess.On._n = Ess.On._n or 0
 local function nextId(kind) Ess.On._n = Ess.On._n + 1; return "Ess.On." .. kind .. ":" .. Ess.On._n end
 
 function Ess.On.death(guid, fn)
-    if not guid then return function() end end
+    -- A hook that never fires is the worst silence in the framework: nothing is wrong, nothing is logged,
+    -- and the mod just never reacts. Ess.Safe.reject makes the no-op visible under Ess.DEBUG. The returned
+    -- do-nothing stop() is unchanged, so callers keep working exactly as before.
+    if not guid then
+        Ess.Safe.reject("Ess.On.death", "no guid -- hook not armed, it will never fire")
+        return function() end
+    end
     local h = Ess.Event.on(Event.ObjectDeath, { guid }, function() pcall(fn) end)
     return function() Ess.Event.off(h) end
 end
@@ -93,7 +99,11 @@ end
 
 function Ess.On.vehicle(fn, i)
     local char = Ess.Player.character(i or 0)
-    if not char then return function() end end
+    if not char then
+        Ess.Safe.reject("Ess.On.vehicle", "no character for player " .. tostring(i or 0)
+            .. " -- hook not armed (asking for the co-op partner in single-player does this)")
+        return function() end
+    end
     return Ess.Object.pollVehicleChange(char, fn)        -- returns its own stop()
 end
 
@@ -114,22 +124,31 @@ end
 -- 2026-07-22 bindings pass (wiki namespaces/objectfilter.md); the arg shapes here are the corpus-confirmed
 -- ones, not guesses. Promoted from CollectibleFinder's inline version, which stays as the worked example.
 function Ess.On.labeled(sLabel, nRadius, fn, i)
-    if type(sLabel) ~= "string" or sLabel == "" then return function() end end
+    if type(sLabel) ~= "string" or sLabel == "" then
+        Ess.Safe.reject("Ess.On.labeled", "label must be a non-empty string, got " .. type(sLabel))
+        return function() end
+    end
     local char = Ess.Player.character(i or 0)
-    if not char then return function() end end
-    local okf, filter = pcall(ObjectFilter.Create)
-    if not okf or not filter then return function() end end
-    pcall(ObjectFilter.SetFilter, filter, sLabel)
+    if not char then
+        Ess.Safe.reject("Ess.On.labeled", "no character for player " .. tostring(i or 0) .. " -- not armed")
+        return function() end
+    end
+    local okf, filter = Ess.Safe.quiet(ObjectFilter.Create)
+    if not okf or not filter then
+        Ess.Safe.reject("Ess.On.labeled", "ObjectFilter.Create returned nothing -- not armed")
+        return function() end
+    end
+    Ess.Safe.quiet(ObjectFilter.SetFilter, filter, sLabel)
     local ev
     local function onProx(tGuids)
         if type(tGuids) ~= "table" then tGuids = { tGuids } end
         for _, u in ipairs(tGuids) do
-            pcall(ObjectFilter.AddObject, filter, u, true)   -- exclude: this object never re-fires
+            Ess.Safe.quiet(ObjectFilter.AddObject, filter, u, true)   -- exclude: this object never re-fires
             pcall(fn, u)
         end
     end
-    local oke, e = pcall(Event.CreatePersistent, Event.ObjectProximity,
+    local oke, e = Ess.Safe.quiet(Event.CreatePersistent, Event.ObjectProximity,
         { filter, char, "<", nRadius or 300, false, false }, onProx, {})
     if oke then ev = e end
-    return function() if ev then pcall(Event.Delete, ev); ev = nil end end
+    return function() if ev then Ess.Safe.quiet(Event.Delete, ev); ev = nil end end
 end

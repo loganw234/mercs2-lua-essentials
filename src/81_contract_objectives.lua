@@ -19,9 +19,9 @@ C.tHandlers.chase = function(inst, task, obj, onDone)       -- destroy a FLEEING
     local ez = obj.tZone
     for _, u in ipairs(guids) do
         mark(task, u, "destroy")
-        local a = u; local okd, drv = pcall(Vehicle.GetDriver, u); if okd and drv then a = drv end   -- steer the driver of a vehicle
-        if ez and ez.x then pcall(Ai.Goal, { AIGuid = a, Goal = "MoveToPos", Location = { ez.x, ez.y, ez.z }, Priority = "HiPri", Force = true }) end
-        pcall(Ai.SetHaste, a, obj.nHaste or 1)
+        local a = u; local okd, drv = Ess.Safe.quiet(Vehicle.GetDriver, u); if okd and drv then a = drv end   -- steer the driver of a vehicle
+        if ez and ez.x then Ess.Safe.quiet(Ai.Goal, { AIGuid = a, Goal = "MoveToPos", Location = { ez.x, ez.y, ez.z }, Priority = "HiPri", Force = true }) end
+        Ess.Safe.quiet(Ai.SetHaste, a, obj.nHaste or 1)
     end
     local killed = 0
     for _, u in ipairs(guids) do
@@ -36,7 +36,7 @@ C.tHandlers.chase = function(inst, task, obj, onDone)       -- destroy a FLEEING
         local function watch()
             if not inst.bActive or task.done then return end
             for _, u in ipairs(guids) do
-                local ok, ux, _, uz = pcall(Object.GetPosition, u)
+                local ok, ux, _, uz = Ess.Safe.quiet(Object.GetPosition, u)
                 if ok and ux then local dx, dz = ux - ez.x, uz - ez.z; if dx * dx + dz * dz <= r * r then Ess.Log("  the target got away!"); return onDone(false) end end
             end
             addEv(task, Event.Create(Event.TimerRelative, { 0.5 }, watch))
@@ -51,7 +51,7 @@ C.tHandlers.survive = function(inst, task, obj, onDone)
     local left = obj.nTime or 60
     if obj.sTarget then                                 -- optional: fail if a protected unit (group/name) dies before the timer
         local grp = (inst.groups or {})[obj.sTarget]; local u = grp and grp[1]
-        if not u then local ok, g = pcall(Pg.GetGuidByName, obj.sTarget); if ok then u = g end end
+        if not u then local ok, g = Ess.Safe.quiet(Pg.GetGuidByName, obj.sTarget); if ok then u = g end end
         if u then addEv(task, Event.Create(Event.ObjectDeath, { u }, function()
             if inst.bActive and not task.done then Ess.Log("  protected target lost"); onDone(false) end end)) end
     end
@@ -125,7 +125,7 @@ C.tHandlers.collect = function(inst, task, obj, onDone)
                 local ix, _, iz = Object.GetPosition(remaining[i])
                 local dx, dz = px - ix, pz - iz
                 if dx * dx + dz * dz <= r * r then
-                    pcall(Object.Remove, remaining[i]); table.remove(remaining, i); got = got + 1
+                    Ess.Safe.quiet(Object.Remove, remaining[i]); table.remove(remaining, i); got = got + 1
                     Ess.Log("  collected (" .. got .. "/" .. quota .. ")")
                     if got >= quota then return onDone(true) end
                 end
@@ -148,7 +148,7 @@ C.tHandlers.escort = function(inst, task, obj, onDone)
     if z.x then markZone(task, z.x, z.y, z.z, r) end
     local function poll()
         if not inst.bActive or task.done or not z.x then return end
-        local ok, ex, _, ez = pcall(Object.GetPosition, u)   -- pcall'd: u is killable and GetPosition throws on a dead guid
+        local ok, ex, _, ez = Ess.Safe.quiet(Object.GetPosition, u)   -- pcall'd: u is killable and GetPosition throws on a dead guid
         if ok and ex then local dx, dz = ex - z.x, ez - z.z
             if dx * dx + dz * dz <= r * r then return onDone(true) end end
         addEv(task, Event.Create(Event.TimerRelative, { 0.5 }, poll))
@@ -216,9 +216,9 @@ end
 -- talk / plant / hack / sabotage / free-prisoner -- the flavour is just the desc.
 C.tHandlers.interact = function(inst, task, obj, onDone)
     local u, z = nil, obj.tZone
-    if obj.sTarget then local ok, uu = pcall(Pg.GetGuidByName, obj.sTarget); if ok then u = uu end
+    if obj.sTarget then local ok, uu = Ess.Safe.quiet(Pg.GetGuidByName, obj.sTarget); if ok then u = uu end
     elseif obj.tSpawn then local s = obj.tSpawn; local ok, uu = safeSpawn(s[1], s[2], s[3], s[4]); if ok then u = track(task, uu) end end
-    if u then local ok, x, y, zz = pcall(Object.GetPosition, u); if ok and x then z = { x = x, y = y, z = zz } end end
+    if u then local ok, x, y, zz = Ess.Safe.quiet(Object.GetPosition, u); if ok and x then z = { x = x, y = y, z = zz } end end
     if not z or not z.x then Ess.Log("interact has no target/location"); return onDone(true) end
     local r, need, held, step = obj.nRadius or 4, obj.nTime or 0, 0, 0.5
     if u then mark(task, u, "action")                       -- a physical target: mark it on all surfaces
@@ -244,7 +244,7 @@ end
 -- player is adjacent while it's at low health (a subdue approximation).
 C.tHandlers.verify = function(inst, task, obj, onDone)
     local u
-    if obj.sTarget then local ok, uu = pcall(Pg.GetGuidByName, obj.sTarget); if ok then u = uu end
+    if obj.sTarget then local ok, uu = Ess.Safe.quiet(Pg.GetGuidByName, obj.sTarget); if ok then u = uu end
     elseif obj.tSpawn then local s = obj.tSpawn; local ok, uu = safeSpawn(s[1], s[2], s[3], s[4]); if ok then u = track(task, uu) end end
     if not u then Ess.Log("verify has no HVT"); return onDone(true) end
     mark(task, u, "verify")
@@ -255,9 +255,9 @@ C.tHandlers.verify = function(inst, task, obj, onDone)
         local cr, chp = obj.nRadius or 3, obj.nCaptureHealth or 25
         local function poll()
             if not inst.bActive or task.done then return end
-            local okp, px, _, pz = pcall(Object.GetPosition, Player.GetLocalCharacter())
-            local okt, tx, _, tz = pcall(Object.GetPosition, u)
-            local okh, hp = pcall(Object.GetHealth, u)
+            local okp, px, _, pz = Ess.Safe.quiet(Object.GetPosition, Player.GetLocalCharacter())
+            local okt, tx, _, tz = Ess.Safe.quiet(Object.GetPosition, u)
+            local okh, hp = Ess.Safe.quiet(Object.GetHealth, u)
             if okp and okt and px and tx then
                 local dx, dz = px - tx, pz - tz
                 if okh and hp and hp <= chp and dx * dx + dz * dz <= cr * cr then
@@ -339,7 +339,7 @@ C.tHandlers.race = function(inst, task, obj, onDone)
         if curSet then Ess.Mark.clear(curSet); curSet = nil end   -- unmark the PREVIOUS checkpoint only
         idx = idx + 1
         if idx > n then
-            local ok, e = pcall(Sys.TimeStampGetElapsed, startStamp)
+            local ok, e = Ess.Safe.quiet(Sys.TimeStampGetElapsed, startStamp)
             Ess.Log(string.format("  race complete in %.1fs", (ok and e) or 0))
             return onDone(true)
         end

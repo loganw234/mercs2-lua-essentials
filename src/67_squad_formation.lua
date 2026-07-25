@@ -75,8 +75,8 @@ local function startSlot(guid, leader, formationType, index, total, spacing)
         if not anchor or not Object.IsAlive(guid) or not Object.IsAlive(leader) then return false end
         -- re-pin feeling every tick -- this guid is off native Follow the whole time it's in formation,
         -- the same drift Ess.Followers.startFollowLoop's own header documents and fixes the same way.
-        local fok, feeling = pcall(Ai.GetFeeling, guid, leader)
-        if fok and feeling and feeling < 50 then pcall(Ai.SetFeeling, guid, leader, 100) end
+        local fok, feeling = Ess.Safe.quiet(Ai.GetFeeling, guid, leader)
+        if fok and feeling and feeling < 50 then Ess.Safe.quiet(Ai.SetFeeling, guid, leader, 100) end
 
         local lx, ly, lz = Ess.Object.pos(leader)
         if not lx then return true end
@@ -89,7 +89,7 @@ local function startSlot(guid, leader, formationType, index, total, spacing)
         -- guid has basically reached its slot.
         if dist > 0.75 then
             Ess.Object.setPos(anchor, wx, ly, wz)
-            pcall(Ai.Goal, { AIGuid = guid, Goal = "MoveTo", Target = anchor, Priority = "HiPri", Force = true })
+            Ess.Safe.quiet(Ai.Goal, { AIGuid = guid, Goal = "MoveTo", Target = anchor, Priority = "HiPri", Force = true })
         end
         return true
     end)
@@ -110,8 +110,8 @@ function Ess.Squad.setFormation(targetGroup, formationType, opts)
         -- Native Role/leftover Goal state gets the same RemoveGoal wildcard + Role->Idle release every
         -- other transition in this codebase uses.
         Ess.Followers._stopFollowLoop(g)
-        pcall(Ai.RemoveGoal, { AIGuid = g, Handle = 0 })
-        pcall(Ai.Role, { AIGuid = g, Role = "Idle", Priority = "hiPri" })
+        Ess.Safe.quiet(Ai.RemoveGoal, { AIGuid = g, Handle = 0 })
+        Ess.Safe.quiet(Ai.Role, { AIGuid = g, Role = "Idle", Priority = "hiPri" })
         startSlot(g, leader, formationType, i, #guids, spacing)
     end
     return true

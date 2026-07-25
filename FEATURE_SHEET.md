@@ -15,6 +15,14 @@ This document maps the **whole system** before any of it is built, so implementa
 instead of growing organically. It is not final — naming and grouping are explicitly up for revision
 once we start writing code against it.
 
+> **Read the paragraph above as of 2026-07-16, because that is when it was true.** Everything it describes
+> as unbuilt is now built and live-tested, and the naming it flags as provisional is the naming that shipped.
+> The same goes for the two sections near the end — "Open questions (before implementation starts)" and
+> "Suggested build order (once the sheet above is approved)" — both are **resolved history**, not open work.
+> They are kept in their original wording on purpose: this file's value is showing what the design looked
+> like from the front, including the parts that turned out differently. Nothing here is a to-do list, and
+> nothing here supersedes [CAPABILITIES.md](CAPABILITIES.md) on what the API is today.
+
 ## Implementation status (2026-07-16)
 
 **At a glance (2026-07-17):** every namespace in the original catalog (Groups A–J) is built and live-tested

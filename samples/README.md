@@ -16,6 +16,23 @@ handler.
 
 ## Recipes (`samples/recipes/`)
 
+**The composition track (`compose_*`) — why write Lua at all**
+
+These seven are different from the rest, and worth reading as a set. Every *other* recipe here is a sequence
+of one-liners — and for that, the [visual node editor](https://visual.mercs2.tools) is genuinely the better
+tool, because you can see the wiring. These show what a node graph **structurally cannot hold**, which is the
+real reason to graduate to hand-written Lua: not access to more functions, but *programs* instead of sequences.
+
+| Recipe | The thing a graph can't do | Namespaces |
+|---|---|---|
+| `compose_a_closure` | private state a behaviour keeps between ticks — and two independent copies of it from one factory | State, Loop, Math |
+| `compose_filter_the_world` | iterate/filter/sort/fold a query result of unknown length | Probe, Table, Object |
+| `compose_your_own_helper` | define your own vocabulary, then write the mod in *that* instead of in Ess calls | Object, Table, Track, RNG |
+| `compose_a_reactive_watcher` | set up behaviour that keeps reacting **after the script has finished**, without leaking on re-run | On, State, Track, Loop |
+| `compose_data_driven` | describe an encounter as a table, validate it, difficulty-scale it, then run it | Table, Object, AIOrders |
+| `compose_one_cleanup` | one teardown verb (`Ess.stop`) across all five of Ess's disposal idioms | stop, Track, On, Mark, Loop |
+| `compose_debug_a_silence` | diagnose a mod that does nothing and says nothing, with `Ess.DEBUG` | DEBUG, Safe, lastError |
+
 **Start here — building blocks**
 
 | Recipe | Achieves | Namespaces |

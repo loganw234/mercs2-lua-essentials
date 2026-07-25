@@ -58,7 +58,7 @@ local function healthLine(i)
     local char = Ess.Player.character(i)
     if not char then return "health: -" end
     local hp = Ess.Object.health(char)
-    local okm, mx = pcall(Object.GetMaxHealth, char)
+    local okm, mx = Ess.Safe.quiet(Object.GetMaxHealth, char)
     if hp and okm and mx then return string.format("health: %.0f / %.0f", hp, mx) end
     if hp then return "health: " .. tostring(hp) end
     return "health: ?"
@@ -75,10 +75,10 @@ end
 -- unlabeled, so it's shown as the bare number: the useful signal for a mod author is it CLIMBING while
 -- your script runs (a leak), not its absolute value. Cheap enough to read every refresh tick.
 local function memLine()
-    -- guard the INDEX, not just the call: `pcall(Sys.MemUsage)` evaluates Sys.MemUsage before pcall can
+    -- guard the INDEX, not just the call: `Ess.Safe.quiet(Sys.MemUsage)` evaluates Sys.MemUsage before pcall can
     -- protect it, so an absent Sys (offline harness) would throw right here -- caught by test_bundles.py.
     if not (Sys and Sys.MemUsage) then return "" end
-    local ok, m = pcall(Sys.MemUsage)
+    local ok, m = Ess.Safe.quiet(Sys.MemUsage)
     if ok and m then return string.format("   mem %.0f", m) end
     return ""
 end

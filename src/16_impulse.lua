@@ -25,19 +25,19 @@ Ess.Easy.Impulse = Ess.Easy.Impulse or {}
 -- Ess.Raw.Impulse.apply(uGuid, x, y, z, bLocal) -- Object.ApplyImpulse. LOCAL space (bLocal true, the default)
 -- is (x=side, y=up, z=forward); WORLD space (bLocal false) is world x/y/z.
 function Ess.Raw.Impulse.apply(uGuid, x, y, z, bLocal)
-    pcall(Object.ApplyImpulse, uGuid, x or 0, y or 0, z or 0, bLocal ~= false)
+    Ess.Safe.quiet(Object.ApplyImpulse, uGuid, x or 0, y or 0, z or 0, bLocal ~= false)
 end
 
 -- Ess.Raw.Impulse.applyAtPoint(uGuid, ix, iy, iz, px, py, pz, bLocal) -- Object.ApplyPointImpulse: an impulse
 -- (ix,iy,iz) applied at an OFFSET point (px,py,pz) rather than the center -- an off-center push imparts SPIN
 -- (torque), which is how spyhunter.lua does its barrel-roll flip. Defaults to local space.
 function Ess.Raw.Impulse.applyAtPoint(uGuid, ix, iy, iz, px, py, pz, bLocal)
-    pcall(Object.ApplyPointImpulse, uGuid, ix or 0, iy or 0, iz or 0, px or 0, py or 0, pz or 0, bLocal ~= false)
+    Ess.Safe.quiet(Object.ApplyPointImpulse, uGuid, ix or 0, iy or 0, iz or 0, px or 0, py or 0, pz or 0, bLocal ~= false)
 end
 
 -- Ess.Raw.Impulse.mass(uGuid) -> n | nil -- Object.GetMass, pcall'd (the scaling factor the boosts use).
 function Ess.Raw.Impulse.mass(uGuid)
-    local ok, m = pcall(Object.GetMass, uGuid)
+    local ok, m = Ess.Safe.quiet(Object.GetMass, uGuid)
     if ok and type(m) == "number" then return m end
     return nil
 end
@@ -109,7 +109,8 @@ end
 -- Ess.Easy.Impulse.knockback(uGuid, fromGuid, strength) -- shove uGuid directly AWAY from fromGuid (default
 -- source = you) with a slight upward lift -- the "the blast sent them flying" feel. World-direction, mass-scaled.
 function Ess.Easy.Impulse.knockback(uGuid, fromGuid, strength)
-    if not uGuid then return end
+    if not uGuid then return Ess.Safe.reject("Ess.Impulse", "no guid, and no vehicle/character to fall "
+        .. "back on -- nothing was pushed") end
     fromGuid = fromGuid or Ess.Player.character(0)
     local tx, ty, tz = Ess.Object.pos(uGuid)
     local fx, fy, fz = Ess.Object.pos(fromGuid)

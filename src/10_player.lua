@@ -33,11 +33,11 @@ Ess.Player = Ess.Player or {}
 -- care which") stays directly available for the rare case that actually wants it -- not worth wrapping.
 function Ess.Player.character(i)
     if i == 1 then
-        local ok, c = pcall(Player.GetSecondaryCharacter)
+        local ok, c = Ess.Safe.quiet(Player.GetSecondaryCharacter)
         if ok then return c end
         return nil
     end
-    local ok, c = pcall(Player.GetLocalCharacter)
+    local ok, c = Ess.Safe.quiet(Player.GetLocalCharacter)
     if ok then return c end
     return nil
 end
@@ -51,11 +51,11 @@ end
 -- "are we in co-op" check -- it will false-positive. Use Ess.Player.character(1) ~= nil for that instead.
 function Ess.Player.slot(i)
     if i == 1 then
-        local ok, p = pcall(Player.GetSecondaryPlayer)
+        local ok, p = Ess.Safe.quiet(Player.GetSecondaryPlayer)
         if ok then return p end
         return nil
     end
-    local ok, p = pcall(Player.GetLocalPlayer)
+    local ok, p = Ess.Safe.quiet(Player.GetLocalPlayer)
     if ok then return p end
     return nil
 end
@@ -66,8 +66,9 @@ end
 -- player index directly.
 function Ess.Player.camera(i)
     local slot = Ess.Player.slot(i)
-    if not slot then return nil end
-    local ok, cam = pcall(Player.GetCamera, slot)
+    if not slot then return Ess.Safe.reject("Ess.Player", "no player slot for that index "
+        .. "-- index 1 is the CO-OP PARTNER and is nil in single-player") end
+    local ok, cam = Ess.Safe.quiet(Player.GetCamera, slot)
     if ok then return cam end
     return nil
 end
@@ -78,12 +79,12 @@ end
 -- the player never sees it update. No player-index argument: cash/fuel is this machine's own campaign
 -- wallet, not a per-character resource (in co-op each machine has its own wallet already).
 function Ess.Player.giveCash(n)
-    local ok = pcall(MrxPmc.AddCashQty, n, false, "[Ess]")
+    local ok = Ess.Safe.quiet(MrxPmc.AddCashQty, n, false, "[Ess]")
     return ok and true or false
 end
 
 function Ess.Player.giveFuel(n)
-    local ok = pcall(MrxPmc.AddFuelQty, n)
+    local ok = Ess.Safe.quiet(MrxPmc.AddFuelQty, n)
     return ok and true or false
 end
 
@@ -94,10 +95,10 @@ function Ess.Player.pose(i)
     local char = Ess.Player.character(i)
     local player = Ess.Player.slot(i)
     if not char then return nil, nil, nil, 0, nil, player end
-    local ok, px, py, pz = pcall(Object.GetPosition, char)
+    local ok, px, py, pz = Ess.Safe.quiet(Object.GetPosition, char)
     if not ok or not px then return nil, nil, nil, 0, char, player end
     local yaw = 0
-    local oky, yv = pcall(Object.GetYaw, char)
+    local oky, yv = Ess.Safe.quiet(Object.GetYaw, char)
     if oky and yv then yaw = yv end
     return px, py, pz, yaw, char, player
 end
@@ -110,7 +111,7 @@ end
 function Ess.Player.targetUnderReticle(i)
     local slot = Ess.Player.slot(i)
     if not slot then return nil end
-    local ok, x, y, z, g = pcall(Player.GetTargetUnderReticle, slot)
+    local ok, x, y, z, g = Ess.Safe.quiet(Player.GetTargetUnderReticle, slot)
     if not ok then return nil end
     return g, x, y, z
 end
@@ -144,11 +145,11 @@ end
 -- one later (e.g. on a mission/area transition). Runtime-only, matching Ess.Object.setInvincible-style
 -- "re-added each load" boundary volumes documented elsewhere in this project.
 function Ess.Player.removeBoundaries()
-    local ok, players = pcall(Player.GetAllPlayers)
+    local ok, players = Ess.Safe.quiet(Player.GetAllPlayers)
     if not ok or type(players) ~= "table" then return 0 end
     local n = 0
     for _, p in ipairs(players) do
-        if pcall(Player.RemoveAllBoundary, p) then n = n + 1 end
+        if Ess.Safe.quiet(Player.RemoveAllBoundary, p) then n = n + 1 end
     end
     return n
 end
@@ -163,7 +164,7 @@ end
 function Ess.Player.setInputEnabled(bOn, i)
     local p = Ess.Player.slot(i)
     if not p then return end
-    pcall(Player.SetInputEnabled, p, bOn and true or false)
+    Ess.Safe.quiet(Player.SetInputEnabled, p, bOn and true or false)
 end
 
 -- Ess.Player.rumble(i, fLength) -- CONFIRMED (wiki/namespaces/pg.md): Pg.Rumble(uCharacterGuid, fLength)
@@ -173,7 +174,7 @@ end
 function Ess.Player.rumble(i, fLength)
     local char = Ess.Player.character(i)
     if not char then return end
-    pcall(Pg.Rumble, char, fLength or 0.2)
+    Ess.Safe.quiet(Pg.Rumble, char, fLength or 0.2)
 end
 
 -- Ess.Player.teleport(x, y, z, yaw, onDone) -- warp the player to a world position. Wraps the CONFIRMED
@@ -193,7 +194,7 @@ end
 -- you don't want them left hurt.
 function Ess.Player.teleport(x, y, z, yaw, onDone)
     local locs = { { x, y, z, yaw or 0 } }
-    pcall(MrxUtil.TeleportHeroesToLocations, locs, onDone or function() end)
+    Ess.Safe.quiet(MrxUtil.TeleportHeroesToLocations, locs, onDone or function() end)
 end
 
 -- Ess.Player.inVehicle(i) -> uVehicleGuid | nil -- the vehicle the player is in right now (driver OR

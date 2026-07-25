@@ -18,31 +18,31 @@ Ess.Easy.Fun = Ess.Easy.Fun or {}
 -- Ess.Easy.Player.giveGrapplingHook() -- unlock the grappling hook. CONFIRMED live (sample OnKey scripts):
 -- MrxPmc.AddEquipment("GrapplingHook").
 function Ess.Easy.Player.giveGrapplingHook()
-    pcall(MrxPmc.AddEquipment, "GrapplingHook")
+    Ess.Safe.quiet(MrxPmc.AddEquipment, "GrapplingHook")
 end
 
 -- Ess.Easy.Player.unlockFastTravel() -- unlock every landing zone so you can fast-travel anywhere.
 -- CONFIRMED (MrxTransit.UnlockAllLandingZones, wired to the game's cheat menu).
 function Ess.Easy.Player.unlockFastTravel()
-    pcall(MrxTransit.UnlockAllLandingZones)
+    Ess.Safe.quiet(MrxTransit.UnlockAllLandingZones)
 end
 
 -- Ess.Easy.Player.unlockAllHQs() -- unlock every HQ/outpost. CONFIRMED (MrxHqManager.UnlockAllHq).
 function Ess.Easy.Player.unlockAllHQs()
-    pcall(MrxHqManager.UnlockAllHq)
+    Ess.Safe.quiet(MrxHqManager.UnlockAllHq)
 end
 
 -- Ess.Easy.Player.giveAllRewards() -- dispense every unlock reward at once. CONFIRMED
 -- (MrxRewardData.DispenseAllRewards, a cheat-menu function).
 function Ess.Easy.Player.giveAllRewards()
-    pcall(MrxRewardData.DispenseAllRewards)
+    Ess.Safe.quiet(MrxRewardData.DispenseAllRewards)
 end
 
 -- Ess.Easy.Player.freeSupport(bOn) -- ignore all airstrike/support stock + unlock requirements, so you can
 -- call any support for free. CONFIRMED (MrxSupportData.SetIgnoreRequirements). Pass false to turn it back on.
 function Ess.Easy.Player.freeSupport(bOn)
     if bOn == nil then bOn = true end
-    pcall(MrxSupportData.SetIgnoreRequirements, bOn and true or false)
+    Ess.Safe.quiet(MrxSupportData.SetIgnoreRequirements, bOn and true or false)
 end
 
 -- Ess.Easy.Player.ghost(bOn, i) -- stealth mode: drop your AI detectability to the engine's own floor so AI
@@ -80,13 +80,13 @@ end
 -- wait a beat before attaching bone FX (Ess.Easy.Spawn.fxOn) to a JUST-skinned character.
 function Ess.Easy.Player.skin(sCode, i)
     local char = Ess.Player.character(i)
-    if char and type(sCode) == "string" and sCode ~= "" then pcall(Player.SetOutfit, char, sCode) end
+    if char and type(sCode) == "string" and sCode ~= "" then Ess.Safe.quiet(Player.SetOutfit, char, sCode) end
 end
 
 -- Ess.Easy.Fun.fanfare(bWin) -- play the mission-success (or, with false, mission-fail) music sting.
 -- CONFIRMED (MrxMusic.PlayFanfare, mrxtaskcontract.lua).
 function Ess.Easy.Fun.fanfare(bWin)
-    pcall(MrxMusic.PlayFanfare, bWin ~= false)
+    Ess.Safe.quiet(MrxMusic.PlayFanfare, bWin ~= false)
 end
 
 -- Ess.Easy.Fun.dance() -- make your character do the "technoviking" dance. CONFIRMED live (snippets): load
@@ -94,6 +94,6 @@ end
 function Ess.Easy.Fun.dance()
     local u = Ess.Player.character(0)
     if not u then return end
-    pcall(Pg.LoadAsset, "player_mattias_bare_technoviking", "animation")
-    pcall(Human.PlayRawAnimation, u, "player_mattias_bare_technoviking", false, false, 0, false)
+    Ess.Safe.quiet(Pg.LoadAsset, "player_mattias_bare_technoviking", "animation")
+    Ess.Safe.quiet(Human.PlayRawAnimation, u, "player_mattias_bare_technoviking", false, false, 0, false)
 end

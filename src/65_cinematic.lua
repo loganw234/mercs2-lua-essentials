@@ -92,7 +92,7 @@ STEP.camera = function(step, ctx, seq)
                     ctx._lookAnchor = Ess.Camera.lookAtAnchor(lx, ly, lz, seq.i)   -- spawns TinyGeometry + binds
                     if ctx._lookAnchor then ctx.track:guid(ctx._lookAnchor) end
                 else
-                    pcall(Object.SetPosition, ctx._lookAnchor, lx, ly, lz)
+                    Ess.Safe.quiet(Object.SetPosition, ctx._lookAnchor, lx, ly, lz)
                     Ess.Camera.lookAtObject(ctx._lookAnchor, nil, seq.i)
                 end
             end
@@ -129,7 +129,7 @@ STEP.orbit = function(step, ctx, seq)
     local radius, height, spd = step.radius or 12, step.height or 4, math.rad(step.speed or 40)
     local start, t0 = math.rad(step.startAngle or 0), Ess.Time.stamp()
     Ess.Loop.start(CAMMOVE_ID, 0.033, function()
-        local ok, tx, ty, tz = pcall(Object.GetPosition, tgt)
+        local ok, tx, ty, tz = Ess.Safe.quiet(Object.GetPosition, tgt)
         if ok and tx then
             local a = start + Ess.Time.elapsed(t0) * spd
             Ess.Camera.placeCamera(tx + math.sin(a) * radius, ty + height, tz + math.cos(a) * radius, seq.i)
@@ -152,7 +152,7 @@ STEP.chase = function(step, ctx, seq)
     local ar = math.rad(step.angle or 200)
     local ox, oz = math.sin(ar) * dist, math.cos(ar) * dist
     Ess.Loop.start(CAMMOVE_ID, 0.033, function()
-        local ok, tx, ty, tz = pcall(Object.GetPosition, tgt)
+        local ok, tx, ty, tz = Ess.Safe.quiet(Object.GetPosition, tgt)
         if ok and tx then
             Ess.Camera.placeCamera(tx + ox, ty + height, tz + oz, seq.i)
             Ess.Camera.lookAtObject(look, step.bone, seq.i)
@@ -241,13 +241,13 @@ STEP.vo = function(step)
     if type(lines) ~= "table" or #lines == 0 then return end
     local seq = {}
     for i, ln in ipairs(lines) do seq[#seq + 1] = ln; if i < #lines then seq[#seq + 1] = step.gap or 1 end end
-    pcall(MrxVoSequence.Start, seq)
+    Ess.Safe.quiet(MrxVoSequence.Start, seq)
 end
 
 -- {type="music", cue=} / {type="music", stop=true} -- special music cue on/off (MrxMusic).
 STEP.music = function(step)
-    if step.stop or step.cue == "stop" or step.cue == "" then pcall(MrxMusic.StopSpecialMusic)
-    else pcall(MrxMusic.PlaySpecialMusic, step.cue or "mu_pmc_panicloop_01") end
+    if step.stop or step.cue == "stop" or step.cue == "" then Ess.Safe.quiet(MrxMusic.StopSpecialMusic)
+    else Ess.Safe.quiet(MrxMusic.PlaySpecialMusic, step.cue or "mu_pmc_panicloop_01") end
 end
 
 -- {type="sound", cue=, on=<ref>} -- a one-shot sound EFFECT (Ess.Sound.cue), distinct from music/vo. on=

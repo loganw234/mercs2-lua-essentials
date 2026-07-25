@@ -25,8 +25,11 @@ gates, and the confirmed engine rules to respect.
 ## Layout
 
 - `CAPABILITIES.md` — **current-state capability reference; read this first** to see what Ess can do now.
-- `TROUBLESHOOTING.md` — symptom-first fixes for the common install/mod-authoring failure points.
+- `TROUBLESHOOTING.md` — symptom-first fixes for the common install/mod-authoring failure points. Starts with
+  `Ess.DEBUG`, which is the answer to "my mod does nothing and says nothing."
 - `FEATURE_SHEET.md` — the original design doc + append-only build log (the *why* and the history).
+  **Historical by nature**: it opens with the forward-looking design written before any of this existed, and
+  its "open questions" are long since resolved. Read it for provenance, never for the current API.
 - `src/` — per-namespace source files, `NN_name.lua` (numeric prefix = load/dependency order, not
   alphabetical — see `build/merge.py`'s own comments for why). Roughly: `00`–`14` core/identity/query,
   `20`–`22` timing/input/state, `30`–`31` tracking/marking, `40`–`57` UI/gfx/sound/hud, `60`–`64` the
@@ -37,6 +40,11 @@ gates, and the confirmed engine rules to respect.
   "Tiered access model" section.
 - `build/merge.py` — concatenates `src/*.lua` (in an explicit dependency order, not alphabetical) into
   one deployable `dist/Ess.lua`. Run `python build/merge.py` from anywhere; it resolves its own paths.
+- `build/manifest.py` — generates `dist/ess.json`, the **machine-readable manifest** of every public `Ess`
+  function (tier, params, returns, description, source file+line), parsed from `src/` itself. `--check` is the
+  **API drift gate** CI runs: it fails the build if the in-game console, `CAPABILITIES.md` or any header
+  comment names a function that doesn't exist. Companion: `tools/dump_natives.py` emits `dist/natives.json`,
+  the whole raw engine surface (engine-native vs resident-game-script), dumped from a **live** game.
 - `build/package.py` — the **release build action**: runs `merge.py`, then zips a fresh `1_Ess.lua` and the
   `data/vz-patch.wad` UI patch into `dist/Ess-<version>.zip`'s game folder structure (`scripts/OnLoad/` +
   `data/`) so a user just extracts it over their Mercenaries 2 install — plus the recipe catalog and the
@@ -59,7 +67,7 @@ gates, and the confirmed engine rules to respect.
 Copy it into `<game>/scripts/OnLoad/` as `1_Ess.lua` and give it a low number in `lua_loader.ini`'s
 `[OnLoad]` section. That's it — `Ess` no longer needs `ModNet`/`uilib`/`ContractFramework`/`LayerFw`
 deployed alongside it; everything they used to provide is now native. Every other mod script just reads
-off the global `_G.Ess` table — see `FEATURE_SHEET.md` for the full API, or once the game is running, open
+off the global `_G.Ess` table — see [CAPABILITIES.md](CAPABILITIES.md) for the full API, or once the game is running, open
 `Ess.Easy.Console.open()` in-game for a searchable, browsable reference of the `Ess.Easy.*` surface and a
 handful of standout Core-tier one-liners.
 

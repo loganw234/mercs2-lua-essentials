@@ -32,7 +32,7 @@ Ess.Gfx = Ess.Gfx or {}
 -- already-solved bug (renders slightly small rather than crashing, which is exactly why it went
 -- unnoticed). Doing the x+w/y+h math here, once, makes it structurally impossible to get wrong again.
 function Ess.Gfx.widget(file, x, y, w, h)
-    local okp, player = pcall(Player.GetLocalPlayer)
+    local okp, player = Ess.Safe.quiet(Player.GetLocalPlayer)
     local ok, wg = pcall(function()
         local wg = MrxGuiBase.FlashWidget:new()
         if okp and player then pcall(function() wg:SetOwner(player) end) end

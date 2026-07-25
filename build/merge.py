@@ -107,6 +107,10 @@ MANIFEST = [
     "95_ui_easy.lua",
     "96_console.lua",
     "97_easy_debug.lua",
+    # Loads LAST: Ess.stop dispatches across most other namespaces (Mark, Relations, Loop, Sandbox, Track),
+    # and it extends Ess.Track with :any(), which needs Ess.Track to already exist at LOAD time (unlike the
+    # dispatch targets, which are resolved per call).
+    "98_stop.lua",
 ]
 
 

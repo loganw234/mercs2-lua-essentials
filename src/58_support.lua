@@ -29,11 +29,11 @@ local HELO_FACTION = { Allied = "AL", China = "CH", Guerilla = "GR", OC = "OC", 
 local rng = Ess.RNG.new()
 local function scatter(r) return (rng:next() * 2 - 1) * r end        -- uniform in [-r, r]
 local function ownerGuid(name) return name and Ess.Guid(name) or nil end
-local function after(delay, fn) pcall(Event.Create, Event.TimerRelative, { delay }, fn) end
+local function after(delay, fn) Ess.Safe.quiet(Event.Create, Event.TimerRelative, { delay }, fn) end
 
 function Ess.Support.shell(x, y, z, opts)
     opts = opts or {}
-    pcall(Airstrike.SpawnOrdnance, opts.ammo or "Gunship Shell", x, y + (opts.dropHeight or 220), z,
+    Ess.Safe.quiet(Airstrike.SpawnOrdnance, opts.ammo or "Gunship Shell", x, y + (opts.dropHeight or 220), z,
         0, -100, 0, "impact", 1, ownerGuid(opts.owner))
 end
 
@@ -48,7 +48,7 @@ end
 
 function Ess.Support.airstrike(x, y, z, opts)
     opts = opts or {}
-    pcall(Airstrike.Flyby, opts.vehicle or "Support Vehicle (Autogunship)",
+    Ess.Safe.quiet(Airstrike.Flyby, opts.vehicle or "Support Vehicle (Autogunship)",
         x - 50, z + 300, x, z, y + (opts.altitude or 120), opts.speed or 55)
 end
 
@@ -61,12 +61,12 @@ function Ess.Support.bombingrun(x, y, z, opts)
         for i = 1, n do
             after(0.14 * (i - 1), function()
                 local jx, jy, jz = x, alt, z
-                if uJet then local ok, a, b, c = pcall(Object.GetPosition, uJet); if ok and a then jx, jy, jz = a, b, c end end
-                pcall(Airstrike.SpawnOrdnance, bomb, jx, jy, jz, 0, -60, 0, "impact", 1, owner)
+                if uJet then local ok, a, b, c = Ess.Safe.quiet(Object.GetPosition, uJet); if ok and a then jx, jy, jz = a, b, c end end
+                Ess.Safe.quiet(Airstrike.SpawnOrdnance, bomb, jx, jy, jz, 0, -60, 0, "impact", 1, owner)
             end)
         end
     end
-    local ok, jet = pcall(Airstrike.Flyby, vehicle, x - 350, z + 350, x, z, alt, speed, drop)
+    local ok, jet = Ess.Safe.quiet(Airstrike.Flyby, vehicle, x - 350, z + 350, x, z, alt, speed, drop)
     if ok then uJet = jet end
 end
 
@@ -77,7 +77,7 @@ function Ess.Support.gunship(x, y, z, opts)
     for i = 1, n do
         local off = (i - 1) * spread
         after(stagger * (i - 1), function()
-            pcall(Airstrike.Flyby, tmpl, x - 60 - off, z + 300 + off, x + off, z, y + (opts.altitude or 55), opts.speed or 45)
+            Ess.Safe.quiet(Airstrike.Flyby, tmpl, x - 60 - off, z + 300 + off, x + off, z, y + (opts.altitude or 55), opts.speed or 45)
         end)
     end
 end
@@ -91,11 +91,11 @@ function Ess.Support.reinforce(x, y, z, opts)
             -- MrxCopterDrop.Create spawns internally, so a blank template here can hard-CTD the same way a
             -- raw Pg.Spawn would (pcall won't save us). The direct path below is guarded by Ess.Object.spawn;
             -- guard the copter path the same way up front.
-            if Ess.Safe.template(tmpl) then pcall(MrxCopterDrop.Create, fac, tmpl, x + ox, y, z + oz, false) end
+            if Ess.Safe.template(tmpl) then Ess.Safe.quiet(MrxCopterDrop.Create, fac, tmpl, x + ox, y, z + oz, false) end
         else Ess.Object.spawn(tmpl, x + ox, y, z + oz) end           -- guarded spawn (blank template safe)
     end
     if deliver == "paradrop" then
-        pcall(Airstrike.Flyby, opts.vehicle or "Support Vehicle (Paradrop_AL)", x - 350, z + 350, x, z, y + (opts.altitude or 180), opts.speed or 140)
+        Ess.Safe.quiet(Airstrike.Flyby, opts.vehicle or "Support Vehicle (Paradrop_AL)", x - 350, z + 350, x, z, y + (opts.altitude or 180), opts.speed or 140)
         for i, tmpl in ipairs(units) do after(1.5 + 0.2 * i, function() spawnOne(i, tmpl) end) end
     else
         for i, tmpl in ipairs(units) do spawnOne(i, tmpl) end

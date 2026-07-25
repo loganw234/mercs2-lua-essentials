@@ -16,12 +16,12 @@ Ess.Raw.Relations = Ess.Raw.Relations or {}
 -- because Lua's `and` short-circuits to `false` the instant ok is false, and `if s[3] then` then
 -- silently skips restoring that direction forever. Keeping ok/val separate is what fixes it.
 function Ess.Raw.Relations.snapshot(ga, gb)
-    local ok, val = pcall(Ai.GetRelation, ga, gb)
+    local ok, val = Ess.Safe.quiet(Ai.GetRelation, ga, gb)
     return { ok = ok and true or false, val = (ok and val) or nil }
 end
 
 function Ess.Raw.Relations.set(ga, gb, val)
-    local ok = pcall(Ai.SetRelation, ga, gb, val)
+    local ok = Ess.Safe.quiet(Ai.SetRelation, ga, gb, val)
     return ok and true or false
 end
 

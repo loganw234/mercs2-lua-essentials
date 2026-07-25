@@ -35,19 +35,19 @@ end
 
 -- :event(handle) -> handle -- tracks an Event.Create handle for Event.Delete on teardown.
 function Ess.Track:event(handle)
-    if handle then self:add(function() pcall(Event.Delete, handle) end) end
+    if handle then self:add(function() Ess.Safe.quiet(Event.Delete, handle) end) end
     return handle
 end
 
 -- :guid(uGuid) -> uGuid -- tracks a spawned object for Object.Remove on teardown.
 function Ess.Track:guid(uGuid)
-    if uGuid then self:add(function() pcall(Object.Remove, uGuid) end) end
+    if uGuid then self:add(function() Ess.Safe.quiet(Object.Remove, uGuid) end) end
     return uGuid
 end
 
 -- :marker(handle) -> handle -- tracks a Marker.Add*() handle for Marker.Remove on teardown.
 function Ess.Track:marker(handle)
-    if handle then self:add(function() pcall(Marker.Remove, handle) end) end
+    if handle then self:add(function() Ess.Safe.quiet(Marker.Remove, handle) end) end
     return handle
 end
 
@@ -68,8 +68,8 @@ end
 -- Named in this file's own header comment as one of the leak-prone pairs Ess.Track exists to cover, but
 -- (CONFIRMED real gap found auditing this file) never actually implemented until now.
 function Ess.Track:qualityRef(uGuid, nQuality)
-    local ok, ref = pcall(Object.AddQualityRef, uGuid, nQuality)
-    if ok and ref then self:add(function() pcall(Object.RemoveQualityRef, ref) end) end
+    local ok, ref = Ess.Safe.quiet(Object.AddQualityRef, uGuid, nQuality)
+    if ok and ref then self:add(function() Ess.Safe.quiet(Object.RemoveQualityRef, ref) end) end
     return ok and ref or nil
 end
 
@@ -78,8 +78,8 @@ end
 -- not a separately-returned handle -- confirmed from wiki/namespaces/object.md's call-site evidence.
 function Ess.Track:disposer(uGuid, sCategory)
     if uGuid then
-        local ok = pcall(Object.AddToDisposer, uGuid, sCategory)
-        if ok then self:add(function() pcall(Object.RemoveFromDisposer, uGuid) end) end
+        local ok = Ess.Safe.quiet(Object.AddToDisposer, uGuid, sCategory)
+        if ok then self:add(function() Ess.Safe.quiet(Object.RemoveFromDisposer, uGuid) end) end
     end
     return uGuid
 end
@@ -90,8 +90,8 @@ end
 -- across real call sites, 2-8 args -- only the leading uGuid+label pair is a fixed schema).
 function Ess.Track:contextAction(uGuid, sLabelOrKey, ...)
     if uGuid then
-        local ok = pcall(Pg.AddContextAction, uGuid, sLabelOrKey, ...)
-        if ok then self:add(function() pcall(Pg.RemoveContextAction, uGuid) end) end
+        local ok = Ess.Safe.quiet(Pg.AddContextAction, uGuid, sLabelOrKey, ...)
+        if ok then self:add(function() Ess.Safe.quiet(Pg.RemoveContextAction, uGuid) end) end
     end
     return uGuid
 end
@@ -116,9 +116,16 @@ Ess.Event = Ess.Event or {}
 -- `args` shape must match what `eventType` expects -- getting the shape wrong doesn't error, it just
 -- silently never fires, so double-check against wiki/namespaces/event.md if a handler seems dead.
 function Ess.Event.on(eventType, args, cb, tracker)
-    local ok, handle = pcall(Event.Create, eventType, args, cb)
+    local ok, handle = Ess.Safe.quiet(Event.Create, eventType, args, cb)
     if not ok then
-        Ess.Log("Event.on failed: " .. tostring(handle))
+        -- The message comes from Ess.lastError(), NOT from `handle`. Ess.Safe.* deliberately returns a bare
+        -- `false` on failure rather than pcall's `false, errMessage` (so a caller reading the second slot as
+        -- "the value" gets a clean nil, not a garbage string) -- which means `tostring(handle)` here would
+        -- just print "nil". This is the one site in the framework where the 0.4.0 pcall -> Ess.Safe
+        -- conversion silently degraded a log line, found by sweeping every converted site for a second
+        -- return read inside its own failure branch.
+        local e = Ess.lastError()
+        Ess.Log("Event.on failed: " .. tostring(e and e.msg or "reason unavailable"))
         return nil
     end
     if tracker then tracker:event(handle) end
@@ -126,6 +133,6 @@ function Ess.Event.on(eventType, args, cb, tracker)
 end
 
 function Ess.Event.off(handle)
-    local ok = pcall(Event.Delete, handle)
+    local ok = Ess.Safe.quiet(Event.Delete, handle)
     return ok and true or false
 end

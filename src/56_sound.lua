@@ -20,7 +20,7 @@ Ess.Sound = Ess.Sound or {}
 -- position.
 function Ess.Sound.cue(uGuidOrNil, sCueName)
     if type(sCueName) ~= "string" or sCueName == "" then return end
-    local ok = pcall(Sound.CueSound, uGuidOrNil or 0, sCueName)
+    local ok = Ess.Safe.quiet(Sound.CueSound, uGuidOrNil or 0, sCueName)
     if not ok then Ess.Log("Sound.cue: CueSound failed for '" .. tostring(sCueName) .. "'") end
 end
 
@@ -28,23 +28,23 @@ end
 -- cue() used, matching every confirmed real call site.
 function Ess.Sound.stop(uGuidOrNil, sCueName)
     if type(sCueName) ~= "string" or sCueName == "" then return end
-    pcall(Sound.StopSound, uGuidOrNil or 0, sCueName)
+    Ess.Safe.quiet(Sound.StopSound, uGuidOrNil or 0, sCueName)
 end
 
 function Ess.Sound.ambience(sStreamName)
     if type(sStreamName) ~= "string" or sStreamName == "" then return end
-    pcall(Sound.CueAmbience, sStreamName)
+    Ess.Safe.quiet(Sound.CueAmbience, sStreamName)
 end
 
 function Ess.Sound.stopAmbience(sStreamName)
     if type(sStreamName) ~= "string" or sStreamName == "" then return end
-    pcall(Sound.StopAmbience, sStreamName)
+    Ess.Safe.quiet(Sound.StopAmbience, sStreamName)
 end
 
 -- Ess.Sound.volume(nLevel, nFadeTime) -- CONFIRMED args: nLevel observed as 0/1 in real scripts (not
 -- necessarily a 0..1 float range beyond that), nFadeTime in seconds.
 function Ess.Sound.volume(nLevel, nFadeTime)
-    pcall(Sound.SetMasterVolume, nLevel, nFadeTime or 0)
+    Ess.Safe.quiet(Sound.SetMasterVolume, nLevel, nFadeTime or 0)
 end
 
 -- Ess.Easy.Sound.play(sCueName) -- a plain UI one-shot, no guid/opts to think about.

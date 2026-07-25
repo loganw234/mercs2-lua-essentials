@@ -27,13 +27,13 @@ Ess.Easy.World = Ess.Easy.World or {}
 -- Player.RemoveAllBoundary loop). Kept as its own verb because it targets the STORY world-boundary system
 -- specifically, which is what a single-player roamer usually means. No clean restore.
 function Ess.Easy.World.removeMapBoundary()
-    pcall(WifVzBoundary.RemoveWorldBoundary)
+    Ess.Safe.quiet(WifVzBoundary.RemoveWorldBoundary)
 end
 
 -- Ess.Easy.World.clearWanted() -- instantly drop all pursuit/wanted heat. CONFIRMED (Pg.ClearPursuitLock,
 -- a global -- no import; real call sites in vz mission scripts + MrxFactionManager).
 function Ess.Easy.World.clearWanted()
-    pcall(Pg.ClearPursuitLock, true)
+    Ess.Safe.quiet(Pg.ClearPursuitLock, true)
 end
 
 -- ATMOSPHERE / lighting -- the CONFIRMED-live interface (session-camera-atmosphere-findings.md + verified
@@ -64,16 +64,16 @@ end
 local function setPersistentAtmo(fn)
     Ess.Easy.World._atmo = fn
     rawApply(fn, 0.5)                                 -- first application eases in
-    local ok, cur = pcall(Graphics.Atmosphere.GetCurrentSetting)
+    local ok, cur = Ess.Safe.quiet(Graphics.Atmosphere.GetCurrentSetting)
     Ess.Easy.World._atmoTag = ok and tostring(cur) or nil
     Ess.Loop.start("Ess.World.atmoKeeper", 0.2, function()
         local f = Ess.Easy.World._atmo
         if not f then return false end               -- cleared by resetAtmosphere -> stop
-        local ok2, c2 = pcall(Graphics.Atmosphere.GetCurrentSetting)
+        local ok2, c2 = Ess.Safe.quiet(Graphics.Atmosphere.GetCurrentSetting)
         local tag = ok2 and tostring(c2) or nil
         if tag ~= Ess.Easy.World._atmoTag then        -- zone swapped the atmosphere -> snap our look back
             rawApply(f, 0)
-            local ok3, c3 = pcall(Graphics.Atmosphere.GetCurrentSetting)
+            local ok3, c3 = Ess.Safe.quiet(Graphics.Atmosphere.GetCurrentSetting)
             Ess.Easy.World._atmoTag = (ok3 and tostring(c3)) or tag
         end
         return true
@@ -102,5 +102,5 @@ end
 function Ess.Easy.World.resetAtmosphere()
     Ess.Easy.World._atmo = nil                        -- keeper stops itself on its next tick
     Ess.Loop.stop("Ess.World.atmoKeeper")
-    pcall(Graphics.Atmosphere.Restore)
+    Ess.Safe.quiet(Graphics.Atmosphere.Restore)
 end

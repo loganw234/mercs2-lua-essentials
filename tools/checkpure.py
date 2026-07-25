@@ -30,7 +30,10 @@ SRC = ROOT / "src"
 
 # the pure (or deterministically-stubbable) src files, in load order
 SRC_FILES = ["00_core.lua", "01_math.lua", "02_str.lua", "03_color.lua", "04_vec.lua",
-             "22_state.lua", "23_time.lua", "53_rng.lua", "52_points.lua"]
+             "22_state.lua", "23_time.lua", "53_rng.lua", "52_points.lua",
+             # 30_track only touches the engine INSIDE its teardown closures, never at load time, so it
+             # loads fine here -- and 98_stop's Ess.Track:any() needs Ess.Track to exist when it loads.
+             "30_track.lua", "98_stop.lua"]
 
 # deterministic stubs for the handful of engine globals these files touch at call time
 STUBS = """
@@ -47,12 +50,100 @@ _G.Sys = {
   SetTimeScale = function(n) end,
 }
 _G.Junk = { FormatTime = function(n, b) return "0:00" end }
+_G.Event = { Delete = function() end, Create = function() return "EV" end }
+_G.Object = { Remove = function() end }
+_G.Marker = { Remove = function() end }
+-- Ess.stop dispatch targets, each logging where it routed so a test can assert the ROUTE, not just an effect.
+_G.STOPLOG = {}
 """
 
 # each test chunk asserts, then `return true`. eq() gives a readable message on mismatch.
 PRELUDE = "local function eq(a,b,m) assert(a==b, (m or '')..' got '..tostring(a)) end\n"
 
 TESTS = {
+    "stop": r"""
+-- Ess.stop must route all five disposal idioms Ess grew (see 98_stop.lua's header) to the right place.
+Ess.Mark      = { clear   = function(h) STOPLOG[#STOPLOG+1] = "mark"      end }
+Ess.Relations = { restore = function(h) STOPLOG[#STOPLOG+1] = "relations" end }
+Ess.Loop      = { _run = { tick = true },
+                  isRunning = function(id) return Ess.Loop._run[id] == true end,
+                  stop = function(id) Ess.Loop._run[id] = nil; STOPLOG[#STOPLOG+1] = "loop:"..id end }
+Ess.Sandbox   = { _on = { arena = true },
+                  isActive = function(id) return Ess.Sandbox._on[id] == true end,
+                  finish = function(id) Ess.Sandbox._on[id] = nil; STOPLOG[#STOPLOG+1] = "sandbox:"..id end }
+local function clear() for i=#STOPLOG,1,-1 do STOPLOG[i]=nil end end
+
+-- 1. a closure
+clear(); local called = false
+assert(Ess.stop(function() called = true end) == true, 'closure -> true')
+assert(called, 'closure was actually invoked')
+
+-- 2. a string id, disambiguated by ASKING each registry which owns it
+clear(); assert(Ess.stop("tick") == true, 'live loop id -> true')
+eq(STOPLOG[1], "loop:tick", 'routed to Ess.Loop')
+clear(); assert(Ess.stop("arena") == true, 'active sandbox id -> true')
+eq(STOPLOG[1], "sandbox:arena", 'routed to Ess.Sandbox')
+clear(); assert(Ess.stop("nobody-owns-this") == false, 'unknown id -> false, not a throw')
+eq(#STOPLOG, 0, 'unknown id routed nowhere')
+
+-- 3. an object with its own teardown method; :closeAll/:cancel/:stop all honoured, method beats field shape
+clear(); local n = 0
+assert(Ess.stop({ closeAll = function() n = n + 1 end }) == true, ':closeAll -> true')
+assert(Ess.stop({ cancel   = function() n = n + 1 end }) == true, ':cancel -> true')
+assert(Ess.stop({ stop     = function() n = n + 1 end }) == true, ':stop -> true')
+eq(n, 3, 'each method form invoked exactly once')
+-- a Mark-SHAPED table that also has a method must use the method, or an Objective carrying a uGuid misroutes
+clear(); local viaMethod = false
+Ess.stop({ uGuid = "G", cancel = function() viaMethod = true end })
+assert(viaMethod and #STOPLOG == 0, 'method wins over field shape')
+
+-- 4. a Relations handle (keyed on `snaps`, same field Ess.Relations.restore itself reads)
+clear(); assert(Ess.stop({ label = "x", snaps = {}, restored = false }) == true, 'relations handle -> true')
+eq(STOPLOG[1], "relations", 'routed to Ess.Relations')
+
+-- 5. a Mark handle, including one with every surface disabled (carries only uGuid)
+clear(); assert(Ess.stop({ uGuid = "G", radarName = "r" }) == true, 'mark handle -> true')
+eq(STOPLOG[1], "mark", 'routed to Ess.Mark')
+clear(); Ess.stop({ uGuid = "G" }); eq(STOPLOG[1], "mark", 'bare uGuid mark still routes to Mark')
+
+-- nil and junk are no-ops that report false rather than throwing -- teardown must never be the thing that
+-- fails at level unload.
+assert(Ess.stop(nil) == false, 'nil -> false'); assert(Ess.stop(42) == false, 'number -> false')
+-- and a closure that THROWS is still contained
+assert(Ess.stop(function() error('teardown blew up') end) == false, 'throwing closure -> false, not a throw')
+
+-- Ess.stopAll: reverse order, counts what it tore down.
+-- NOTE the array here is DENSE on purpose. An earlier version of this test used `{ f, nil, f }` to check
+-- hole-skipping and failed -- correctly: `#t` is UNDEFINED on a table with a nil hole (CONTRIBUTING.md's
+-- engine rules, and the exact desync Ess.Table.compact exists to repair), so the length stopAll iterates is
+-- not meaningful there. That was the test being wrong, not stopAll. Holes are the caller's to fix, with
+-- Ess.Table.compact, and stopAll's own doc comment says so.
+clear(); local order = {}
+local t2 = { function() order[#order+1] = 1 end,
+             function() order[#order+1] = 2 end,
+             function() order[#order+1] = 3 end }
+eq(Ess.stopAll(t2), 3, 'stopAll counts what it tore down')
+eq(order[1], 3, 'stopAll runs in REVERSE order')
+eq(order[3], 1, '...all the way down')
+eq(Ess.stopAll("nope"), 0, 'stopAll on a non-table -> 0')
+-- No hole test at all, deliberately. `#t` on an array with a nil hole is UNDEFINED in Lua -- it can be 1 or
+-- 3 for the same table, at the implementation's discretion -- so any assertion about how far stopAll gets is
+-- asserting nothing. Ess.stopAll's own doc comment tells callers to Ess.Table.compact first; that is the
+-- contract, and a test cannot strengthen it.
+
+-- Ess.Track:any bridges the two: mixed shapes in one tracker, all gone on :closeAll()
+clear(); local tr = Ess.Track.new()
+local hit = false
+eq(tr:any("tick2"), "tick2", ':any returns its argument for chaining')
+Ess.Loop._run["tick2"] = true
+tr:any(function() hit = true end)
+tr:any({ uGuid = "G" })
+tr:closeAll()
+assert(hit, ':closeAll ran the tracked closure')
+eq(STOPLOG[#STOPLOG], "loop:tick2", ':closeAll tore down in reverse, loop registered first goes last')
+return true
+""",
+
     "Safe": r"""
 local S = Ess.Safe
 local ok,a,b = S.call(function(x) return x, x+1 end, 5); assert(ok==true and a==5 and b==6,'call success')
@@ -63,6 +154,65 @@ eq(S.string(false,'hi','fb'),'fb','string not-ok'); eq(S.string(true,nil),'?','s
 assert(S.template('VZ Soldier')==true,'template valid'); assert(S.template('')==false,'template empty')
 assert(S.template('   ')==false,'template whitespace'); assert(S.template(nil)==false,'template nil')
 assert(S.template(5)==false,'template non-string')
+
+-- 6-value arity (was 4): the widest native return in the corpus is 4, so this is headroom -- but it has to
+-- actually pass all six through, or a future wide call silently truncates exactly like the old form did.
+local o,a1,b1,c1,d1,e1,f1 = S.call(function() return 1,2,3,4,5,6 end)
+assert(o==true and a1==1 and f1==6,'call passes 6 values through')
+
+assert(S.callv == nil,'no variadic form ships (untested path for a case that does not exist)')
+
+-- Interior nils still land in the right slots in the fixed-arity form.
+local oi,i1,i2,i3 = S.quiet(function() return 1,nil,3 end)
+assert(oi==true and i1==1 and i2==nil and i3==3,'interior nils keep their positions')
+
+-- Diagnostics. reset() first so this group's own asserts above don't pollute the counts.
+S.reset()
+assert(Ess.lastError()==nil,'reset clears lastError')
+local _, total0 = S.stats(); eq(total0, 0, 'reset zeroes the total')
+S.quiet(function() error('recorded') end)
+local rec = Ess.lastError()
+assert(rec ~= nil and string.find(rec.msg,'recorded',1,true) ~= nil,'quiet failure IS recorded (was invisible before)')
+local _, total1 = S.stats(); eq(total1, 1, 'total counts a quiet failure')
+
+-- With DEBUG off, the expensive half (label resolution + per-label tally) is skipped entirely.
+local tallyOff = S.stats(); eq(#tallyOff, 0, 'DEBUG off -> no per-label tally')
+
+-- With DEBUG on, named() attributes the failure to the label the caller supplied.
+Ess.DEBUG = true
+S.named('MyMod.thing', function() error('boom') end)
+local t = S.stats()
+assert(#t == 1 and t[1].label == 'MyMod.thing' and t[1].count == 1,'named() tallies under its own label')
+S.named('MyMod.thing', function() error('boom') end)
+eq(S.stats()[1].count, 2,'repeat failures accumulate under one label')
+Ess.DEBUG = false
+S.reset()
+
+-- A SUCCESSFUL call must never be recorded -- if it were, the tally would be noise instead of a signal.
+S.quiet(function() return 1 end); S.call(function() return 1 end)
+local _, totalOk = S.stats(); eq(totalOk, 0,'successful calls are not recorded')
+
+-- ---- channel 2: guard rejections (the common case -- see Ess.DEBUG's header) ----
+-- Must ALWAYS return nil, so `return Ess.Safe.reject(...)` is a legal one-line early-out for any wrapper
+-- whose contract is "nil on failure". A non-nil return here would silently corrupt every such caller.
+S.reset(); Ess.DEBUG = false
+assert(S.reject('Ess.X.y','no guid') == nil,'reject returns nil with DEBUG off')
+local tOff, totOff = S.stats()
+eq(#tOff, 0,'DEBUG off -> reject records nothing'); eq(totOff, 0,'DEBUG off -> reject does not bump total')
+assert(Ess.lastError() == nil,'DEBUG off -> reject leaves lastError alone')
+
+Ess.DEBUG = true
+assert(S.reject('Ess.X.y','no guid') == nil,'reject returns nil with DEBUG on too')
+local rj = Ess.lastError()
+assert(rj ~= nil and rj.rejected == true,'rejection is flagged as a rejection, not a thrown error')
+assert(rj.label == 'Ess.X.y','rejection carries its label')
+assert(string.find(rj.msg,'no guid',1,true) ~= nil,'rejection carries the REASON, which a throw cannot')
+eq(S.stats()[1].count, 1,'rejection tallies')
+
+-- Rejections and throws share one tally, so stats() is a single "what is going wrong" list.
+S.named('Ess.X.y', function() error('thrown') end)
+eq(S.stats()[1].count, 2,'a throw and a rejection under one label accumulate together')
+Ess.DEBUG = false; S.reset()
 return true
 """,
     "Math": r"""
@@ -131,6 +281,26 @@ assert(T.reverse({})[1]==nil and T.map({},function() end)[1]==nil,'empty-array o
 return true
 """,
     "RNG": r"""
+-- :pick on a PLAIN array (raw values, not weight tables). Pre-0.4.0 this threw, because every entry was
+-- indexed as e[weightKey] unconditionally -- so the obvious reading of "pick" was the one thing it couldn't do.
+local rp = Ess.RNG.new(7)
+local plain = { "a", "b", "c" }
+local got = rp:pick(plain)
+assert(got == "a" or got == "b" or got == "c", 'pick works on a plain array of strings')
+local nums = { 10, 20, 30 }
+local gotN = rp:pick(nums)
+assert(gotN == 10 or gotN == 20 or gotN == 30, 'pick works on a plain array of numbers')
+eq(rp:pick({ "only" }), "only", 'single-element plain array')
+-- a MIXED list must not throw either: non-tables weigh 1, tables use their weight field
+local mixed = { "bare", { w = 5, tag = "heavy" } }
+for _ = 1, 20 do
+    local m = rp:pick(mixed)
+    assert(m == "bare" or (type(m) == "table" and m.tag == "heavy"), 'mixed list picks either shape')
+end
+-- weighted behaviour on table entries is UNCHANGED: w=0 alongside w=100 should never come up in 200 draws
+local weighted = { { w = 0, tag = "never" }, { w = 100, tag = "always" } }
+for _ = 1, 200 do eq(rp:pick(weighted).tag, "always", 'zero-weight entry is never picked') end
+
 local g = Ess.RNG.new(42)
 for _=1,50 do local n=g:int(6); assert(n>=1 and n<=6,'int range') end
 local base={} for i=1,8 do base[i]=i end

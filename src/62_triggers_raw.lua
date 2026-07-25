@@ -80,7 +80,7 @@ function Ess.Raw.Triggers.arm(spec, onFire, tracker)
             if not active then return end
             local uc = Player.GetLocalCharacter()
             if uc and zx then
-                local ok, px, _, pz = pcall(Object.GetPosition, uc)
+                local ok, px, _, pz = Ess.Safe.quiet(Object.GetPosition, uc)
                 if ok and px then
                     local dx, dz = px - zx, pz - zz
                     if dx * dx + dz * dz <= r * r then return fire() end
@@ -95,7 +95,7 @@ function Ess.Raw.Triggers.arm(spec, onFire, tracker)
     if spec.onDestroy then
         local od = spec.onDestroy
         if type(od) == "string" and od ~= "nearest" then          -- watch a named placement
-            local ok, g = pcall(Pg.GetGuidByName, od)
+            local ok, g = Ess.Safe.quiet(Pg.GetGuidByName, od)
             if ok and g then
                 local h = Event.Create(Event.ObjectDeath, { g }, fire)
                 if tracker then tracker:event(h) end
@@ -114,7 +114,7 @@ function Ess.Raw.Triggers.arm(spec, onFire, tracker)
             if not active or not zx then return end
             local best, bu
             for _, u in ipairs(Ess.Probe.nearby(zx, zy, zz, rr, kind)) do
-                local ok, ux, _, uz = pcall(Object.GetPosition, u)
+                local ok, ux, _, uz = Ess.Safe.quiet(Object.GetPosition, u)
                 if ok and ux then
                     local dx, dz = ux - zx, uz - zz; local dd = dx * dx + dz * dz
                     if not best or dd < best then best, bu = dd, u end
@@ -138,7 +138,7 @@ function Ess.Raw.Triggers.arm(spec, onFire, tracker)
         local function poll()
             if not active then return end
             if target then
-                local ok, hp = pcall(Object.GetHealth, target)
+                local ok, hp = Ess.Safe.quiet(Object.GetHealth, target)
                 if ok and hp then
                     base = base or (hp > 0 and hp) or base
                     if base and base > 0 and hp <= base * (pct / 100) then return fire() end

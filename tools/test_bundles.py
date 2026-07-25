@@ -35,6 +35,17 @@ def run(title, src_file, harness):
 
 OBJECTIVE = r'''
 _G.Ess = {}
+-- Ess.Safe, stubbed faithfully. Each harness loads ONE src file in isolation, so nothing here provides what
+-- 00_core.lua would in a real load -- and since 0.4.0 every engine call in the framework goes through
+-- Ess.Safe.quiet instead of a bare pcall, which made these files hard-fail on `field 'Safe'` (a nil index)
+-- the moment that conversion landed. Same contract as the real thing: 6 values through on success, a bare
+-- `false` (never pcall's error string) on failure, and reject() always nil.
+Ess.Safe = {
+  quiet = function(fn, ...) local ok,a,b,c,d,e,f = pcall(fn, ...) if not ok then return false end return true,a,b,c,d,e,f end,
+  call  = function(fn, ...) local ok,a,b,c,d,e,f = pcall(fn, ...) if not ok then return false end return true,a,b,c,d,e,f end,
+  named = function(_, fn, ...) local ok,a,b,c,d,e,f = pcall(fn, ...) if not ok then return false end return true,a,b,c,d,e,f end,
+  reject = function() return nil end,
+}
 local HUD = {}
 Ess.Hud = { objective = function(t, slot) HUD[(slot or 1)] = t end }
 local WIRED = {}
@@ -136,6 +147,17 @@ print(P .. " objective/quest checks passed")
 
 OVERLAY = r'''
 _G.Ess = {}
+-- Ess.Safe, stubbed faithfully. Each harness loads ONE src file in isolation, so nothing here provides what
+-- 00_core.lua would in a real load -- and since 0.4.0 every engine call in the framework goes through
+-- Ess.Safe.quiet instead of a bare pcall, which made these files hard-fail on `field 'Safe'` (a nil index)
+-- the moment that conversion landed. Same contract as the real thing: 6 values through on success, a bare
+-- `false` (never pcall's error string) on failure, and reject() always nil.
+Ess.Safe = {
+  quiet = function(fn, ...) local ok,a,b,c,d,e,f = pcall(fn, ...) if not ok then return false end return true,a,b,c,d,e,f end,
+  call  = function(fn, ...) local ok,a,b,c,d,e,f = pcall(fn, ...) if not ok then return false end return true,a,b,c,d,e,f end,
+  named = function(_, fn, ...) local ok,a,b,c,d,e,f = pcall(fn, ...) if not ok then return false end return true,a,b,c,d,e,f end,
+  reject = function() return nil end,
+}
 local LINES, PANEL = {}, nil
 Ess.UI = { Panel = function(opts)
     PANEL = { _lines={}, _dead=false, title=opts.title }

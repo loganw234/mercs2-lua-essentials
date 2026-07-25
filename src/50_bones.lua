@@ -26,12 +26,12 @@ function Ess.Bones.attachFX(uGuid, bone, template)
         Ess.Log("Bones.attachFX: blank template rejected (would CTD Pg.Spawn)")
         return nil
     end
-    local okp, x, y, z = pcall(Object.GetHardpointPosition, uGuid, bone)
+    local okp, x, y, z = Ess.Safe.quiet(Object.GetHardpointPosition, uGuid, bone)
     if not okp or not x then return nil end
-    local oks, uFx = pcall(Pg.Spawn, template, x, y, z, 0)
+    local oks, uFx = Ess.Safe.quiet(Pg.Spawn, template, x, y, z, 0)
     if not oks or not uFx then return nil end
-    pcall(Object.Attach, uGuid, bone, uFx)
-    pcall(Object.SetTransformToObject, uFx, uGuid, bone)
+    Ess.Safe.quiet(Object.Attach, uGuid, bone, uFx)
+    Ess.Safe.quiet(Object.SetTransformToObject, uFx, uGuid, bone)
     return uFx
 end
 
@@ -40,8 +40,8 @@ end
 -- don't need their own nil-guard around cleanup.
 function Ess.Bones.detachFX(uGuid, uFx)
     if not uFx then return false end
-    pcall(Object.Detach, uGuid, uFx)
-    local ok = pcall(Object.Remove, uFx)
+    Ess.Safe.quiet(Object.Detach, uGuid, uFx)
+    local ok = Ess.Safe.quiet(Object.Remove, uFx)
     return ok and true or false
 end
 
@@ -64,7 +64,7 @@ function Ess.Bones.waitForReady(uGuid, cb, maxTries)
     local tries = 0
     Ess.Loop.start("Ess.Bones.waitForReady:" .. tostring(uGuid), 0.1, function()
         tries = tries + 1
-        local ok, x = pcall(Object.GetPosition, uGuid)
+        local ok, x = Ess.Safe.quiet(Object.GetPosition, uGuid)
         if ok and x then
             local okc, err = pcall(cb, uGuid)
             if not okc then Ess.Log("Bones.waitForReady callback error: " .. tostring(err)) end
@@ -87,9 +87,9 @@ end
 -- originally said wasn't Lua-reachable, until the bone-probe work proved otherwise. Returns nil if
 -- either hardpoint doesn't resolve (wrong name, or this model doesn't carry it).
 function Ess.Bones.aimVector(uGuid, hpBase, hpTip)
-    local ok1, bx, by, bz = pcall(Object.GetHardpointPosition, uGuid, hpBase)
+    local ok1, bx, by, bz = Ess.Safe.quiet(Object.GetHardpointPosition, uGuid, hpBase)
     if not ok1 or not bx then return nil end
-    local ok2, tx, ty, tz = pcall(Object.GetHardpointPosition, uGuid, hpTip)
+    local ok2, tx, ty, tz = Ess.Safe.quiet(Object.GetHardpointPosition, uGuid, hpTip)
     if not ok2 or not tx then return nil end
     return tx - bx, ty - by, tz - bz
 end
@@ -112,7 +112,7 @@ function Ess.Bones.probeNames(uGuid, prefixes, suffixes)
         if tried[name] then return end
         tried[name] = true
         nTried = nTried + 1
-        local ok, x, y, z = pcall(Object.GetHardpointPosition, uGuid, name)
+        local ok, x, y, z = Ess.Safe.quiet(Object.GetHardpointPosition, uGuid, name)
         if ok and x then
             hits[#hits + 1] = { name = name, x = x, y = y, z = z }
         end

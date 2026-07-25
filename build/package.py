@@ -55,7 +55,9 @@ def install_notes(ver):
         "  Ess-samples/demos/         bigger bind-to-a-key demos -- reference only, not installed for you (see below)\n"
         "  Ess-GETTING_STARTED.md     install -> your first keypress mod (start here); Ess-CAPABILITIES.md = full API\n"
         "  Ess-TROUBLESHOOTING.md     what to check if something doesn't work\n"
-        "  mercs2-lua-ide.html        a browser Lua editor -- double-click it, hit Connect, write Ess in your live game\n\n"
+        "  mercs2-lua-ide.html        a browser Lua editor -- double-click it, hit Connect, write Ess in your live game\n"
+        "  api/ess.json               every public Ess function, machine-readable (for tooling, not reading)\n"
+        "  api/natives.json           the whole raw engine surface, engine-native vs game-script, same idea\n\n"
         "INSTALL\n"
         "  1. Extract this zip INTO your Mercenaries 2 folder (the one with Mercenaries2.exe). The data/\n"
         "     and scripts/ folders merge into the game's existing ones; nothing here touches a save.\n"
@@ -111,6 +113,19 @@ def main():
             p = ROOT / doc
             if p.exists():
                 z.write(p, "Ess-" + doc); files += 1
+
+        # The machine-readable manifests, for tooling rather than for reading: ess.json is every public Ess
+        # function (build/manifest.py, generated in CI right before this runs), natives.json is the whole raw
+        # engine surface (tools/dump_natives.py -- needs a live game, so it is committed-by-release rather
+        # than regenerated in CI, and is simply absent from the zip if it hasn't been dumped).
+        #
+        # Shipping them in the RELEASE ZIP rather than committing them to the repo keeps `dist/` gitignored,
+        # matching how every other build output here is handled. A consumer that wants to auto-sync (the
+        # visual node editor's node definitions being the obvious one) pulls them from the release asset.
+        for name in ("ess.json", "natives.json"):
+            p = DIST / name
+            if p.exists():
+                z.write(p, "api/" + name); files += 1
 
         # the standalone browser Lua IDE -- a plain double-click .html that writes Ess into a live game over
         # the lua-bridge. Refreshed from its own GitHub release in CI (see release.yml) so the download always

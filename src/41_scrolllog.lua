@@ -56,7 +56,7 @@ function Ess.ScrollLog.new(name, x, y, w, h)
 
         b:SetColor(24, 24, 24)
         b:SetTranslucency(200)
-        local okp, p = pcall(Player.GetLocalPlayer)
+        local okp, p = Ess.Safe.quiet(Player.GetLocalPlayer)
         if okp and p then pcall(function() b:SetOwner(p) end) end
 
         MrxGui.AddWidget(b)

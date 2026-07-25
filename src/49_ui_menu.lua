@@ -88,8 +88,8 @@ local function menu_ctx(menu)
         -- forward projection goes through Ess.Math.pointAhead, never a local copy -- this used to inline
         -- the sin/cos and silently kept the OLD mirrored x sign after the convention was corrected.
         if dist and dist ~= 0 then sx, sz = Ess.Math.pointAhead(px, pz, useYaw, dist) end
-        local ok, u = pcall(Pg.Spawn, template, sx, py, sz)
-        if ok and u then pcall(Object.SetYaw, u, useYaw); return u end
+        local ok, u = Ess.Safe.quiet(Pg.Spawn, template, sx, py, sz)
+        if ok and u then Ess.Safe.quiet(Object.SetYaw, u, useYaw); return u end
         self:hint("SPAWN FAILED: " .. tostring(template))
         return nil
     end

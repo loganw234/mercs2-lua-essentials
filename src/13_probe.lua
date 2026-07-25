@@ -15,7 +15,7 @@ local Ess = _G.Ess
 Ess.Probe = Ess.Probe or {}
 
 local function hasLabel(u, lbl)
-    local ok, r = pcall(Object.HasLabel, u, lbl)
+    local ok, r = Ess.Safe.quiet(Object.HasLabel, u, lbl)
     return ok and r and true or false
 end
 
@@ -110,7 +110,7 @@ end
 -- no match / failure, never nil -- same contract as .nearby.
 function Ess.Probe.allByName(sName)
     if type(sName) ~= "string" or sName == "" then return {} end
-    local ok, t = pcall(Pg.GetAllGuidsByName, sName)
+    local ok, t = Ess.Safe.quiet(Pg.GetAllGuidsByName, sName)
     if ok and type(t) == "table" then return t end
     return {}
 end
@@ -118,9 +118,9 @@ end
 -- Ess.Probe.getFaction(uGuid) -> sAbbrev | nil
 -- MrxUtil.GetFaction -> MrxFactionManager.GetFactionAbbrev fallback chain.
 function Ess.Probe.getFaction(uGuid)
-    local ok, fac = pcall(MrxUtil.GetFaction, uGuid)
+    local ok, fac = Ess.Safe.quiet(MrxUtil.GetFaction, uGuid)
     if ok and fac then
-        local ok2, abbr = pcall(MrxFactionManager.GetFactionAbbrev, fac)
+        local ok2, abbr = Ess.Safe.quiet(MrxFactionManager.GetFactionAbbrev, fac)
         if ok2 and abbr then return abbr end
     end
     return nil
@@ -132,10 +132,10 @@ end
 function Ess.Probe.describeSafe(uGuid)
     if not uGuid then return "<nil>" end
     local name = Ess.Name(uGuid) or "?"
-    local okp, x, y, z = pcall(Object.GetPosition, uGuid)
+    local okp, x, y, z = Ess.Safe.quiet(Object.GetPosition, uGuid)
     local pos = "pos?"
     if okp and x then pos = string.format("(%.1f,%.1f,%.1f)", x, y, z) end
-    local okh, hp = pcall(Object.GetHealth, uGuid)
+    local okh, hp = Ess.Safe.quiet(Object.GetHealth, uGuid)
     local hpStr = "hp?"
     if okh and hp then hpStr = "hp=" .. tostring(hp) end
     local fac = Ess.Probe.getFaction(uGuid) or "fac?"

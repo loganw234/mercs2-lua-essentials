@@ -35,7 +35,7 @@ local REL_VALUE = { friend = 100, ally = 100, allied = 100, neutral = 0, enemy =
 local FACTION_ABBREV = { Allied = "All", China = "Chi", Guerilla = "Gur", OC = "Oil", Pirate = "Pir", VZ = "VZ", PMC = "Pmc" }
 
 local function factionGuid(name)
-    local ok, g = pcall(Pg.GetGuidByName, name)
+    local ok, g = Ess.Safe.quiet(Pg.GetGuidByName, name)
     if ok then return g end
     return nil
 end
@@ -61,8 +61,8 @@ function Ess.Relations.apply(pairsList, label)
             -- CONFIRMED behavior from ContractFramework.lua's own _applyRelations: when a relation
             -- involves PMC specifically, make the OTHER faction's attitude "official" so the HUD reflects
             -- it correctly (SetAttitudeMutable), not just the raw Ai.SetRelation numeric stance below.
-            if b == "PMC" and FACTION_ABBREV[a] then pcall(MrxFactionManager.SetAttitudeMutable, FACTION_ABBREV[a]) end
-            if a == "PMC" and FACTION_ABBREV[b] then pcall(MrxFactionManager.SetAttitudeMutable, FACTION_ABBREV[b]) end
+            if b == "PMC" and FACTION_ABBREV[a] then Ess.Safe.quiet(MrxFactionManager.SetAttitudeMutable, FACTION_ABBREV[a]) end
+            if a == "PMC" and FACTION_ABBREV[b] then Ess.Safe.quiet(MrxFactionManager.SetAttitudeMutable, FACTION_ABBREV[b]) end
             h.snaps[#h.snaps + 1] = { ga = ga, gb = gb, snap = Ess.Raw.Relations.snapshot(ga, gb) }
             h.snaps[#h.snaps + 1] = { ga = gb, gb = ga, snap = Ess.Raw.Relations.snapshot(gb, ga) }
             Ess.Raw.Relations.set(ga, gb, val)
@@ -102,12 +102,12 @@ end
 -- documented for Ess.Bones (hardpoints nil for ~0.3s after spawn). Wait at least one tick/frame after
 -- spawning before calling getFeeling/setFeeling on a target you just created.
 function Ess.Relations.getFeeling(uGuidA, uGuidB)
-    local ok, n = pcall(Ai.GetFeeling, uGuidA, uGuidB)
+    local ok, n = Ess.Safe.quiet(Ai.GetFeeling, uGuidA, uGuidB)
     return (ok and n) or 0
 end
 
 function Ess.Relations.setFeeling(uGuidA, uGuidB, n)
-    pcall(Ai.SetFeeling, uGuidA, uGuidB, n)
+    Ess.Safe.quiet(Ai.SetFeeling, uGuidA, uGuidB, n)
 end
 
 -- Ess.Relations.getPerceivability(uGuid) -> n, nFloor / .setPerceivability(uGuid, n)
@@ -119,12 +119,12 @@ end
 -- gameplay pass -- the value moving is confirmed, the perception EFFECT is the read-the-name interpretation.
 -- Same fresh-spawn settle caveat as getFeeling above: wait a beat before querying a just-spawned subject.
 function Ess.Relations.getPerceivability(uGuid)
-    local ok, n, floor = pcall(Ai.GetPerceivability, uGuid)
+    local ok, n, floor = Ess.Safe.quiet(Ai.GetPerceivability, uGuid)
     if ok and n then return n, floor end
     return nil
 end
 
 function Ess.Relations.setPerceivability(uGuid, n)
-    local ok = pcall(Ai.SetPerceivability, uGuid, n)
+    local ok = Ess.Safe.quiet(Ai.SetPerceivability, uGuid, n)
     return ok and true or false
 end

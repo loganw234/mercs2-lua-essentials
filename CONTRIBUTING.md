@@ -47,9 +47,16 @@ dependencies require, not just at the end. Pure files with no Ess deps go early 
 
 | Tool | Checks | Needs |
 |---|---|---|
-| `python tools/checkpure.py` | *behavior* of the PURE namespaces (Math/Str/Color/Vec/Table/RNG/State/Time), executed and asserted | just `pip install lupa` — no game |
+| `python tools/checkpure.py` | *behavior* of the PURE namespaces (Math/Str/Color/Vec/Table/RNG/State/Time/stop), executed and asserted | just `pip install lupa` — no game |
+| `python build/manifest.py --check` | **API drift** — that the in-game console's registry, `CAPABILITIES.md` and every source header comment name only functions that actually exist | nothing — offline |
 | CI's `luac5.1 -p` | *syntax* of the merged `dist/Ess.lua`, against the engine's real Lua 5.1 | GitHub Actions (runs on every push) |
 | `python tools/smoke.py` | every recipe run *in the live game* | the game running with the lua-bridge up |
+
+The drift gate exists because Ess's API surface is described in several hand-maintained places at once, and a
+console entry naming a function that no longer exists is exactly the kind of divergence nobody notices until a
+beginner types it. `dist/ess.json` (`python build/manifest.py`) is the generated single source of truth those
+places should be checked against — and `dist/natives.json` (`python tools/dump_natives.py`, needs the game) is
+its companion catalogue of the raw engine surface, including which parts Ess doesn't wrap yet.
 
 If your namespace is **pure** (no engine calls), add a group to `checkpure.py` and you get real
 correctness coverage with no game. If it touches the engine, a recipe + `smoke.py` is the only real proof —
@@ -64,9 +71,23 @@ gate, packages the zip, and publishes the tagged GitHub Release with your change
 
 ## Coding conventions
 
-- **`pcall`-guard every fallible engine call.** `Object.*` getters throw on an invalid/dead guid; the whole
-  point of a wrapper is to return `nil` instead of propagating that. Use `Ess.Safe.call`/`.quiet` or a plain
-  `pcall`.
+- **Guard every fallible engine call — through `Ess.Safe`, not a bare `pcall`.** The whole point of a wrapper
+  is to return `nil` instead of propagating a throw. Use **`Ess.Safe.quiet(Fn, ...)`** as the default (or
+  `.call` when a failure is genuinely abnormal and should always log, or `.named(label, fn, ...)` for a
+  closure). A bare `pcall`'s failure is invisible to `Ess.DEBUG` **forever** — that's the difference, and it's
+  why the whole framework was converted to `Ess.Safe` in 0.4.0. All three pass 6 return values through and
+  return a bare `false` on failure; read the message with `Ess.lastError()`, never from the second slot.
+- **Record a guard rejection with `Ess.Safe.reject(label, reason)`.** When your helper inspects its arguments
+  and gives up *before* calling the engine, say so. It always returns `nil`, so it fits the early-out you were
+  already writing:
+
+  ```lua
+  if not uGuid then return Ess.Safe.reject("Ess.Object.heal", "no guid") end
+  ```
+
+  This is the channel that actually answers "why did nothing happen" — measured live, malformed native calls
+  essentially never throw, so a rejection is usually the *only* thing there is to report. Costs one boolean
+  test when `Ess.DEBUG` is off.
 - **One canonical name per concept.** If the engine exposes a call three ways, pick the confirmed idiom and
   wrap it once; don't surface all three.
 - **Coerce engine booleans.** Getters return `1`/`0`, and `0` is *truthy* in Lua — a naive `if x` is a bug.

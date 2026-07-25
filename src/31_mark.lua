@@ -79,5 +79,5 @@ function Ess.Mark.clear(handle)
     if handle.pdaName then Ess.Raw.Mark.removePda(handle.pdaName) end
     if handle.worldHandle then Ess.Raw.Mark.removeWorld(handle.worldHandle) end
     if handle.discHandle then Ess.Raw.Mark.removeWorld(handle.discHandle) end
-    if handle.anchor then pcall(Object.Remove, handle.anchor) end
+    if handle.anchor then Ess.Safe.quiet(Object.Remove, handle.anchor) end
 end

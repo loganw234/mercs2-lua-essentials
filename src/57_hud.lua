@@ -30,11 +30,11 @@ Ess.Hud = Ess.Hud or {}
 -- native's own default-to-broadcast).
 function Ess.Hud.hint(sMsg, sId, bBroadcast)
     if type(sMsg) ~= "string" or sMsg == "" then return end
-    pcall(MrxTutorialManager.ShowMessage, sMsg, not bBroadcast, sId)
+    Ess.Safe.quiet(MrxTutorialManager.ShowMessage, sMsg, not bBroadcast, sId)
 end
 
 function Ess.Hud.hideHint(sId, bBroadcast)
-    pcall(MrxTutorialManager.HideMessage, not bBroadcast, sId)
+    Ess.Safe.quiet(MrxTutorialManager.HideMessage, not bBroadcast, sId)
 end
 
 -- Ess.Hud.banner(sMsg) -- a clean, icon-free, centered text banner. CONFIRMED live-tested trick
@@ -77,7 +77,7 @@ function Ess.Hud.radio(sText, nHold)
     Ess.Hud._radioGen = Ess.Hud._radioGen + 1
     local myGen = Ess.Hud._radioGen
     pcall(function() Hud.ObjectiveTray:SetSlotToText({ nSlot = 3, sText = sText }) end)
-    pcall(Event.Create, Event.TimerRelative, { tonumber(nHold) or 5 }, function()
+    Ess.Safe.quiet(Event.Create, Event.TimerRelative, { tonumber(nHold) or 5 }, function()
         if Ess.Hud._radioGen == myGen then pcall(function() Hud.ObjectiveTray:ClearSlot({ nSlot = 3 }) end) end
     end)
 end

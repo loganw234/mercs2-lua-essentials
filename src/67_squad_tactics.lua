@@ -79,8 +79,8 @@ function Ess.Squad.Tactics.dismountAndSecure(targetGroup, atPos, radius)
     if #vehs > 0 then
         Ess.Followers._issue(vehs, "deploy", {})
         for _, veh in ipairs(vehs) do
-            local ok, driver = pcall(Vehicle.GetDriver, veh)
-            if ok and driver then pcall(Vehicle.Exit, veh, driver, false) end
+            local ok, driver = Ess.Safe.quiet(Vehicle.GetDriver, veh)
+            if ok and driver then Ess.Safe.quiet(Vehicle.Exit, veh, driver, false) end
         end
     end
 

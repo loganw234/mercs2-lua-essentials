@@ -54,7 +54,7 @@ local function xyz(t)
     return t.x or t[1], t.y or t[2], t.z or t[3]
 end
 local function nearestHero()
-    local ok, u = pcall(Player.GetLocalCharacter)
+    local ok, u = Ess.Safe.quiet(Player.GetLocalCharacter)
     if ok then return u end
 end
 local actor, pri, aiGoal, haste =
@@ -65,7 +65,7 @@ local actor, pri, aiGoal, haste =
 -- to target. Tracked via `tracker` if one was given, same as every other spawned-prop cleanup in this repo;
 -- omit it and the anchor just isn't cleaned up for you (an existing, accepted caveat, not new here).
 local function anchorAt(x, y, z, tracker)
-    local ok, anchor = pcall(Pg.Spawn, "TinyGeometry", x, y, z)
+    local ok, anchor = Ess.Safe.quiet(Pg.Spawn, "TinyGeometry", x, y, z)
     if not (ok and anchor) then return nil end
     if tracker then tracker:guid(anchor) end
     return anchor
@@ -74,10 +74,13 @@ end
 local BEHAVIORS = {}
 
 BEHAVIORS.move = function(tracker, o, guids)
-    local x, y, z = xyz(o.at); if not x then return end
+    local x, y, z = xyz(o.at)
+    if not x then return Ess.Safe.reject("Ess.AIOrders.move", "no opts.at destination given "
+        .. "-- the order is dropped and the units keep doing whatever they were doing") end
     local p = pri(o.priority)
     local anchor = anchorAt(x, y, z, tracker)
-    if not anchor then return end
+    if not anchor then return Ess.Safe.reject("Ess.AIOrders", "could not spawn the TinyGeometry move-anchor"
+        .. " at " .. tostring(x) .. "," .. tostring(z) .. " -- order dropped") end
     -- o.onComplete (optional) fires once every guid's own MoveTo goal has reported back, regardless of
     -- each individual outcome -- good enough for "the group is done moving," not a per-unit success guarantee.
     local pending = #guids
@@ -107,7 +110,9 @@ BEHAVIORS.face = function(tracker, o, guids)
     -- Ai.Anchor(AnchorRadius=0) lock (see `hold` below) -- the goal is accepted (no error) but never visibly
     -- turns the unit. Force=true, matching every other movement-ish behavior in this file, overrides it with
     -- no separate "release the anchor" step needed.
-    local x, y, z = xyz(o.at); if not x then return end
+    local x, y, z = xyz(o.at)
+    if not x then return Ess.Safe.reject("Ess.AIOrders.face", "no opts.at point to face "
+        .. "-- the order is dropped and the units keep doing whatever they were doing") end
     for _, g in ipairs(guids) do
         aiGoal({ AIGuid = actor(g), Goal = "Face", Target = { x, y, z }, Position = true, Priority = "HiPri", Force = true })
     end
@@ -119,21 +124,24 @@ BEHAVIORS.hold = function(tracker, o, guids)
     -- that left behind, not just queue behind it.
     for _, g in ipairs(guids) do
         local a = actor(g)
-        pcall(Ai.Anchor, { AIGuid = a, AnchorRadius = 0 })
+        Ess.Safe.quiet(Ai.Anchor, { AIGuid = a, AnchorRadius = 0 })
         aiGoal({ AIGuid = a, Goal = "Idle", Priority = "HiPri", Force = true })
     end
 end
 
 BEHAVIORS.defend = function(tracker, o, guids)
-    local x, y, z = xyz(o.at); if not x then return end
+    local x, y, z = xyz(o.at)
+    if not x then return Ess.Safe.reject("Ess.AIOrders.defend", "no opts.at destination given "
+        .. "-- the order is dropped and the units keep doing whatever they were doing") end
     local r, p = o.radius or 12, pri(o.priority)
     local anchor = anchorAt(x, y, z, tracker)
-    if not anchor then return end
+    if not anchor then return Ess.Safe.reject("Ess.AIOrders", "could not spawn the TinyGeometry move-anchor"
+        .. " at " .. tostring(x) .. "," .. tostring(z) .. " -- order dropped") end
     for _, g in ipairs(guids) do
         local a = actor(g)
         aiGoal({ AIGuid = a, Goal = "MoveTo", Target = anchor, Priority = p, Force = true })
         haste(a, o.speed)
-        pcall(Ai.Anchor, { AIGuid = a, AnchorGuid = anchor, AnchorRadius = r })
+        Ess.Safe.quiet(Ai.Anchor, { AIGuid = a, AnchorGuid = anchor, AnchorRadius = r })
     end
 end
 
@@ -202,7 +210,9 @@ BEHAVIORS.patrol = function(tracker, o, guids)
                     return
                 end
             end
-            local anchor = anchors[i]; if not anchor then return end
+            local anchor = anchors[i]
+            if not anchor then return Ess.Safe.reject("Ess.AIOrders.patrol",
+                "waypoint " .. tostring(i) .. " has no anchor prop -- the route stops here") end
             -- CONFIRMED LIVE 2026-07-25 (see move's own identical fix): Ai.Goal can silently refuse to
             -- register at all -- no handle, no error, and no Callback EVER arrives for this waypoint. Left
             -- unhandled, this guid's route (and, for a non-looping route, the WHOLE group's onComplete)
@@ -235,11 +245,11 @@ BEHAVIORS.follow = function(tracker, o, guids)
     if not target then return end
     for _, g in ipairs(guids) do
         local a = actor(g)
-        local ok, feeling = pcall(Ai.GetFeeling, a, target)
-        if ok and feeling and feeling < 0 then pcall(Ai.SetFeeling, a, target, 100) end
-        pcall(Ai.LivingWorld, { AIGuid = a, Attrib = "LivingWorldBehaviour", State = false })
-        pcall(Ai.SetState, { AIGuid = a, State = "Vip", Value = true })
-        pcall(Ai.Role, {
+        local ok, feeling = Ess.Safe.quiet(Ai.GetFeeling, a, target)
+        if ok and feeling and feeling < 0 then Ess.Safe.quiet(Ai.SetFeeling, a, target, 100) end
+        Ess.Safe.quiet(Ai.LivingWorld, { AIGuid = a, Attrib = "LivingWorldBehaviour", State = false })
+        Ess.Safe.quiet(Ai.SetState, { AIGuid = a, State = "Vip", Value = true })
+        Ess.Safe.quiet(Ai.Role, {
             AIGuid = a, Role = "Follow", Target = target,
             MinDistance = o.minDistance or 2, MaxDistance = o.maxDistance or 30, MoveDistance = o.moveDistance or 4,
             Priority = "hiPri", HardPriority = true,
@@ -250,11 +260,11 @@ end
 
 BEHAVIORS.flee = function(tracker, o, guids)
     local hero = nearestHero(); local hx, hz
-    if hero then local ok, x, _, z = pcall(Object.GetPosition, hero); if ok then hx, hz = x, z end end
+    if hero then local ok, x, _, z = Ess.Safe.quiet(Object.GetPosition, hero); if ok then hx, hz = x, z end end
     local dist = o.distance or 120
     for _, g in ipairs(guids) do
         local a = actor(g)
-        local ok, gx, gy, gz = pcall(Object.GetPosition, g)
+        local ok, gx, gy, gz = Ess.Safe.quiet(Object.GetPosition, g)
         if ok and gx then
             local dx, dz = gx - (hx or gx - 1), gz - (hz or gz)
             local len = math.sqrt(dx * dx + dz * dz); if len < 1 then dx, dz, len = 1, 0, 1 end
@@ -276,7 +286,7 @@ BEHAVIORS.enter = function(tracker, o, guids)
     local veh = o.target and Ess.AIOrders.group(o.target)[1]
     if not veh and o.target then
         if type(o.target) == "string" then
-            local ok, g = pcall(Pg.GetGuidByName, o.target)
+            local ok, g = Ess.Safe.quiet(Pg.GetGuidByName, o.target)
             if ok then veh = g end
         else
             veh = o.target
@@ -287,18 +297,18 @@ BEHAVIORS.enter = function(tracker, o, guids)
     -- returns nil, no error) until Vehicle.Usable(veh, true) has been called on it once -- matches
     -- oilcon002.lua's own confirmed sequence (Vehicle.Usable(..., true) immediately before its own Enter
     -- goal). A harmless no-op on a vehicle that's already usable (every placed-in-level vehicle already is).
-    pcall(Vehicle.Usable, veh, true)
+    Ess.Safe.quiet(Vehicle.Usable, veh, true)
     for _, g in ipairs(guids) do
         aiGoal({ AIGuid = g, Goal = "Enter", Target = veh, Role = o.role or "passenger", Priority = "HiPri", Force = true })
     end
 end
 
 BEHAVIORS.deploy = function(tracker, o, guids)
-    for _, g in ipairs(guids) do pcall(Ai.Deploy, { Vehicle = g, Role = "Passenger", Priority = "HiPri", Force = true }) end
+    for _, g in ipairs(guids) do Ess.Safe.quiet(Ai.Deploy, { Vehicle = g, Role = "Passenger", Priority = "HiPri", Force = true }) end
 end
 
 BEHAVIORS.animate = function(tracker, o, guids)
-    for _, g in ipairs(guids) do pcall(Human.DoAction, g, o.action or "Cower") end
+    for _, g in ipairs(guids) do Ess.Safe.quiet(Human.DoAction, g, o.action or "Cower") end
 end
 
 Ess.AIOrders._behaviors = BEHAVIORS

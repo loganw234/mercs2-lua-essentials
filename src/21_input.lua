@@ -102,7 +102,7 @@ end
 -- when the real answer is 0/false.
 function Ess.Input.usingController()
     if not Gui.ControllerInUse then return false end
-    local ok, b = pcall(Gui.ControllerInUse)
+    local ok, b = Ess.Safe.quiet(Gui.ControllerInUse)
     return ok and (b == true or b == 1)
 end
 
@@ -180,7 +180,7 @@ local function tcShow(bVisible)
             tw:SetFont("english_18")
             tw:SetColor(255, 255, 0)
             tw:SetLocation(20, 20, 400, 45)
-            local okP, uP = pcall(Player.GetLocalPlayer)
+            local okP, uP = Ess.Safe.quiet(Player.GetLocalPlayer)
             if okP and uP then pcall(function() tw:SetOwner(uP) end) end
             MrxGui.AddWidget(tw)
             tw:SetVisible(false)
@@ -246,8 +246,8 @@ function Ess.TextConsole.open(opts)
     S.lockPlayer = opts.lockPlayer ~= false
     pcall(Loader.ClearKeyEvents)
     if S.lockPlayer then
-        local ok, uP = pcall(Player.GetLocalPlayer)
-        if ok and uP then pcall(Player.SetInputEnabled, uP, false) end
+        local ok, uP = Ess.Safe.quiet(Player.GetLocalPlayer)
+        if ok and uP then Ess.Safe.quiet(Player.SetInputEnabled, uP, false) end
     end
     tcShow(true)
     tcPaint()
@@ -260,8 +260,8 @@ function Ess.TextConsole.close()
     S.active = false
     Ess.Loop.stop("Ess.TextConsole")
     if S.lockPlayer then
-        local ok, uP = pcall(Player.GetLocalPlayer)
-        if ok and uP then pcall(Player.SetInputEnabled, uP, true) end
+        local ok, uP = Ess.Safe.quiet(Player.GetLocalPlayer)
+        if ok and uP then Ess.Safe.quiet(Player.SetInputEnabled, uP, true) end
     end
     tcShow(false)
 end

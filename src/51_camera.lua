@@ -52,9 +52,9 @@ Ess.Camera = Ess.Camera or {}
 function Ess.Camera.lookAtAnchor(x, y, z, i)
     local cam = Ess.Player.camera(i)
     if not cam then return nil end
-    local ok, uAnchor = pcall(Pg.Spawn, "TinyGeometry", x, y, z)
+    local ok, uAnchor = Ess.Safe.quiet(Pg.Spawn, "TinyGeometry", x, y, z)
     if not ok or not uAnchor then return nil end
-    pcall(Camera.SetLookAt, cam, uAnchor)
+    Ess.Safe.quiet(Camera.SetLookAt, cam, uAnchor)
     return uAnchor
 end
 
@@ -111,9 +111,9 @@ function Ess.Camera.followHardpoint(uGuid, hp, i, interval)
     if not cam then return function() end end
     local id = "Ess.Camera.followHardpoint:" .. tostring(uGuid) .. ":" .. tostring(hp)
     Ess.Loop.start(id, interval, function()
-        local ok, x, y, z = pcall(Object.GetHardpointPosition, uGuid, hp)
+        local ok, x, y, z = Ess.Safe.quiet(Object.GetHardpointPosition, uGuid, hp)
         if ok and x then
-            pcall(Camera.SetPosition, cam, x, y, z, true)
+            Ess.Safe.quiet(Camera.SetPosition, cam, x, y, z, true)
         end
         return true
     end)
@@ -129,7 +129,7 @@ end
 function Ess.Camera.shake(i, sPreset, uSource, nAmplitude, nDuration)
     local cam = Ess.Player.camera(i)
     if not cam then return end
-    pcall(Camera.Shake, cam, sPreset or "ShakeCameraMedium", uSource, nAmplitude or 6, nDuration or 5)
+    Ess.Safe.quiet(Camera.Shake, cam, sPreset or "ShakeCameraMedium", uSource, nAmplitude or 6, nDuration or 5)
 end
 
 -- Ess.Camera.stopShake(i, uSource) -- the confirmed counterpart call for an ongoing
@@ -137,7 +137,7 @@ end
 function Ess.Camera.stopShake(i, uSource)
     local cam = Ess.Player.camera(i)
     if not cam then return end
-    pcall(Camera.Shake, cam, "StopShakeCameraConstantly", uSource)
+    Ess.Safe.quiet(Camera.Shake, cam, "StopShakeCameraConstantly", uSource)
 end
 
 -- Ess.Camera.fov(i, nAngle, nDuration) / .restoreFov(i, nDuration)
@@ -147,11 +147,11 @@ end
 -- camera guid -- this is a genuinely different native table than top-level Camera despite the shared
 -- "Camera" name (see file header). `i` here is that index directly, defaulting to 0 (the local player).
 function Ess.Camera.fov(i, nAngle, nDuration)
-    pcall(Graphics.Camera.SetFovParams, i or 0, nAngle, nDuration or 1)
+    Ess.Safe.quiet(Graphics.Camera.SetFovParams, i or 0, nAngle, nDuration or 1)
 end
 
 function Ess.Camera.restoreFov(i, nDuration)
-    pcall(Graphics.Camera.RestoreFovParams, i or 0, nDuration or 1)
+    Ess.Safe.quiet(Graphics.Camera.RestoreFovParams, i or 0, nDuration or 1)
 end
 
 -- Ess.Camera.fade(nAmount) -- CONFIRMED (wiki/namespaces/graphics.md): Graphics.Effect.CameraFade(nAmount),
@@ -160,7 +160,7 @@ end
 -- `resident/mrxactionhijack.lua`'s hijack cinematic. No duration argument exists at any confirmed call
 -- site (both real uses pass a bare 0 or 1), so none is exposed here -- don't guess one.
 function Ess.Camera.fade(nAmount)
-    pcall(Graphics.Effect.CameraFade, nAmount)
+    Ess.Safe.quiet(Graphics.Effect.CameraFade, nAmount)
 end
 
 -- Ess.Easy.Camera.shake(i) -- zero-config "just shake the screen" for the common explosion/impact case.
@@ -197,8 +197,8 @@ Ess.Camera._cine = Ess.Camera._cine or {}   -- active-cinematic state per player
 function Ess.Camera.beginCinematic(i, nBlend)
     local p, c = Ess.Player.slot(i), Ess.Player.camera(i)
     if not (p and c) then return false end
-    pcall(Player.SetCinematicMode, p, true, true)
-    pcall(Camera.Blend, c, nBlend or 1)
+    Ess.Safe.quiet(Player.SetCinematicMode, p, true, true)
+    Ess.Safe.quiet(Camera.Blend, c, nBlend or 1)
     Ess.Camera._cine[i or 0] = { p = p, c = c }
     return true
 end
@@ -206,7 +206,7 @@ end
 -- Ess.Camera.placeCamera(x, y, z, i) -- put the cinematic camera at a fixed world vantage.
 function Ess.Camera.placeCamera(x, y, z, i)
     local c = Ess.Player.camera(i)
-    if c then pcall(Camera.SetPosition, c, x, y, z, true) end
+    if c then Ess.Safe.quiet(Camera.SetPosition, c, x, y, z, true) end
 end
 
 -- Ess.Camera.blend(i, nDur) -- (re)arm the blend time so the NEXT placeCamera eases to its new spot over
@@ -215,7 +215,7 @@ end
 -- placeCamera per blend; a PER-TICK moving camera still wants blend 0 (the rubber-band rule, see below).
 function Ess.Camera.blend(i, nDur)
     local c = Ess.Player.camera(i)
-    if c then pcall(Camera.Blend, c, nDur or 1) end
+    if c then Ess.Safe.quiet(Camera.Blend, c, nDur or 1) end
 end
 
 -- Ess.Camera.lookAtObject(uGuid, sBone, i) -- lock the camera onto an object (optionally a specific bone/
@@ -224,20 +224,20 @@ end
 function Ess.Camera.lookAtObject(uGuid, sBone, i)
     local c = Ess.Player.camera(i)
     if not c then return end
-    if sBone then pcall(Camera.SetLookAt, c, uGuid, sBone)
-    else pcall(Camera.SetLookAt, c, uGuid) end
+    if sBone then Ess.Safe.quiet(Camera.SetLookAt, c, uGuid, sBone)
+    else Ess.Safe.quiet(Camera.SetLookAt, c, uGuid) end
 end
 
 -- Ess.Camera.lookAtPoint(x, y, z, i) -- lock the camera onto a fixed world point (coord form).
 function Ess.Camera.lookAtPoint(x, y, z, i)
     local c = Ess.Player.camera(i)
-    if c then pcall(Camera.SetLookAt, c, x, y, z, false, true) end
+    if c then Ess.Safe.quiet(Camera.SetLookAt, c, x, y, z, false, true) end
 end
 
 -- Ess.Camera.hold(i) -- pin the current framing.
 function Ess.Camera.hold(i)
     local c = Ess.Player.camera(i)
-    if c then pcall(Camera.Hold, c, true, false) end
+    if c then Ess.Safe.quiet(Camera.Hold, c, true, false) end
 end
 
 -- Ess.Camera.endCinematic(i) -- release control back to the player and stop any watch/orbit follow loop.
@@ -247,9 +247,9 @@ function Ess.Camera.endCinematic(i)
     Ess.Loop.stop("Ess.Camera.orbit:" .. idx)
     local st = Ess.Camera._cine[idx]
     if not st then return end
-    pcall(Camera.Hold, st.c, false, false)
-    pcall(Camera.StopBlending, st.c)
-    pcall(Player.SetCinematicMode, st.p, false)
+    Ess.Safe.quiet(Camera.Hold, st.c, false, false)
+    Ess.Safe.quiet(Camera.StopBlending, st.c)
+    Ess.Safe.quiet(Player.SetCinematicMode, st.p, false)
     Ess.Camera._cine[idx] = nil
 end
 
@@ -317,7 +317,7 @@ function Ess.Easy.Camera.watch(uGuid, opts)
         local id = "Ess.Camera.watch:" .. (i or 0)
         local cx, cy, cz                                                       -- current (smoothed) camera pos
         Ess.Loop.start(id, 0.033, function()
-            local ok, tx, ty, tz = pcall(Object.GetPosition, uGuid)
+            local ok, tx, ty, tz = Ess.Safe.quiet(Object.GetPosition, uGuid)
             if ok and tx then
                 local dx, dy, dz = tx + ox, ty + height, tz + oz               -- ideal fixed-offset vantage
                 if smooth and cx then cx, cy, cz = Ess.Vec.lerp(cx, cy, cz, dx, dy, dz, k)
@@ -365,7 +365,7 @@ function Ess.Easy.Camera.orbit(uGuid, opts)
     local t0 = Ess.Time.stamp()
     local cx, cy, cz                                                            -- current (smoothed) camera pos
     Ess.Loop.start(id, 0.033, function()
-        local ok, tx, ty, tz = pcall(Object.GetPosition, uGuid)
+        local ok, tx, ty, tz = Ess.Safe.quiet(Object.GetPosition, uGuid)
         if ok and tx then
             local a = start + Ess.Time.elapsed(t0) * speed
             local dx, dy, dz = tx + math.sin(a) * radius, ty + height, tz + math.cos(a) * radius

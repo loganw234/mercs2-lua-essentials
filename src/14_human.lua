@@ -28,61 +28,61 @@ local Ess = _G.Ess
 Ess.Human = Ess.Human or {}
 
 function Ess.Human.equipWeapon(uChar, uWeapon)
-    return pcall(Human.Inventory.EquipWeapon, uChar, uWeapon) and true or false
+    return Ess.Safe.quiet(Human.Inventory.EquipWeapon, uChar, uWeapon) and true or false
 end
 
 function Ess.Human.dropWeapon(uChar, uWeapon)
-    return pcall(Human.Inventory.DropWeapon, uChar, uWeapon) and true or false
+    return Ess.Safe.quiet(Human.Inventory.DropWeapon, uChar, uWeapon) and true or false
 end
 
 function Ess.Human.primaryWeapon(uChar)
-    local ok, w = pcall(Human.Inventory.GetPrimaryWeapon, uChar)
+    local ok, w = Ess.Safe.quiet(Human.Inventory.GetPrimaryWeapon, uChar)
     return (ok and w) or nil
 end
 
 function Ess.Human.secondaryWeapon(uChar)
-    local ok, w = pcall(Human.Inventory.GetSecondaryWeapon, uChar)
+    local ok, w = Ess.Safe.quiet(Human.Inventory.GetSecondaryWeapon, uChar)
     return (ok and w) or nil
 end
 
 function Ess.Human.allWeapons(uChar)
-    local ok, t = pcall(Human.Inventory.GetAllWeapons, uChar)
+    local ok, t = Ess.Safe.quiet(Human.Inventory.GetAllWeapons, uChar)
     if ok and type(t) == "table" then return t end
     return {}
 end
 
 function Ess.Human.setAllWeapons(uChar, tWeaponGuids)
-    return pcall(Human.Inventory.SetAllWeapons, uChar, tWeaponGuids) and true or false
+    return Ess.Safe.quiet(Human.Inventory.SetAllWeapons, uChar, tWeaponGuids) and true or false
 end
 
 function Ess.Human.reloadAll(uChar)
-    pcall(Human.Inventory.ReloadAll, uChar, false)
+    Ess.Safe.quiet(Human.Inventory.ReloadAll, uChar, false)
 end
 
 function Ess.Human.doAction(uChar, sActionName)
     if type(sActionName) ~= "string" or sActionName == "" then return end
-    pcall(Human.DoAction, uChar, sActionName)
+    Ess.Safe.quiet(Human.DoAction, uChar, sActionName)
 end
 
-function Ess.Human.disableWeapons(uChar) pcall(Human.DisableWeapons, uChar) end
-function Ess.Human.enableWeapons(uChar)  pcall(Human.EnableWeapons, uChar) end
+function Ess.Human.disableWeapons(uChar) Ess.Safe.quiet(Human.DisableWeapons, uChar) end
+function Ess.Human.enableWeapons(uChar)  Ess.Safe.quiet(Human.EnableWeapons, uChar) end
 
 function Ess.Human.knockdown(uChar, nDuration)
-    pcall(Human.Knockdown, uChar, nDuration or 0.5)
+    Ess.Safe.quiet(Human.Knockdown, uChar, nDuration or 0.5)
 end
 
 -- ---- ammo (Weapon namespace -- operates on the weapon guids Ess.Human's own getters return) ----
 function Ess.Human.ammo(uWeapon)
-    local ok, n = pcall(Weapon.GetReserveAmmo, uWeapon)
+    local ok, n = Ess.Safe.quiet(Weapon.GetReserveAmmo, uWeapon)
     return (ok and n) or 0
 end
 
 function Ess.Human.setAmmo(uWeapon, n)
-    pcall(Weapon.SetReserveAmmo, uWeapon, n)
+    Ess.Safe.quiet(Weapon.SetReserveAmmo, uWeapon, n)
 end
 
 function Ess.Human.maxAmmo(uWeapon)
-    local ok, n = pcall(Weapon.GetMaxReserveAmmo, uWeapon)
+    local ok, n = Ess.Safe.quiet(Weapon.GetMaxReserveAmmo, uWeapon)
     return (ok and n) or 0
 end
 
@@ -99,7 +99,7 @@ end
 -- "character ammo" concern, matching Ess.Human's own existing habit of folding in the small Weapon
 -- namespace for the same reason.
 function Ess.Human.setInfiniteAmmo(uChar, bOn)
-    pcall(Object.SetInfiniteAmmo, uChar, bOn and true or false)
+    Ess.Safe.quiet(Object.SetInfiniteAmmo, uChar, bOn and true or false)
 end
 
 -- Ess.Easy.Human.giveWeapon(uChar, sTemplateName) -> ok
@@ -114,7 +114,7 @@ Ess.Easy = Ess.Easy or {}
 Ess.Easy.Human = Ess.Easy.Human or {}
 function Ess.Easy.Human.giveWeapon(uChar, sTemplateName)
     if type(sTemplateName) ~= "string" or sTemplateName == "" then return false end
-    local ok, uWeapon = pcall(Pg.GetGuidByName, sTemplateName)
+    local ok, uWeapon = Ess.Safe.quiet(Pg.GetGuidByName, sTemplateName)
     if not ok or not uWeapon then
         Ess.Log("Easy.Human.giveWeapon: no weapon template named '" .. tostring(sTemplateName) .. "'")
         return false

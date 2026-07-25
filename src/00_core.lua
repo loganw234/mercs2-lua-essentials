@@ -13,9 +13,17 @@
 --
 -- API in this file:
 --   Ess.Log(msg)                                   prefixed Loader.Printf, used by the rest of Ess
---   Ess.Safe.call(fn, ...) -> ok, a, b, c, d        pcall + auto-log-on-failure (up to 4 return values)
---   Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d       same, but never logs (for expected-to-sometimes-fail calls)
+--   Ess.DEBUG                                      set true to surface every internally-swallowed failure
+--   Ess.Safe.call(fn, ...) -> ok, a..f              pcall + auto-log-on-failure (up to 6 return values)
+--   Ess.Safe.quiet(fn, ...) -> ok, a..f             same, but only logs when Ess.DEBUG is on
+--   Ess.Safe.named(label, fn, ...) -> ok, a..f      .quiet with an explicit label (for closures)
+--   Ess.Safe.reject(label, reason) -> nil           record a GUARD rejection (the engine was never called)
+--   (no variadic form -- see the note below Ess.Safe.reject for why one was removed rather than shipped)
 --   Ess.Safe.string(ok, val, fallback) -> s         only trust a native return as a string if it really is one
+--   Ess.Safe.template(sTemplate) -> bool            true only for a usable, non-blank spawn-template string
+--   Ess.lastError() -> tRecord | nil                the most recent swallowed failure (msg/label/count)
+--   Ess.Safe.stats() -> tArray                      per-callsite failure tallies, worst first (needs Ess.DEBUG)
+--   Ess.Safe.reset()                                clear the recorded failures and tallies
 --   Ess.Table.compact(t) -> t                       rebuild a numeric array densely (fixes nil-hole #/ipairs desync)
 --   Ess.Table collection helpers                    .keys/.values/.count/.isEmpty/.contains/.indexOf,
 --                                                    .map/.filter/.find/.reduce, .slice/.reverse, .copy/.merge
@@ -24,10 +32,41 @@
 
 _G.Ess = _G.Ess or {}
 local Ess = _G.Ess
-Ess.VERSION = "0.3.4"
+Ess.VERSION = "0.4.0"
 
 Ess.Safe = Ess.Safe or {}
 Ess.Table = Ess.Table or {}
+
+-- Ess.DEBUG -- OFF by default. The single most common "why isn't my mod doing anything" wall is that Ess
+-- fails SILENTLY on purpose: a wrapper's whole job is to return nil instead of propagating a problem, so a
+-- call with a stale guid or a nil argument produces no log line, no error, and no effect. Set
+-- `Ess.DEBUG = true` (from a script, or live over the bridge) and everything Ess quietly gave up on starts
+-- reporting itself.
+--
+-- THERE ARE TWO SEPARATE CHANNELS, because there are two genuinely different silences, and the second is
+-- the common one:
+--
+--   1. A THROWN failure -- an engine call raised a real Lua error and a pcall swallowed it.
+--      Recorded by Ess.Safe.* below.
+--   2. A GUARD REJECTION -- Ess looked at the arguments, decided the call couldn't work, and returned early
+--      WITHOUT EVER CALLING THE ENGINE (`if not uChar then return nil end`, a blank spawn template, an AI
+--      order with no destination). Recorded by Ess.Safe.reject().
+--
+-- Channel 2 exists because of a live measurement (2026-07-25, this running game): 14 deliberately-malformed
+-- native calls -- nil/garbage/stale guids across Object/Player/Vehicle/Human/Ai/Marker/Camera/Sys/Pg -- threw
+-- ZERO Lua errors. They fail safe, returning nil or (for a stale guid) stale values. So in day-to-day use a
+-- beginner's mod almost never trips channel 1; it trips channel 2, or the engine no-ops with a straight
+-- face. A diagnostic built only on caught errors would have been quiet in exactly the case it was built for.
+--
+-- That measurement is NOT license to drop the pcall guards, and this file doesn't: the crash/throw cases
+-- documented in CONTRIBUTING.md were recorded defensively (any observed crash written down as a fact, with
+-- deliberate breadth over pinpoint reproduction), so a rare throw in some other location or game state
+-- stays entirely plausible. Both channels are load-bearing; only their relative frequency is now known.
+--
+-- Deliberately read at CALL time, not captured -- so flipping it mid-session takes effect immediately, and
+-- an OnKey script can toggle it. `or false` (not `= false`) so the setting survives a level reload, which
+-- re-runs this whole file.
+Ess.DEBUG = Ess.DEBUG or false
 
 -- ============================================================
 -- Ess.Log -- every Ess.* message goes through this so log lines are consistently prefixed and easy to
@@ -41,30 +80,233 @@ end
 
 -- ============================================================
 -- Ess.Safe -- the single most duplicated shape in this whole project: `local ok, r = pcall(...); if not
--- ok then Loader.Printf(...) end`. Fixed-arity (4 return values) rather than a generic table-pack/unpack
--- dance -- plenty for every native call in this corpus, and far simpler to read than the alternative.
+-- ok then Loader.Printf(...) end`. Fixed-arity (6 return values) rather than a generic table-pack/unpack
+-- dance: the widest native return in this whole corpus is 4 values (Player.GetTargetUnderReticle's
+-- x,y,z,guid), so 6 is real headroom, and a fixed-arity return allocates NOTHING -- these sit inside
+-- per-frame heartbeats, where one throwaway table per engine call would be a real cost on this engine's
+-- Lua 5.1.
+--
+-- Every one of these routes failures through recordFailure() below, which is what makes Ess.DEBUG able to
+-- see a swallowed error at all. Prefer them over a bare `pcall` in new code for exactly that reason: a bare
+-- pcall's failure is invisible to the diagnostics, forever.
+--
+-- ON FAILURE, ALL OF THEM RETURN A BARE `false` -- deliberately NOT pcall's own `false, errMessage`. Every
+-- caller in this framework is shaped `local ok, val = Ess.Safe.quiet(...)`, and handing back the error
+-- STRING as `val` would put a truthy non-nil in the slot a caller reads as "the value", turning a clean
+-- nil-on-failure into a garbage-on-failure footgun. Read the message via Ess.lastError() instead.
 -- ============================================================
 
--- Ess.Safe.call(fn, ...) -> ok, a, b, c, d
--- Wraps ANY engine call (a function reference + its args, OR a zero-arg closure for a multi-statement
--- body). Logs once via Ess.Log on failure.
-function Ess.Safe.call(fn, ...)
-    local ok, a, b, c, d = pcall(fn, ...)
-    if not ok then
-        Ess.Log("Safe.call failed: " .. tostring(a))
-        return false
+-- The recorded-failure state. Kept on Ess (not a file-local) so a level reload -- which re-runs this whole
+-- file -- doesn't wipe a session's tally, and so the bridge REPL can read it directly.
+Ess.Safe._last = Ess.Safe._last or nil    -- { msg=, label=, count= } of the most recent failure
+Ess.Safe._fails = Ess.Safe._fails or 0    -- total swallowed failures this session
+Ess.Safe._tally = Ess.Safe._tally or {}    -- [label] = count, only populated while Ess.DEBUG is on
+Ess.Safe._labels = Ess.Safe._labels or nil -- lazy [functionRef] = "Namespace.FnName" reverse map
+
+-- The engine namespaces Ess actually calls into, for turning a bare function REFERENCE back into a
+-- readable name when something fails. There is no cheap way to ask Lua "what is this function called", so
+-- this walks the real global tables once and builds the reverse map. Built LAZILY, on the first failure
+-- while Ess.DEBUG is on -- costs nothing at all in the normal (debug-off) case.
+--
+-- Nested one level deep as well: Graphics.Camera / Graphics.Effect are separate tables Ess.Camera calls
+-- through, and would otherwise resolve to nothing.
+local ENGINE_NS = {
+    "Object", "Ai", "Pg", "Player", "Vehicle", "Sys", "Airstrike", "Human", "Camera", "Event", "Graphics",
+    "Marker", "Sound", "Weapon", "ObjectFilter", "Junk", "Gui", "Loader", "Hud", "Net", "Inventory",
+    "MrxPmc", "MrxMusic", "MrxUtil", "MrxFactionManager", "MrxVoSequence", "MrxTutorialManager",
+    "MrxCopterDrop", "MrxTransit", "MrxSupportData", "MrxRewardData", "MrxHqManager", "WifVzBoundary",
+}
+
+local function buildLabelMap()
+    local map = {}
+    for _, nsName in ipairs(ENGINE_NS) do
+        local ns = _G[nsName]
+        if type(ns) == "table" then
+            -- pcall'd: iterating a native-backed table is not guaranteed safe on this engine, and a
+            -- diagnostic helper must never be the thing that breaks a running mod.
+            pcall(function()
+                for k, v in pairs(ns) do
+                    if type(v) == "function" then
+                        map[v] = nsName .. "." .. tostring(k)
+                    elseif type(v) == "table" and type(k) == "string" then
+                        for k2, v2 in pairs(v) do
+                            if type(v2) == "function" then
+                                map[v2] = nsName .. "." .. k .. "." .. tostring(k2)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
     end
-    return true, a, b, c, d
+    return map
 end
 
--- Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d
--- Same as Ess.Safe.call but NEVER logs -- for calls that are expected to fail sometimes as part of normal
--- control flow (e.g. probing whether an object has a label), where a log line every failure would just be
--- noise.
+-- resolveLabel(fn) -> string -- only ever called on the failure path with Ess.DEBUG on.
+local function resolveLabel(fn)
+    if type(fn) ~= "function" then return "?" end
+    if not Ess.Safe._labels then Ess.Safe._labels = buildLabelMap() end
+    local name = Ess.Safe._labels[fn]
+    if name then return name end
+    -- A closure: built fresh on every call, so it can never be in the reverse map. There is NO way to
+    -- recover a name for one here -- CONFIRMED LIVE 2026-07-25: `type(_G.debug)` is `nil` on this engine.
+    -- The debug library isn't merely unused by the shipped scripts (zero occurrences in the whole
+    -- decompiled corpus), it is absent outright, so a `debug.getinfo(fn, "S")` fallback -- which an earlier
+    -- draft of this file had, guarded -- was confirmed dead code and removed rather than left in looking
+    -- like it might do something.
+    --
+    -- Ess.Safe.named() is therefore the ONLY way to attribute a closure's failure. Use it for any closure
+    -- whose identity you'd actually want in a log.
+    return "closure"
+end
+
+-- recordFailure(fn, err, label) -- the one place a swallowed failure is accounted for.
+--
+-- Two tiers on purpose. ALWAYS (cheap, unconditional): bump one integer and keep the message, so
+-- Ess.lastError() is useful even if you only thought to look after the fact. ONLY WITH Ess.DEBUG ON
+-- (expensive): resolve the function to a readable name, tally per-callsite, and log. Getters like
+-- Object.GetPosition fail as routine control flow (a dead guid), tens of times per tick inside
+-- Ess.Probe.nearby -- so the always-on path has to stay at "increment a number".
+local function recordFailure(fn, err, label)
+    -- 32-bit float numbers here: integers are only exact to 2^24 (see CONTRIBUTING.md's engine rules), so
+    -- stop counting well before precision would start silently lying about the total.
+    if Ess.Safe._fails < 16000000 then Ess.Safe._fails = Ess.Safe._fails + 1 end
+    local msg = tostring(err)
+    if not Ess.DEBUG then
+        Ess.Safe._last = { msg = msg, label = label, count = Ess.Safe._fails }
+        return
+    end
+    label = label or resolveLabel(fn)
+    local n = (Ess.Safe._tally[label] or 0) + 1
+    Ess.Safe._tally[label] = n
+    Ess.Safe._last = { msg = msg, label = label, count = Ess.Safe._fails }
+    Ess.Log("DEBUG " .. label .. " failed (#" .. n .. "): " .. msg)
+end
+
+-- Ess.Safe.call(fn, ...) -> ok, a, b, c, d, e, f
+-- Wraps ANY engine call (a function reference + its args, OR a zero-arg closure for a multi-statement
+-- body). ALWAYS logs on failure, Ess.DEBUG or not -- for a call whose failure is genuinely abnormal.
+function Ess.Safe.call(fn, ...)
+    local ok, a, b, c, d, e, f = pcall(fn, ...)
+    if not ok then
+        recordFailure(fn, a)
+        if not Ess.DEBUG then Ess.Log("Safe.call failed: " .. tostring(a)) end
+        return false
+    end
+    return true, a, b, c, d, e, f
+end
+
+-- Ess.Safe.quiet(fn, ...) -> ok, a, b, c, d, e, f
+-- For calls that are expected to fail sometimes as part of normal control flow (probing whether an object
+-- has a label, reading a dead guid's position), where a log line every failure would drown the log.
+--
+-- The failure is still RECORDED either way -- "quiet" now means "quiet unless you asked to hear it", not
+-- "invisible". Turning Ess.DEBUG on makes every one of these speak up, which is the whole point of the
+-- flag; before this, these calls were unconditionally undiagnosable.
 function Ess.Safe.quiet(fn, ...)
-    local ok, a, b, c, d = pcall(fn, ...)
-    if not ok then return false end
-    return true, a, b, c, d
+    local ok, a, b, c, d, e, f = pcall(fn, ...)
+    if not ok then
+        recordFailure(fn, a)
+        return false
+    end
+    return true, a, b, c, d, e, f
+end
+
+-- Ess.Safe.named(sLabel, fn, ...) -> ok, a, b, c, d, e, f
+-- Ess.Safe.quiet with the label supplied up front. Use it for a CLOSURE (`Ess.Safe.named("Contract.tick",
+-- function() ... end)`) -- a closure is a fresh function object every call, so it can never be in the
+-- reverse-name map and would otherwise tally as an indistinguishable "closure".
+function Ess.Safe.named(sLabel, fn, ...)
+    local ok, a, b, c, d, e, f = pcall(fn, ...)
+    if not ok then
+        recordFailure(fn, a, tostring(sLabel))
+        return false
+    end
+    return true, a, b, c, d, e, f
+end
+
+-- Ess.Safe.reject(sLabel, sReason) -> nil
+-- The GUARD-REJECTION channel (channel 2 in Ess.DEBUG's header). Call it at the point an Ess wrapper gives
+-- up on its own arguments, before the engine is involved at all:
+--
+--     function Ess.Object.heal(uGuid)
+--         if not uGuid then return Ess.Safe.reject("Ess.Object.heal", "no guid") end
+--         ...
+--
+-- ALWAYS RETURNS nil, which is what makes that a single line instead of three: `return Ess.Safe.reject(...)`
+-- reads as the early-out it already was, and every Ess getter's documented "nil on failure" contract is
+-- unchanged. A guard that returns something other than nil (`return false`, `return {}`) should still call
+-- this and then return its own value on the next line.
+--
+-- This is the channel that actually answers "why did nothing happen". Measured on the live game, malformed
+-- native calls essentially never throw (see Ess.DEBUG's header), so a beginner's silent mod is nearly always
+-- a guard rejection -- and unlike a thrown error, a rejection knows exactly WHY, because Ess is the one that
+-- decided. That makes the log line specific ("no guid") instead of a generic engine error string.
+--
+-- Costs one function call and one boolean test when Ess.DEBUG is off. Deliberately not wrapped in an
+-- `if Ess.DEBUG then` at every call site: that would put the flag check in ~200 places and make the guards
+-- three lines each, for a saving that does not matter next to the engine call the guard is skipping.
+function Ess.Safe.reject(sLabel, sReason)
+    if not Ess.DEBUG then return nil end
+    local label = tostring(sLabel)
+    local n = (Ess.Safe._tally[label] or 0) + 1
+    Ess.Safe._tally[label] = n
+    Ess.Safe._last = { msg = "rejected: " .. tostring(sReason), label = label, count = Ess.Safe._fails,
+                       rejected = true }
+    Ess.Log("DEBUG " .. label .. " rejected (#" .. n .. "): " .. tostring(sReason))
+    return nil
+end
+
+-- NO VARIADIC FORM ON PURPOSE. An `Ess.Safe.callv` passing through every return value instead of the fixed
+-- six was written and then deliberately removed: nothing in Ess needs it (the widest native return in the
+-- corpus is 4 values), so it would have shipped as an untested code path for a hypothetical caller --
+-- exactly what CONTRIBUTING.md's "never let an unverified engine change ride into a release" rules out. It
+-- would also have needed `select("#", ...)` and `unpack` to handle trailing nils correctly (a plain
+-- `{pcall(...)}` reports `#r == 2` for a result of `true, 1, nil`, silently dropping the third value). Both
+-- do exist on this engine -- `unpack` appears 76 times in the decompiled corpus, and `select` is exercised
+-- live by samples/recipes/a_quick_mission.lua on every smoke run -- so if a >6-value native call is ever
+-- found, this is buildable. Until one is, it stays unbuilt.
+
+-- ============================================================
+-- Diagnostics -- the read side of what Ess.Safe records.
+-- ============================================================
+
+-- Ess.lastError() -> { msg=, label=, count= } | nil
+-- The most recent failure Ess swallowed. `label` is only populated for failures that happened while
+-- Ess.DEBUG was on (resolving it is the expensive half) -- so the usual shape is: notice nothing happened,
+-- set Ess.DEBUG = true, do it again, then read this.
+function Ess.lastError()
+    return Ess.Safe._last
+end
+
+-- Ess.Safe.stats() -> { {label=, count=}, ... }  (worst first) , nTotalFailures
+-- Which calls are failing, and how often. Only tallies failures recorded while Ess.DEBUG was on; the
+-- second return is the unconditional session total, so a zero-length array next to a big total means
+-- "plenty failed, but before you turned DEBUG on".
+function Ess.Safe.stats()
+    local out = {}
+    for label, count in pairs(Ess.Safe._tally) do
+        out[#out + 1] = { label = label, count = count }
+    end
+    table.sort(out, function(x, y)
+        if x.count == y.count then return x.label < y.label end
+        return x.count > y.count
+    end)
+    return out, Ess.Safe._fails
+end
+
+-- Ess.Safe.reset() -- clear the tally, the total and the last error. Handy right before reproducing one
+-- specific thing, so what's left in stats() is only that.
+--
+-- Also drops the cached function-name map so it rebuilds on the next failure. That matters because the map
+-- is a snapshot of whatever engine globals existed the first time something failed: if DEBUG was on early
+-- in a level load, a namespace that populated later would be missing from it permanently, and its failures
+-- would read as an unhelpful "closure" forever.
+function Ess.Safe.reset()
+    Ess.Safe._last = nil
+    Ess.Safe._fails = 0
+    Ess.Safe._tally = {}
+    Ess.Safe._labels = nil
 end
 
 -- Ess.Safe.string(ok, val, fallback) -> s
@@ -179,14 +421,17 @@ end
 -- which. Both pcall-wrapped: Sys.GuidToString is CONFIRMED to throw outright on at least one real object.
 -- ============================================================
 
+-- Both route through Ess.Safe.quiet rather than a bare pcall, like the rest of the framework -- these two
+-- are defined below Ess.Safe in this same file, so there's no ordering problem, and `Ess.Guid("typo")`
+-- silently returning nil is one of the most common beginner dead ends there is. With Ess.DEBUG on it says so.
 function Ess.Guid(name)
-    local ok, g = pcall(Pg.GetGuidByName, name)
+    local ok, g = Ess.Safe.quiet(Pg.GetGuidByName, name)
     if ok then return g end
     return nil
 end
 
 function Ess.Name(uGuid)
-    local ok, s = pcall(Sys.GuidToString, uGuid)
+    local ok, s = Ess.Safe.quiet(Sys.GuidToString, uGuid)
     if ok then return s end
     return nil
 end

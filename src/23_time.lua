@@ -36,14 +36,14 @@ Ess.Time = Ess.Time or {}
 -- the callback-based Event.TimerRelative pattern, which only fires once after a fixed delay.
 -- Real-world clock (keeps advancing through pause/slow-mo).
 function Ess.Time.stamp()
-    local ok, s = pcall(Sys.RealTimeStamp)
+    local ok, s = Ess.Safe.quiet(Sys.RealTimeStamp)
     return ok and s or nil
 end
 
 -- Pausable/scaled clock (tracks Ess.Time.scale() and game pause) -- use this for gameplay cooldowns that
 -- should freeze with the game; use Ess.Time.stamp() for real-world/UI timing that shouldn't.
 function Ess.Time.mainStamp()
-    local ok, s = pcall(Sys.MainTimeStamp)
+    local ok, s = Ess.Safe.quiet(Sys.MainTimeStamp)
     return ok and s or nil
 end
 
@@ -51,12 +51,12 @@ end
 -- a stamp previously produced by *TimeStamp() rather than creating a new one each time).
 function Ess.Time.mark(uStamp)
     if not uStamp then return end
-    pcall(Sys.TimeStampMark, uStamp)
+    Ess.Safe.quiet(Sys.TimeStampMark, uStamp)
 end
 
 function Ess.Time.elapsed(uStamp)
     if not uStamp then return 0 end
-    local ok, n = pcall(Sys.TimeStampGetElapsed, uStamp)
+    local ok, n = Ess.Safe.quiet(Sys.TimeStampGetElapsed, uStamp)
     return (ok and n) or 0
 end
 
@@ -70,16 +70,16 @@ local Clock = {}
 Clock.__index = Clock
 
 function Ess.Time.clock(maxDelta)
-    local ok, stamp = pcall(Sys.RealTimeStamp)
+    local ok, stamp = Ess.Safe.quiet(Sys.RealTimeStamp)
     return setmetatable({ stamp = ok and stamp or nil, max = maxDelta or 0.25 }, Clock)
 end
 
 function Clock:delta()
     if not self.stamp then return 0 end
-    local ok, e = pcall(Sys.TimeStampGetElapsed, self.stamp)
+    local ok, e = Ess.Safe.quiet(Sys.TimeStampGetElapsed, self.stamp)
     if not ok or not e then e = 0 end
     if e > self.max then e = self.max end
-    pcall(Sys.TimeStampMark, self.stamp)
+    Ess.Safe.quiet(Sys.TimeStampMark, self.stamp)
     return e
 end
 
@@ -106,7 +106,7 @@ end
 -- e.g. Ess.Time.scale(0.2) for a 5x slowdown. Ess.Time.restoreScale() is just scale(1) under a clearer name
 -- for the common "undo the slow-mo" call site.
 function Ess.Time.scale(n)
-    pcall(Sys.SetTimeScale, n)
+    Ess.Safe.quiet(Sys.SetTimeScale, n)
 end
 
 function Ess.Time.restoreScale()
@@ -119,7 +119,7 @@ end
 -- the rest of this namespace for a HUD countdown/stopwatch, and is the confirmed idiom real scripts use
 -- for exactly that rather than hand-rolling minutes:seconds formatting.
 function Ess.Time.format(nSeconds, bUseTenths)
-    local ok, s = pcall(Junk.FormatTime, nSeconds, bUseTenths)
+    local ok, s = Ess.Safe.quiet(Junk.FormatTime, nSeconds, bUseTenths)
     return (ok and s) or nil
 end
 

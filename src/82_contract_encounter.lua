@@ -35,7 +35,7 @@ local C = Ess.Contract
 
 local FACTION_ABBREV = { Allied = "All", China = "Chi", Guerilla = "Gur", OC = "Oil", Pirate = "Pir", VZ = "VZ", PMC = "Pmc" }
 local HELO_FACTION   = { Allied = "AL", China = "CH", Guerilla = "GR", OC = "OC", Pirate = "PR", VZ = "VZ" }
-local function factionGuid(name) local ok, g = pcall(Pg.GetGuidByName, name); if ok then return g end end
+local function factionGuid(name) local ok, g = Ess.Safe.quiet(Pg.GetGuidByName, name); if ok then return g end end
 local function evPos(ev) if ev.at then return C._xyz(ev.at) end return ev.x, ev.y, ev.z end
 local function ownerGuid(ev) if ev.owner then return factionGuid(ev.owner) end end
 
@@ -57,13 +57,13 @@ SUPPORT_EFFECTS.artillery = function(inst, task, ev)          -- N shells rain o
     for i = 1, n do
         local dx, dz = math.randf(0, 2 * r) - r, math.randf(0, 2 * r) - r
         C._addEv(task, Event.Create(Event.TimerRelative, { 0.35 * (i - 1) }, function()
-            if inst.bActive then pcall(Airstrike.SpawnOrdnance, ammo, x + dx, y + 220, z + dz, 0, -100, 0, "impact", 1, owner) end
+            if inst.bActive then Ess.Safe.quiet(Airstrike.SpawnOrdnance, ammo, x + dx, y + 220, z + dz, 0, -100, 0, "impact", 1, owner) end
         end))
     end
 end
 SUPPORT_EFFECTS.flyby = function(inst, task, ev)              -- a support vehicle streaks over the zone
     local x, y, z = evPos(ev); if not x then return end
-    pcall(Airstrike.Flyby, ev.vehicle or "Support Vehicle (Autogunship)", x - 50, z + 300, x, z, y + (ev.altitude or 120), ev.speed or 55)
+    Ess.Safe.quiet(Airstrike.Flyby, ev.vehicle or "Support Vehicle (Autogunship)", x - 50, z + 300, x, z, y + (ev.altitude or 120), ev.speed or 55)
 end
 SUPPORT_EFFECTS.airstrike = SUPPORT_EFFECTS.flyby
 SUPPORT_EFFECTS.bombingrun = function(inst, task, ev)         -- an aircraft makes a pass and walks a stick of bombs onto the zone
@@ -77,13 +77,13 @@ SUPPORT_EFFECTS.bombingrun = function(inst, task, ev)         -- an aircraft mak
             C._addEv(task, Event.Create(Event.TimerRelative, { 0.14 * (i - 1) }, function()
                 if not inst.bActive then return end
                 local jx, jy, jz = x, alt, z
-                if uJet then local ok, a, b, c = pcall(Object.GetPosition, uJet); if ok and a then jx, jy, jz = a, b, c end end
-                pcall(Airstrike.SpawnOrdnance, bomb, jx, jy, jz, 0, -60, 0, "impact", 1, owner)
+                if uJet then local ok, a, b, c = Ess.Safe.quiet(Object.GetPosition, uJet); if ok and a then jx, jy, jz = a, b, c end end
+                Ess.Safe.quiet(Airstrike.SpawnOrdnance, bomb, jx, jy, jz, 0, -60, 0, "impact", 1, owner)
             end))
         end
         Ess.Log("  bombing run: " .. n .. "x " .. tostring(bomb))
     end
-    local ok, jet = pcall(Airstrike.Flyby, vehicle, x - 350, z + 350, x, z, alt, speed, drop)
+    local ok, jet = Ess.Safe.quiet(Airstrike.Flyby, vehicle, x - 350, z + 350, x, z, alt, speed, drop)
     if ok then uJet = jet end
 end
 SUPPORT_EFFECTS.heli = function(inst, task, ev)               -- a wave of N helicopters passes over, fanned out
@@ -94,7 +94,7 @@ SUPPORT_EFFECTS.heli = function(inst, task, ev)               -- a wave of N hel
     for i = 1, n do
         local off = (i - 1) * spread
         C._addEv(task, Event.Create(Event.TimerRelative, { stagger * (i - 1) }, function()
-            if inst.bActive then pcall(Airstrike.Flyby, tmpl, x - 60 - off, z + 300 + off, x + off, z, y + (ev.altitude or 55), ev.speed or 45) end
+            if inst.bActive then Ess.Safe.quiet(Airstrike.Flyby, tmpl, x - 60 - off, z + 300 + off, x + off, z, y + (ev.altitude or 55), ev.speed or 45) end
         end))
     end
 end
@@ -103,11 +103,11 @@ SUPPORT_EFFECTS.reinforce = function(inst, task, ev)         -- units arrive: de
     local fac, spawns = HELO_FACTION[ev.faction] or ev.faction or "VZ", ev.spawns or {}
     local function spawnOne(i, tmpl)
         local ox, oz = ((i - 1) % 3 - 1) * 4, math.floor((i - 1) / 3) * 4
-        if ev.deliver == "copter" then pcall(MrxCopterDrop.Create, fac, tmpl, x + ox, y, z + oz, false)
+        if ev.deliver == "copter" then Ess.Safe.quiet(MrxCopterDrop.Create, fac, tmpl, x + ox, y, z + oz, false)
         else local ok, u = C._safeSpawn(tmpl, x + ox, y, z + oz); if ok then C._track(task, u) end end
     end
     if ev.deliver == "paradrop" then
-        pcall(Airstrike.Flyby, ev.vehicle or "Support Vehicle (Paradrop_AL)", x - 350, z + 350, x, z, y + (ev.altitude or 180), ev.speed or 140)
+        Ess.Safe.quiet(Airstrike.Flyby, ev.vehicle or "Support Vehicle (Paradrop_AL)", x - 350, z + 350, x, z, y + (ev.altitude or 180), ev.speed or 140)
         for i, tmpl in ipairs(spawns) do C._addEv(task, Event.Create(Event.TimerRelative, { 1.5 + 0.2 * i }, function() if inst.bActive then spawnOne(i, tmpl) end end)) end
     else
         for i, tmpl in ipairs(spawns) do spawnOne(i, tmpl) end
@@ -117,8 +117,8 @@ end
 SUPPORT_EFFECTS.custom = function(inst, task, ev) if type(ev.fn) == "function" then pcall(ev.fn, ev, task) end end
 SUPPORT_EFFECTS.say = function(inst, task, ev) C._hudSay(ev.text or ev.msg, ev.hold) end
 SUPPORT_EFFECTS.music = function(inst, task, ev)
-    if ev.stop or ev.cue == "stop" or ev.cue == "" then pcall(MrxMusic.StopSpecialMusic)
-    else inst.musicOn = true; pcall(MrxMusic.PlaySpecialMusic, ev.cue or "mu_pmc_panicloop_01") end
+    if ev.stop or ev.cue == "stop" or ev.cue == "" then Ess.Safe.quiet(MrxMusic.StopSpecialMusic)
+    else inst.musicOn = true; Ess.Safe.quiet(MrxMusic.PlaySpecialMusic, ev.cue or "mu_pmc_panicloop_01") end
 end
 SUPPORT_EFFECTS.vfx = function(inst, task, ev)              -- cosmetic explosions / fire / smoke (NO damage)
     local x, y, z = evPos(ev); if not x then return end
@@ -126,7 +126,7 @@ SUPPORT_EFFECTS.vfx = function(inst, task, ev)              -- cosmetic explosio
     for i = 1, n do
         local dx, dz = (r > 0) and (math.randf(0, 2 * r) - r) or 0, (r > 0) and (math.randf(0, 2 * r) - r) or 0
         C._addEv(task, Event.Create(Event.TimerRelative, { 0.25 * (i - 1) }, function()
-            if inst.bActive then pcall(Airstrike.SpawnDirectedObject, particle, x + dx, y + (ev.up or 1), z + dz, 0, 1, 0) end
+            if inst.bActive then Ess.Safe.quiet(Airstrike.SpawnDirectedObject, particle, x + dx, y + (ev.up or 1), z + dz, 0, 1, 0) end
         end))
     end
 end
@@ -136,8 +136,8 @@ SUPPORT_EFFECTS.damage = function(inst, task, ev)          -- scripted damage / 
     if #guids == 0 and ev.at then local x, y, z = evPos(ev); guids = C._collectInArea(x, y, z, ev.radius or 30, ev.kind, ev.faction) end
     local pct = ev.pct or 25
     for _, g in ipairs(guids) do
-        if ev.kill then pcall(Object.Kill, g)
-        else local ok, hp = pcall(Object.GetHealth, g); if ok and hp and hp > 0 then pcall(Object.SetHealth, g, hp * (pct / 100)) end end
+        if ev.kill then Ess.Safe.quiet(Object.Kill, g)
+        else local ok, hp = Ess.Safe.quiet(Object.GetHealth, g); if ok and hp and hp > 0 then Ess.Safe.quiet(Object.SetHealth, g, hp * (pct / 100)) end end
     end
     Ess.Log("  damage -> " .. #guids .. (ev.kill and " killed" or (" to " .. pct .. "%")))
 end
@@ -146,7 +146,7 @@ SUPPORT_EFFECTS.vo = function(inst, task, ev)              -- play a voice-over 
     local lines = ev.lines; if type(lines) == "string" then lines = { lines } end
     if type(lines) ~= "table" or #lines == 0 then return end
     local seq = {}; for i, ln in ipairs(lines) do seq[#seq + 1] = ln; if i < #lines then seq[#seq + 1] = ev.gap or 1 end end
-    pcall(MrxVoSequence.Start, seq)
+    Ess.Safe.quiet(MrxVoSequence.Start, seq)
 end
 SUPPORT_EFFECTS.shake = function(inst, task, ev)           -- camera shake feedback (explosions, impacts)
     Ess.Camera.shake(ev.player or 0, ev.preset or "ShakeCameraMedium", Ess.Player.character(ev.player or 0), ev.amplitude or 6, ev.duration or 5)
@@ -194,7 +194,7 @@ function C._spawnUnits(inst)
             local ok, g = C._safeSpawn(tmpl, x, y, z, u.yaw)
             if ok and g then
                 C._track(task, g)
-                if u.yaw then pcall(Object.SetYaw, g, u.yaw) end
+                if u.yaw then Ess.Safe.quiet(Object.SetYaw, g, u.yaw) end
                 local grp = tostring(u.group or "A")
                 inst.groups[grp] = inst.groups[grp] or {}
                 inst.groups[grp][#inst.groups[grp] + 1] = g

@@ -33,6 +33,35 @@ If all five check out and you still see nothing, open `scripts/lua_loader_printf
 *any* output at all (from the loader itself, not just `[Ess]`) — if the file is empty or not updating,
 the lua-bridge itself isn't running, which points back to step 1.
 
+## My mod does nothing, and says nothing — start here
+
+Before working through anything below, make Ess tell you what it gave up on:
+
+```lua
+Ess.DEBUG = true        -- then do the thing that didn't work, and check the log
+```
+
+Ess fails **silently by design** — a wrapper returns `nil` rather than propagating a problem — so a stale
+guid or a nil argument produces no log line, no error, and no effect. `Ess.DEBUG` turns that into a sentence
+naming the function that gave up and why (`Ess.AIOrders.move rejected: no opts.at destination given`). Then:
+
+- **`Ess.lastError()`** — the most recent give-up, as `{ msg, label, count, rejected }`.
+- **`Ess.Safe.stats()`** — every give-up this session, worst offender first. This is where you find out one
+  helper failed four thousand times inside a loop while you were looking somewhere else.
+- **`Ess.Safe.reset()`** — clear the slate first, so what's left is only your repro.
+
+Set `Ess.DEBUG = false` when you're done; it survives a level reload, and it's chatty. It costs nothing while
+off. Walkthrough: [`samples/recipes/compose_debug_a_silence.lua`](samples/recipes/compose_debug_a_silence.lua).
+
+Two specific things that look like bugs and aren't:
+
+- **Player index 1 is the CO-OP PARTNER**, and is `nil` in single-player. `Ess.Player.pose(1)` or
+  `Ess.Object.spawnAhead("Veyron", 8, 0, 1)` correctly does nothing on a solo game. Index 0 is you.
+- **`Object.Remove` and `Object.Kill` are DEFERRED.** `Ess.Object.alive(g)` still reads `true` on the same
+  tick you removed or killed something, and flips false about half a second later. (`Ess.Object.valid(g)`
+  stays `true` even after that — the guid handle outlives the object, so `valid` is not an "is it gone yet"
+  test.) If you need to know it landed, poll `alive()` on an `Ess.Loop` tick instead of reading it immediately.
+
 ## Ess loaded fine, but my own mod script does nothing (or errors)
 
 - **Missing the load-order guard.** Every sample in this repo starts with

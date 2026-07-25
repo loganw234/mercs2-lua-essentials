@@ -32,7 +32,7 @@ Ess.RNG.__index = Ess.RNG
 function Ess.RNG.new(seed)
     local s = tonumber(seed)
     if not s then
-        local ok, t = pcall(Sys.RealTime)
+        local ok, t = Ess.Safe.quiet(Sys.RealTime)
         s = (math.floor(((ok and t) or 0) * 1000) % 65536) + 1
     end
     if s < 1 then s = 1 end
@@ -63,15 +63,26 @@ end
 -- "w"), falling back to weight 1 for entries missing it.
 -- Collapses the same accumulator-loop weighted-pick WaveDefense.lua wrote three separate times
 -- (pickUnit/pickDrop/pickCrate, same logic, copy-pasted) into one implementation.
+--
+-- WORKS ON A PLAIN ARRAY TOO, which it did not before 0.4.0: entries that aren't tables (raw guids, numbers,
+-- strings) simply weigh 1, giving a uniform pick. Previously every entry was indexed as `e[weightKey]`
+-- unconditionally, so `:pick({guidA, guidB})` -- the obvious reading of a function called "pick" -- THREW
+-- ("attempt to index a userdata value") instead of picking. Found by samples/recipes/compose_your_own_helper
+-- doing exactly that against a list of spawned guids. Weighted behaviour for table entries is unchanged.
+local function weightOf(e, weightKey)
+    if type(e) == "table" then return e[weightKey] or 1 end
+    return 1
+end
+
 function Ess.RNG:pick(list, weightKey)
     weightKey = weightKey or "w"
     local total = 0
-    for _, e in ipairs(list) do total = total + (e[weightKey] or 1) end
+    for _, e in ipairs(list) do total = total + weightOf(e, weightKey) end
     if total <= 0 then return list[1] end
     local r = self:next() * total
     local acc = 0
     for _, e in ipairs(list) do
-        acc = acc + (e[weightKey] or 1)
+        acc = acc + weightOf(e, weightKey)
         if r <= acc then return e end
     end
     return list[#list]

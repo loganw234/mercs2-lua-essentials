@@ -65,7 +65,7 @@ C._registry, C._byId = {}, {}
 -- arrays -- Ess.Mark.object/.zone already return ONE combined handle covering all three surfaces).
 local function track(task, u) if u then task.guids[#task.guids + 1] = u end return u end
 local function objRgb()
-    local ok, r, g, b = pcall(MrxUtil.GetPrimaryObjectiveRgb)
+    local ok, r, g, b = Ess.Safe.quiet(MrxUtil.GetPrimaryObjectiveRgb)
     if ok and r then return r, g, b end
     return 255, 200, 0
 end
@@ -101,7 +101,7 @@ end
 local function hudSay(text, hold)                          -- one-shot radio line, auto-cleared
     if not text or text == "" then return end
     hudLine(3, tostring(text))
-    pcall(Event.Create, Event.TimerRelative, { tonumber(hold) or 5 }, function() hudLine(3, nil) end)
+    Ess.Safe.quiet(Event.Create, Event.TimerRelative, { tonumber(hold) or 5 }, function() hudLine(3, nil) end)
     Ess.Log("Contract:   \"" .. tostring(text) .. "\"")
 end
 -- ints from a plain number OR a {min,max} range; used for randomised counts.
@@ -132,9 +132,9 @@ end
 local function addEv(task, e) if e then task.events[#task.events + 1] = e end return e end
 
 local function cleanupTask(task)
-    for _, e in ipairs(task.events) do pcall(Event.Delete, e) end
+    for _, e in ipairs(task.events) do Ess.Safe.quiet(Event.Delete, e) end
     for _, h in ipairs(task.markHandles) do Ess.Mark.clear(h) end
-    for _, u in ipairs(task.guids) do pcall(Object.Remove, u) end
+    for _, u in ipairs(task.guids) do Ess.Safe.quiet(Object.Remove, u) end
     task.events, task.markHandles, task.guids = {}, {}, {}
 end
 
@@ -147,7 +147,7 @@ end
 -- collectInArea mirrors ContractFramework's original two-independent-filter shape (faction AND label
 -- both optionally applied) -- Ess.Probe.nearby only supports one filter, so this layers a second HasLabel
 -- pass on top of it rather than extending Ess.Probe's own public contract for one consumer's needs.
-local function hasLabel(u, lbl) local ok, r = pcall(Object.HasLabel, u, lbl); return ok and r end
+local function hasLabel(u, lbl) local ok, r = Ess.Safe.quiet(Object.HasLabel, u, lbl); return ok and r end
 local function collectInArea(x, y, z, r, kind, faction, label)
     local out = Ess.Probe.nearby(x, y, z, r, kind, faction)
     if not label then return out end
@@ -166,13 +166,13 @@ C._collectInArea = collectInArea   -- exposed for 82_contract_encounter.lua
 -- own Pg.Spawn call sites (the direct ancestor of every one in this file and 81/82) never had this guard
 -- either -- a contract author's typo'd blank tSpawns[1]/def.units spawn field could CTD the game. Fixed
 -- here, not present in the original; every Contract Pg.Spawn call site in this file and 81/82 goes
--- through this instead of a bare pcall(Pg.Spawn, ...).
+-- through this instead of a bare Ess.Safe.quiet(Pg.Spawn, ...).
 local function safeSpawn(template, x, y, z, yaw)
     if type(template) ~= "string" or template:match("^%s*$") then
         Ess.Log("Contract: blank spawn template rejected (would CTD Pg.Spawn)")
         return false, nil
     end
-    return pcall(Pg.Spawn, template, x, y, z, yaw)
+    return Ess.Safe.quiet(Pg.Spawn, template, x, y, z, yaw)
 end
 
 -- flat list of target guids from obj.tSpawns (spawned + tracked for removal), obj.tObjects (named
@@ -182,10 +182,10 @@ local function resolveTargets(inst, task, obj)
     local out = {}
     for _, s in ipairs(obj.tSpawns or {}) do
         local ok, u = safeSpawn(s[1], s[2], s[3], s[4])
-        if ok and u then track(task, u); if s[5] then pcall(Object.SetYaw, u, s[5]) end; out[#out + 1] = u end
+        if ok and u then track(task, u); if s[5] then Ess.Safe.quiet(Object.SetYaw, u, s[5]) end; out[#out + 1] = u end
     end
     for _, name in ipairs(obj.tObjects or {}) do
-        local ok, u = pcall(Pg.GetGuidByName, name)
+        local ok, u = Ess.Safe.quiet(Pg.GetGuidByName, name)
         if ok and u then out[#out + 1] = u end
     end
     local w = obj.tWhere
@@ -203,8 +203,8 @@ local function grantReward(r)
     if type(r) ~= "table" then return end
     if r.cash then Ess.Player.giveCash(r.cash) end
     if r.fuel then Ess.Player.giveFuel(r.fuel) end
-    if type(r.support) == "table" then for id, n in pairs(r.support) do pcall(MrxPmc.AddSupportQty, id, n) end end
-    if type(r.equipment) == "table" then for _, id in ipairs(r.equipment) do pcall(MrxPmc.AddEquipment, id) end end
+    if type(r.support) == "table" then for id, n in pairs(r.support) do Ess.Safe.quiet(MrxPmc.AddSupportQty, id, n) end end
+    if type(r.equipment) == "table" then for _, id in ipairs(r.equipment) do Ess.Safe.quiet(MrxPmc.AddEquipment, id) end end
 end
 
 -- Native completion fanfare = the music sting + a HUD banner. sType MUST be one of the shipped
@@ -212,7 +212,7 @@ end
 local FANFARE_TYPES = { contact = true, support = true, stockpile = true, landingzone = true,
     hvtcapture = true, hvtkill = true, bounty = true, outfit = true, highscore = true }
 local function showFanfare(d)
-    pcall(MrxMusic.PlayFanfare, true)
+    Ess.Safe.quiet(MrxMusic.PlayFanfare, true)
     local sType = d.fanfareType; if not FANFARE_TYPES[sType] then sType = "highscore" end
     local sText = d.fanfare or ((d.title or d.id) .. " complete")
     pcall(function() Hud.EventFanfare:Commence({ sType = sType, vText = sText }) end)
@@ -223,7 +223,7 @@ function C._finish(inst, bWin)
     inst.bActive = false
     C._muteObj = nil                   -- restore the objective tray for normal contracts
     hudLine(1, nil); hudLine(3, nil)   -- clear the HUD objective + chatter lines
-    if inst.musicOn then pcall(MrxMusic.StopSpecialMusic) end   -- return to the normal soundtrack
+    if inst.musicOn then Ess.Safe.quiet(MrxMusic.StopSpecialMusic) end   -- return to the normal soundtrack
     local d = inst.def
     -- snapshot final objective state for the board's Status() (persists until the next Accept)
     local fin = {}
@@ -399,7 +399,7 @@ function C.Accept(idOrDef)
         else                                              -- a single spawn ({x=,y=,z=,yaw=} or {x,y,z,yaw})
             locs[1] = { s.x or s[1], s.y or s[2], s.z or s[3], s.yaw or s[4] or 0 }
         end
-        pcall(MrxUtil.TeleportHeroesToLocations, locs, begin)   -- extra locations are ignored in single-player
+        Ess.Safe.quiet(MrxUtil.TeleportHeroesToLocations, locs, begin)   -- extra locations are ignored in single-player
     else
         begin()
     end
@@ -468,7 +468,7 @@ function C.Status()
     end
     if #objs > 0 then st.progress = done / #objs end
     if inst.def.timeLimit and inst.startStamp then
-        local ok, e = pcall(Sys.TimeStampGetElapsed, inst.startStamp)
+        local ok, e = Ess.Safe.quiet(Sys.TimeStampGetElapsed, inst.startStamp)
         if ok and e then st.timeLeft = math.max(0, inst.def.timeLimit - e) end
     end
     return st

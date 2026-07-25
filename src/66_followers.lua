@@ -115,7 +115,8 @@ end
 
 function Ess.Followers._emit(eventName, ...)
     local bucket = listeners[eventName]
-    if not bucket then return end
+    if not bucket then return Ess.Safe.reject("Ess.Followers", "no marker bucket for that follower "
+        .. "-- marker not placed") end
     for _, fn in ipairs(bucket) do pcall(fn, ...) end
 end
 
@@ -228,7 +229,7 @@ end
 local function vehicleRoleOf(guid)
     local veh = Ess.Object.vehicleOf(guid)
     if not veh then return nil end
-    local ok, driver = pcall(Vehicle.GetDriver, veh)
+    local ok, driver = Ess.Safe.quiet(Vehicle.GetDriver, veh)
     if ok and driver == guid then return "driver" end
     return "passenger"
 end
@@ -315,8 +316,8 @@ local function startFollowLoop(guid, target, minDist, maxDist, stillEligibleFn)
         -- see point 3 above -- re-pin every tick, not just once, for as long as this guid is off native
         -- Follow; a threshold (not "always SetFeeling") so this never fights a caller's OWN deliberate
         -- negative-feeling change toward some OTHER guid (this only ever touches guid<->target).
-        local fok, feeling = pcall(Ai.GetFeeling, guid, target)
-        if fok and feeling and feeling < 50 then pcall(Ai.SetFeeling, guid, target, 100) end
+        local fok, feeling = Ess.Safe.quiet(Ai.GetFeeling, guid, target)
+        if fok and feeling and feeling < 50 then Ess.Safe.quiet(Ai.SetFeeling, guid, target, 100) end
         local gx, gy, gz = Ess.Object.pos(guid)
         local tx, ty, tz = Ess.Object.pos(target)
         if not (gx and tx) then return true end
@@ -329,7 +330,7 @@ local function startFollowLoop(guid, target, minDist, maxDist, stillEligibleFn)
             local px = tx + dx / dist * minDist
             local pz = tz + dz / dist * minDist
             Ess.Object.setPos(anchor, px, ty, pz)
-            pcall(Ai.Goal, { AIGuid = guid, Goal = "MoveTo", Target = anchor, Priority = "HiPri", Force = true })
+            Ess.Safe.quiet(Ai.Goal, { AIGuid = guid, Goal = "MoveTo", Target = anchor, Priority = "HiPri", Force = true })
         end
         return true
     end)
@@ -383,7 +384,7 @@ function Ess.Followers.dismiss(guid)
     -- afterward regardless of why dismiss() was actually called -- this is the one place that can tell
     -- "died" (fires onFollowerDown, the auto-dismiss path from recruit()'s own Ess.On.death hook) apart
     -- from "dismissed while still alive" (fires onDismiss) without needing a second call-site flag.
-    local ok, alive = pcall(Object.IsAlive, guid)
+    local ok, alive = Ess.Safe.quiet(Object.IsAlive, guid)
     local wasKilled = ok and alive == false
     entry.stop()
     roster[k] = nil
@@ -392,9 +393,9 @@ function Ess.Followers.dismiss(guid)
     end
     if marks[k] then Ess.Mark.clear(marks[k]); marks[k] = nil end
     stopFollowLoop(guid)
-    pcall(Ai.Role, { AIGuid = guid, Role = "Idle", Priority = "hiPri" })
-    pcall(Ai.LivingWorld, { AIGuid = guid, Attrib = "LivingWorldBehaviour", State = true })
-    pcall(Ai.SetState, { AIGuid = guid, State = "Vip", Value = false })
+    Ess.Safe.quiet(Ai.Role, { AIGuid = guid, Role = "Idle", Priority = "hiPri" })
+    Ess.Safe.quiet(Ai.LivingWorld, { AIGuid = guid, Attrib = "LivingWorldBehaviour", State = true })
+    Ess.Safe.quiet(Ai.SetState, { AIGuid = guid, State = "Vip", Value = false })
     if wasKilled then Ess.Followers._emit("onFollowerDown", guid) end
     Ess.Followers._emit("onDismiss", guid, wasKilled)
     return true
@@ -422,8 +423,8 @@ function Ess.Followers.recruit(guid, opts)
     local target = opts.target or Ess.Player.character(0)
     local role = vehicleRoleOf(guid)
     if role == "driver" then
-        local ok, feeling = pcall(Ai.GetFeeling, guid, target)
-        if ok and feeling and feeling < 0 then pcall(Ai.SetFeeling, guid, target, 100) end
+        local ok, feeling = Ess.Safe.quiet(Ai.GetFeeling, guid, target)
+        if ok and feeling and feeling < 0 then Ess.Safe.quiet(Ai.SetFeeling, guid, target, 100) end
     elseif role ~= "passenger" then
         local ok = Ess.AIOrders.command({ guid }, "follow", opts)
         if not ok then return false end
@@ -523,7 +524,7 @@ function Ess.Followers._issue(list, behavior, opts)
     -- preempt one left over from an EARLIER order() call the way it preempts hold's Anchor lock. Clear it
     -- first with Ai.RemoveGoal({Handle=0}) -- 0 is the confirmed "whatever's current" wildcard the game's
     -- own scripts use when they didn't keep a specific handle to remove (see e.g. allcon002.lua).
-    for _, g in ipairs(list) do pcall(Ai.RemoveGoal, { AIGuid = g, Handle = 0 }) end
+    for _, g in ipairs(list) do Ess.Safe.quiet(Ai.RemoveGoal, { AIGuid = g, Handle = 0 }) end
 
     if behavior == "follow" then
         -- per-guid via smartFollow, not one blanket Ess.AIOrders.command -- a vehicle driver/passenger
@@ -543,7 +544,7 @@ function Ess.Followers._issue(list, behavior, opts)
     -- guid mid-loop who's now being ordered to e.g. attack shouldn't have that loop fighting the new order
     -- for control every 1-3 seconds.
     for _, g in ipairs(list) do stopFollowLoop(g) end
-    for _, g in ipairs(list) do pcall(Ai.Role, { AIGuid = g, Role = "Idle", Priority = "hiPri" }) end
+    for _, g in ipairs(list) do Ess.Safe.quiet(Ai.Role, { AIGuid = g, Role = "Idle", Priority = "hiPri" }) end
 
     -- 1.5s -- confirmed live 2026-07-24 that BOTH 0.1s and 0.5s were unreliable settle time after releasing
     -- the Role for the deferred Goal to actually take (every manual reissue several real seconds later
