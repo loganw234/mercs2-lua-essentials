@@ -23,6 +23,24 @@ function Ess.Easy.Followers.orderGuard(at)
     return Ess.Followers.order("defend", { at = at })
 end
 
+-- Ess.Easy.Followers.orderEnter(vehicleGuid, role) -> ok -- role defaults to "driver" (not AIOrders'
+-- own "passenger" default) specifically so a lone follower enters as the one seat that keeps every
+-- LATER order (move/attack/guard/...) working through the SAME guid already on the roster.
+--
+-- CONFIRMED LIVE 2026-07-24 (this was a real open question, not an assumption): NO secondary
+-- unit-currently-controls-which-vehicle tracker is needed. Recruited a follower, orderEnter()'d them into
+-- a car as driver, then order("move", ...) using their OWN stored human guid (unchanged) -- the CAR
+-- drove to the point. Ess.Raw.AIOrders.actor() already implements the established "AI goals target the
+-- DRIVER, not the vehicle hull" rule (Vehicle.GetDriver(veh)) -- a follower who's currently driving IS
+-- already the correct AIGuid for the engine to steer the vehicle through, so the roster never needs to
+-- know "this guid is currently a car." (Bonus confirmed behavior: once that move finished, attack/move's
+-- auto-resume-follow fired as usual -- the follower got back OUT of the car and returned to following on
+-- foot, same as it would from any other order.) A follower entering as a passenger/gunner instead is
+-- still recruit()ed and orderable as themselves, just not "the vehicle."
+function Ess.Easy.Followers.orderEnter(vehicleGuid, role)
+    return Ess.Followers.order("enter", { target = vehicleGuid, role = role or "driver" })
+end
+
 -- Ess.Easy.Followers.showMarkers() / .hideMarkers() -- named aliases for the boolean toggle, see
 -- Ess.Followers.setMarkersEnabled's own header for what they actually turn on.
 function Ess.Easy.Followers.showMarkers()

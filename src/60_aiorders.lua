@@ -249,8 +249,20 @@ BEHAVIORS.flee = function(tracker, o, guids)
 end
 
 BEHAVIORS.enter = function(tracker, o, guids)
+    -- CONFIRMED LIVE 2026-07-24: same gap `attack`'s o.target had -- this only ever resolved a registered
+    -- group name or a STRING name via Pg.GetGuidByName, so a raw vehicle uGuid (e.g. from
+    -- Ess.Easy.Followers.orderEnter) silently resolved to nil and the whole behavior no-op'd, no error.
+    -- Group name (if registered) still comes first; a string falls to Pg.GetGuidByName same as before;
+    -- anything else (a raw uGuid) is now used directly instead of being dropped.
     local veh = o.target and Ess.AIOrders.group(o.target)[1]
-    if not veh and o.target then local ok, g = pcall(Pg.GetGuidByName, o.target); if ok then veh = g end end
+    if not veh and o.target then
+        if type(o.target) == "string" then
+            local ok, g = pcall(Pg.GetGuidByName, o.target)
+            if ok then veh = g end
+        else
+            veh = o.target
+        end
+    end
     if not veh then return end
     -- CONFIRMED LIVE 2026-07-24: a freshly Pg.Spawn'd vehicle silently refuses an "Enter" goal (Ai.Goal
     -- returns nil, no error) until Vehicle.Usable(veh, true) has been called on it once -- matches

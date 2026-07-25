@@ -9,6 +9,23 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+### Added
+
+- **`Ess.Easy.Followers.orderEnter(vehicleGuid, role)`** — orders the whole current roster to board a
+  vehicle (`role` defaults to `"driver"`, not `Ess.AIOrders`' own `"passenger"` default). CONFIRMED LIVE: no
+  secondary "which guid is currently driving which vehicle" tracker is needed — a follower who's currently
+  driving IS already the correct `AIGuid` for a later `order()` to steer the vehicle through, since
+  `Ess.Raw.AIOrders.actor()` already implements the established "target the driver, not the hull" rule. A
+  `move` order issued through a driving follower's own stored guid (unchanged) drove the car to the point,
+  then auto-resume-follow fired as usual and they got back out on foot.
+
+### Fixed
+
+- **`Ess.AIOrders.command(..., "enter", ...)`'s `target` had the exact same gap `attack`'s `target` did** —
+  only ever resolved a registered group name or a string name via `Pg.GetGuidByName`, so a raw vehicle uGuid
+  (e.g. from the new `orderEnter`) silently resolved to `nil` and the whole behavior no-op'd, no error.
+  `target` now accepts a raw uGuid directly too.
+
 ## [0.3.3]
 
 **The `Ess.Followers` / `Ess.AIOrders` live-verification pass.** Every fix and addition below was tested
