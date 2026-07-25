@@ -245,6 +245,16 @@ end
 -- fight over the guid's movement every tick.
 Ess.Followers._stopFollowLoop = stopFollowLoop
 
+-- Ess.Followers._followLoopAnchorOf(guid) -> uGuid|nil -- the disposable TinyGeometry a vehicle-escort/
+-- on-foot-resume loop is currently repositioning every tick for this guid (nil if not in one right now).
+-- followLoopAnchors is otherwise a private closure table with no other way to reach it -- added for the
+-- Followers/Squad web tool's live map, mirroring Ess.Squad._formationAnchorOf's own reasoning: "where is
+-- this unit's CURRENT waypoint," not just the unit itself, is what actually lets you watch a stuck escort/
+-- resume loop live instead of just seeing a unit stand still with no visible explanation why.
+function Ess.Followers._followLoopAnchorOf(guid)
+    return followLoopAnchors[key(guid)]
+end
+
 -- startFollowLoop(guid, target, minDist, maxDist, stillEligibleFn) -- the reissued-MoveTo mechanism behind
 -- BOTH a vehicle driver's escort AND (CONFIRMED LIVE 2026-07-25, see below) an on-foot follower's RESUME --
 -- native Follow turned out not to be the universal answer this file originally assumed. Three confirmed-live

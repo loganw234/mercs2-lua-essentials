@@ -67,6 +67,19 @@ function Ess.Squad.team(teamName)
     return out
 end
 
+-- Ess.Squad.teams() -> names -- every team name currently defined via createTeam, sorted for a stable
+-- read. Doesn't filter out a team that's since emptied out to zero live members (a caller who cares checks
+-- #Ess.Squad.team(name) themselves) -- this just answers "what team NAMES exist," the same "list what's
+-- registered" need Ess.Loop.list()/Ess.Followers.list() already answer for their own registries. Added for
+-- the Followers/Squad web tool -- external tooling has no other way to discover team names that weren't
+-- created by that same tooling instance.
+function Ess.Squad.teams()
+    local out = {}
+    for name in pairs(teams) do out[#out + 1] = name end
+    table.sort(out)
+    return out
+end
+
 function Ess.Squad.teamOf(guid)
     return teamOf[key(guid)]
 end

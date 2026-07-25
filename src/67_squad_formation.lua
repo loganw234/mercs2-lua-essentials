@@ -31,6 +31,15 @@ local function stopSlot(guid)
     if formationAnchors[k] then Ess.Object.remove(formationAnchors[k]); formationAnchors[k] = nil end
 end
 
+-- Ess.Squad._formationAnchorOf(guid) -> uGuid|nil -- the disposable TinyGeometry this guid's formation slot
+-- is currently repositioning every tick (nil if not in formation right now). formationAnchors is otherwise
+-- a private closure table with no other way to reach it from outside this file -- added for the Followers/
+-- Squad web tool's live map, so "where is this unit's formation waypoint RIGHT NOW" (not just the unit
+-- itself) can be streamed and watched moving, e.g. to debug a formation that isn't converging correctly.
+function Ess.Squad._formationAnchorOf(guid)
+    return formationAnchors[key(guid)]
+end
+
 -- slotOffset(formationType, index, total, spacing) -> right, forward -- LEADER-LOCAL offset (right+ = the
 -- leader's right side, forward+ = ahead of the leader), fed straight into Ess.Math.rotateOffset every tick
 -- -- the same right/forward convention MissionForge's own squad-grid placement already uses.
