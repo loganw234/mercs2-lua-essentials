@@ -20,6 +20,43 @@ version? It still releases, with auto-generated commit notes.) See the README's 
   `Ess.Loop._reg`'s internal shape directly, so extending it is backwards-compatible by construction —
   confirmed by grep before making the change, not assumed.
 
+### Fixed
+
+- **`Ess.AIOrders`: `move`/`defend`/`patrol`/`flee`/`attack`'s position-fallback all silently no-op'd on an
+  on-foot human.** Every one of them handed `Ai.Goal` a `"MoveToPos"`/`Location={x,y,z}` table — confirmed
+  LIVE to be rejected by the engine (`Ai.Goal` returns `nil`, no error, since it's `pcall`-wrapped) for ANY
+  raw-coordinate move on a walking human, regardless of distance, while the identical unit accepts `"Idle"`
+  fine. Cross-checked against the full decompiled game script corpus: `"MoveToPos"` appears in exactly one
+  file, and only ever targets a VEHICLE DRIVER, never a human. Fixed by spawning a disposable `TinyGeometry`
+  at the destination and issuing `"MoveTo"` targeting THAT (the confirmed-working substitute — `defend`
+  already did this exact trick for its own `Ai.Anchor` radius) instead of a raw coordinate.
+- **`Ess.Easy.AIOrders.attack`'s `target` silently attacked the PLAYER instead of the given guid.**
+  `BEHAVIORS.attack` only ever resolved `o.target` through the `Ess.AIOrders.setGroup` registry
+  (`Ess.AIOrders.group(o.target)[1]`) — passing a raw guid (a reticle target, say) missed that lookup
+  (`group()` returns `{}` for an unregistered name, per its own contract) and fell all the way through to
+  `nearestHero()`. `o.target` now accepts EITHER a registered group name OR a raw uGuid directly.
+- **`Ess.AIOrders.command(..., "face", ...)` silently no-op'd on a unit already holding an
+  `Ai.Anchor(AnchorRadius=0)` lock** (i.e. after a `"hold"` order) — confirmed live: the goal was accepted
+  (no error) but never visibly turned the unit. Fixed by adding `Force = true`, matching every other
+  movement-ish behavior in this file; no separate "release the anchor" step is needed.
+- **`Ess.AIOrders.command(..., "enter", ...)` silently no-op'd on a freshly `Ess.Object.spawn`'d vehicle** —
+  confirmed live: `Ai.Goal` accepted the goal (truthy handle) once `Vehicle.Usable(veh, true)` was called on
+  it first, matching a confirmed real-game sequence (`oilcon002.lua`). `enter` now calls this once before
+  issuing the goal — a harmless no-op on a vehicle that's already usable (every placed-in-level vehicle
+  already is).
+
+### Changed
+
+- **`Ess.AIOrders.command(..., "follow", ...)` now uses Mercenaries 2's own real "recruit" mechanic**
+  (`Ai.Role({Role="Follow", ...})`, confirmed live against the decompiled game script corpus's own
+  `resident/mrxfollow.lua`) instead of re-issuing a plain `"MoveTo"` goal on a dumb timer. The native Follow
+  role auto-maintains `MinDistance`/`MaxDistance` on its own and follows the target into/out of vehicles for
+  free — neither of which the old timer-based approach did at all. Three prerequisites, confirmed live, are
+  now applied in order before the role is assigned: neutralize a hostile `Ai.Feeling` toward the target,
+  disable the unit's ambient `Ai.LivingWorld` behaviour (it fights the Follow role for control otherwise),
+  and set `Ai.SetState(..., "Vip", true)` — confirmed to be the one MISSING piece: without it, `Ai.Role`
+  still returns a truthy handle but the unit never actually follows.
+
 ## [0.3.2]
 
 ### Changed
