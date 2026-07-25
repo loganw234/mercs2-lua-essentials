@@ -25,6 +25,7 @@ jobs:
           python3 build/merge.py
           luac5.1 -p dist/Ess.lua        # parse the merged chunk -- fails the build on any syntax error
           python3 build/manifest.py      # generate dist/ess.json (package.py bundles it into the zip)
+          python3 build/nodes.py         # ess.json + api/nodes.overlay.json -> dist/nodes.json (+ generated JS)
           python3 build/package.py
 
       # The API drift gate. ess.json can't drift from src/ -- it's generated from it -- but the HAND-WRITTEN
@@ -33,6 +34,18 @@ jobs:
       # exactly the kind of divergence nobody notices until a beginner types something that doesn't exist.
       - name: API drift gate (docs vs. real functions)
         run: python3 build/manifest.py --check
+
+      # The node overlay is hand-authored, so it CAN drift: a renamed function or parameter would leave the
+      # editor offering a node that generates Lua calling something that no longer exists. Checked against
+      # ess.json, same as everything else here.
+      - name: Node overlay gate (hand-authored metadata vs. real signatures)
+        run: python3 build/nodes.py --check
+
+      # Executes the generated node definitions against a stubbed editor and asserts the LUA they produce --
+      # crucially that a guid parameter is spliced raw rather than quoted, which is the difference between a
+      # working node and one that silently does nothing.
+      - name: Generated node behaviour
+        run: node tools/test_nodes.js
 
       - name: Offline behavioral tests (pure namespaces + intent bundles)
         run: |

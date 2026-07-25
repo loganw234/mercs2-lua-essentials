@@ -45,6 +45,12 @@ gates, and the confirmed engine rules to respect.
   **API drift gate** CI runs: it fails the build if the in-game console, `CAPABILITIES.md` or any header
   comment names a function that doesn't exist. Companion: `tools/dump_natives.py` emits `api/natives.json` (**committed** — CI has no game to regenerate it),
   the whole raw engine surface (engine-native vs resident-game-script), dumped from a **live** game.
+- `api/` — the **machine-readable manifests** (`ess.json`, `natives.json`, `nodes.json`), shipped in every
+  release zip for tooling to consume. `api/README.md` explains what each answers and how to read it.
+  `build/nodes.py` generates the visual editor's node definitions from `ess.json` plus the hand-authored
+  `api/nodes.overlay.json` — the overlay adds the beginner-facing meaning (what a parameter is *for*, its
+  units, its traps) that a signature alone can't carry, and `--check` proves it never describes a function or
+  parameter that doesn't really exist.
 - `build/package.py` — the **release build action**: runs `merge.py`, then zips a fresh `1_Ess.lua` and the
   `data/vz-patch.wad` UI patch into `dist/Ess-<version>.zip`'s game folder structure (`scripts/OnLoad/` +
   `data/`) so a user just extracts it over their Mercenaries 2 install — plus the recipe catalog and the

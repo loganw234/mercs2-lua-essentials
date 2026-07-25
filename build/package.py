@@ -58,7 +58,8 @@ def install_notes(ver):
         "  Ess-TROUBLESHOOTING.md     what to check if something doesn't work\n"
         "  mercs2-lua-ide.html        a browser Lua editor -- double-click it, hit Connect, write Ess in your live game\n"
         "  api/ess.json               every public Ess function, machine-readable (for tooling, not reading)\n"
-        "  api/natives.json           the whole raw engine surface, engine-native vs game-script, same idea\n\n"
+        "  api/natives.json           the whole raw engine surface, engine-native vs game-script, same idea\n"
+        "  api/nodes.json             node definitions for the visual editor, generated from the two above\n\n"
         "INSTALL\n"
         "  1. Extract this zip INTO your Mercenaries 2 folder (the one with Mercenaries2.exe). The data/\n"
         "     and scripts/ folders merge into the game's existing ones; nothing here touches a save.\n"
@@ -123,7 +124,12 @@ def main():
         #                           Committed, because a gitignored copy would be absent from every release.
         # A consumer that wants to auto-sync (the visual node editor's node definitions being the obvious
         # one) pulls both from the release asset.
-        for src_path, name in ((DIST / "ess.json", "ess.json"), (API / "natives.json", "natives.json")):
+        # dist/nodes.json joins them: the visual node editor's node definitions, generated from ess.json plus
+        # the hand-authored api/nodes.overlay.json. Shipped as DATA rather than as the generated .js, because
+        # the editor should own how it renders a node -- this file only says what each node IS. (The .js
+        # consumer is built alongside it in dist/ for anyone who wants it working with no integration at all.)
+        for src_path, name in ((DIST / "ess.json", "ess.json"), (API / "natives.json", "natives.json"),
+                               (DIST / "nodes.json", "nodes.json")):
             if src_path.exists():
                 z.write(src_path, "api/" + name); files += 1
             else:

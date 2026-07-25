@@ -9,6 +9,68 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+## [0.4.2]
+
+**Tooling only — the framework itself is unchanged.** `1_Ess.lua` is byte-identical to 0.4.1's apart from the
+version string and the build stamp; `src/` has no functional change in this release. If you only install the
+framework, this release gives you nothing new and there is no reason to update. It is versioned at all because
+the release *zip* now carries a new file.
+
+**What's new is node definitions for the visual editor, generated from the API and enriched by hand.** The
+node-graph editor at [visual.mercs2.tools](https://visual.mercs2.tools) is how most beginners will meet this
+framework, and its ~200 nodes were hand-written against `src/*.lua` — accurate, but maintained by memory. This
+generates them from `ess.json` instead, and pairs that with a hand-authored overlay carrying the thing a
+signature can never carry: what a parameter is *for*, what units it's in, and which of them will silently do
+nothing.
+
+**486 nodes, every one enriched by hand against the real source**, with all 896 parameters carrying a
+confirmed type, a working default and an explanation — plus 62 functions deliberately skipped, each with a
+written reason. 93 of the nodes are the `Ess.Easy.*` beginner tier; 138 are pure getters that wire into other
+nodes' inputs.
+
+Nothing in the editor's own repo is touched. This produces the data; adopting it is a separate, deliberate step.
+
+### Added
+
+- **`build/nodes.py`** — merges `dist/ess.json` (what exists) with `api/nodes.overlay.json` (what it means)
+  into `dist/nodes.json`, plus `dist/ess-nodes.generated.js`, a working litegraph consumer that proves the data
+  is sufficient. `--check` is a drift gate; `--report` shows coverage.
+- **`api/nodes.overlay.json`** — the hand-authored half. **The overlay cannot invent anything**: every entry is
+  validated against `ess.json`, so one naming a function that doesn't exist, or giving a function a parameter it
+  doesn't have, fails the build. It adds *meaning* to a real signature and can never add a signature.
+- **`build/merge_overlay.py`** — assembles per-namespace overlay fragments, validating before writing and
+  rejecting overlaps, invented names and bad types rather than absorbing them.
+- **`tools/test_nodes.js`** — executes the generated nodes against a stubbed editor and asserts the **Lua they
+  produce**. No browser, no editor checkout, no game. The load-bearing check is that a `guid` parameter is
+  spliced raw rather than quoted: a quoted handle produces Lua that runs, logs nothing and does nothing —
+  exactly the silence `Ess.DEBUG` exists to fight, and not something a beginner should have to diagnose.
+- **`api/README.md`** — what each manifest answers, the type vocabulary, and how to consume `nodes.json`.
+- CI gates for all of it, and `api/nodes.json` in the release zip.
+
+### Fixed (all in the new tooling, not in the framework)
+
+- **Multi-value returns were structurally impossible as getter nodes.** A getter splices its call inline as an
+  expression, and Lua truncates a multi-value call to one value unless it is last in a list — so
+  `Ess.Color.hex` would have silently delivered `r` and dropped `g` and `b`. Such functions are now
+  auto-promoted to action nodes that capture into one local each. **26 functions** were affected. (The
+  editor's own convention was to *skip* these; this recovers them instead.)
+- **Method-style calls were emitted wrong.** `function Ess.RNG:int(n)` desugars to `Ess.RNG.int(self, n)`, so a
+  dotted `Ess.RNG.int(5)` passes 5 as `self` and leaves the real argument nil — no error, just a wrong answer.
+  **21 functions** across `Ess.Track`, `Ess.RNG` and `Ess.SaveVar`. They now get a synthetic receiver input and
+  emit `Ess.RNG.new():int(5)`. Both have regression tests.
+
+### Notes
+
+- Node type ids are prefixed **`essgen/`, never `ess/`**. The editor's hand-written nodes own `ess/`; sharing
+  the prefix would silently overwrite hand-tuned nodes depending on script load order. Both coexist, so an
+  editor can migrate one namespace at a time on purpose rather than all at once by accident.
+- Descriptions ship in two lengths — `desc_short` for a tooltip, `desc` for a details pane — because the full
+  ones carry engine traps worth several sentences (a helicopter running combat AI ignores a land order; a
+  pursuit cap is one-way for the whole session) and those don't belong in a hover.
+- A `multi-return spill` gate was added to `--check` after one batch spotted that a bare
+  `Ess.Player.targetUnderReticle(0)` default would spill three extra arguments into the following parameter.
+  It immediately caught two more instances in a later batch that had been missed.
+
 ## [0.4.1]
 
 **Packaging fix for 0.4.0.** The v0.4.0 release asset shipped **without `api/ess.json` or `api/natives.json`**
