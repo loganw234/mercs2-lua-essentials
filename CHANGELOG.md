@@ -9,6 +9,13 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+## [0.3.3]
+
+**The `Ess.Followers` / `Ess.AIOrders` live-verification pass.** Every fix and addition below was tested
+against the running game (cross-checked against the decompiled game script corpus where the live behavior
+alone didn't explain it), not just read-reviewed — see the entries themselves for what was actually
+confirmed.
+
 ### Added
 
 - **`Ess.Followers`** — a lifecycle-aware "who's currently assigned to me" roster, built entirely on
