@@ -33,6 +33,7 @@ import zipfile
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 DIST = ROOT / "dist"
+API = ROOT / "api"      # committed manifests CI can't regenerate (natives.json) -- see the zip section below
 DATA = ROOT / "data"
 SAMPLES = ROOT / "samples"
 TOOLS = ROOT / "tools"
@@ -114,18 +115,19 @@ def main():
             if p.exists():
                 z.write(p, "Ess-" + doc); files += 1
 
-        # The machine-readable manifests, for tooling rather than for reading: ess.json is every public Ess
-        # function (build/manifest.py, generated in CI right before this runs), natives.json is the whole raw
-        # engine surface (tools/dump_natives.py -- needs a live game, so it is committed-by-release rather
-        # than regenerated in CI, and is simply absent from the zip if it hasn't been dumped).
-        #
-        # Shipping them in the RELEASE ZIP rather than committing them to the repo keeps `dist/` gitignored,
-        # matching how every other build output here is handled. A consumer that wants to auto-sync (the
-        # visual node editor's node definitions being the obvious one) pulls them from the release asset.
-        for name in ("ess.json", "natives.json"):
-            p = DIST / name
-            if p.exists():
-                z.write(p, "api/" + name); files += 1
+        # The machine-readable manifests, for tooling rather than for reading. They come from two DIFFERENT
+        # places on purpose, and the reason matters:
+        #   * dist/ess.json      -- derived from src/, so it must never be stale. Gitignored and regenerated
+        #                           on every build (both ci.yml and release.yml run build/manifest.py first).
+        #   * api/natives.json   -- captured from a LIVE game by tools/dump_natives.py, which CI cannot do.
+        #                           Committed, because a gitignored copy would be absent from every release.
+        # A consumer that wants to auto-sync (the visual node editor's node definitions being the obvious
+        # one) pulls both from the release asset.
+        for src_path, name in ((DIST / "ess.json", "ess.json"), (API / "natives.json", "natives.json")):
+            if src_path.exists():
+                z.write(src_path, "api/" + name); files += 1
+            else:
+                print("[package] WARNING: %s missing -- the zip will NOT contain api/%s" % (src_path, name))
 
         # the standalone browser Lua IDE -- a plain double-click .html that writes Ess into a live game over
         # the lua-bridge. Refreshed from its own GitHub release in CI (see release.yml) so the download always

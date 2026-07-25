@@ -32,7 +32,7 @@ That distinction is the practically useful one. A native is a black box you prob
 has source you can just read.
 
 Usage:
-  python tools/dump_natives.py                    # -> dist/natives.json
+  python tools/dump_natives.py                    # -> api/natives.json (commit it)
   python tools/dump_natives.py --export DIR       # also write a human-readable NATIVES.md there
 """
 import argparse
@@ -45,7 +45,11 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-DIST = ROOT / "dist"
+# COMMITTED, not in gitignored dist/. natives.json is captured from an external system (a running game), not
+# derived from this repo's source -- so CI physically cannot regenerate it, and a gitignored copy would simply
+# be absent from every release zip. It also changes essentially never: only if the game or bridge changes.
+# ess.json is the opposite case and stays in dist/, regenerated on every build so it can never go stale.
+API = ROOT / "api"
 SRC = ROOT / "src"
 DEFAULT_GAME_DIR = pathlib.Path(r"C:\Games\Mercenaries 2 World in Flames")
 CORPUS = pathlib.Path.home() / "Desktop" / "Mercs2_Decompiled_Lua" / "docs" / "mercs2-luacd" / "src"

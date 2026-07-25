@@ -9,6 +9,29 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+## [0.4.1]
+
+**Packaging fix for 0.4.0.** The v0.4.0 release asset shipped **without `api/ess.json` or `api/natives.json`**
+— the two manifests 0.4.0 was largely about. No framework code is affected; if you only installed
+`1_Ess.lua`, 0.4.0 was fine and this changes nothing for you.
+
+### Fixed
+
+- **`release.yml` never ran `build/manifest.py`.** `ci.yml` did, so CI went green while the *published* zip was
+  missing the manifest: `dist/` is gitignored, so `ess.json` doesn't exist in a fresh checkout, and
+  `package.py` skipped it exactly as written. Added the generate step to the release workflow. This is a
+  reminder that a passing CI job and a correct release artifact are different claims — the zip is now
+  inspected, not assumed.
+- **`build/package.py` now WARNS LOUDLY when a manifest is missing** instead of quietly shipping a zip without
+  it. That silence is the only reason the 0.4.0 gap reached a published release.
+- **`natives.json` moved from gitignored `dist/` to committed `api/natives.json`.** It's captured from a
+  **live game** by `tools/dump_natives.py`, so CI physically cannot regenerate it — a gitignored copy would
+  have been absent from every release zip forever, no matter what the workflow did. It also changes
+  essentially never (only if the game or bridge changes), which makes committing it the honest option. The
+  two files now come from two different places on purpose: `dist/ess.json` is *derived from `src/`* and so is
+  regenerated every build to guarantee it's never stale; `api/natives.json` is *captured from outside this
+  repo* and so is committed. Both are documented that way at every reference.
+
 ## [0.4.0]
 
 **The diagnosability pass.** Ess's oldest structural weakness was that it fails *silently* on purpose — a
@@ -102,7 +125,7 @@ mechanism the whole diagnostic layer runs through.
   that doesn't exist. It earned its place immediately — its first run flagged `Ess.Squad.on` and
   `Ess.Time.since` as documented-but-undefined, which turned out to be a hole in the parser (both are plain
   function-reference aliases, `Ess.Time.since = Ess.Time.elapsed`), and its second flagged a real one.
-- **`dist/natives.json`** (`python tools/dump_natives.py`, needs a live game) — the whole engine surface, from
+- **`api/natives.json`** (`python tools/dump_natives.py`, needs a live game) — the whole engine surface, from
   a `pairs(_G)` walk inside the running VM: **4,316 functions** across 81 **engine-native** namespaces (C++,
   no source anywhere) and 197 **resident-game-script** ones (ordinary Lua, each with its path in the
   decompiled corpus). Classification is evidence-based, not guessed — the live `_MODULES` registry *is* the

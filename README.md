@@ -43,7 +43,7 @@ gates, and the confirmed engine rules to respect.
 - `build/manifest.py` — generates `dist/ess.json`, the **machine-readable manifest** of every public `Ess`
   function (tier, params, returns, description, source file+line), parsed from `src/` itself. `--check` is the
   **API drift gate** CI runs: it fails the build if the in-game console, `CAPABILITIES.md` or any header
-  comment names a function that doesn't exist. Companion: `tools/dump_natives.py` emits `dist/natives.json`,
+  comment names a function that doesn't exist. Companion: `tools/dump_natives.py` emits `api/natives.json` (**committed** — CI has no game to regenerate it),
   the whole raw engine surface (engine-native vs resident-game-script), dumped from a **live** game.
 - `build/package.py` — the **release build action**: runs `merge.py`, then zips a fresh `1_Ess.lua` and the
   `data/vz-patch.wad` UI patch into `dist/Ess-<version>.zip`'s game folder structure (`scripts/OnLoad/` +

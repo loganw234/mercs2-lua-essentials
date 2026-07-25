@@ -55,7 +55,7 @@ dependencies require, not just at the end. Pure files with no Ess deps go early 
 The drift gate exists because Ess's API surface is described in several hand-maintained places at once, and a
 console entry naming a function that no longer exists is exactly the kind of divergence nobody notices until a
 beginner types it. `dist/ess.json` (`python build/manifest.py`) is the generated single source of truth those
-places should be checked against — and `dist/natives.json` (`python tools/dump_natives.py`, needs the game) is
+places should be checked against — and `api/natives.json` (`python tools/dump_natives.py`, needs the game — **committed**, because CI has no game to regenerate it from) is
 its companion catalogue of the raw engine surface, including which parts Ess doesn't wrap yet.
 
 If your namespace is **pure** (no engine calls), add a group to `checkpure.py` and you get real

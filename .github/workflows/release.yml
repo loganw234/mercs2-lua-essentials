@@ -53,6 +53,12 @@ jobs:
         run: |
           python3 build/merge.py
           luac5.1 -p dist/Ess.lua
+          # dist/ is gitignored, so ess.json does not exist in a fresh checkout -- generate it here or
+          # package.py silently ships a zip with no api/ess.json in it. That is exactly what happened to the
+          # v0.4.0 asset: ci.yml had this line and release.yml didn't, so CI looked green while the published
+          # zip was missing the manifest. (natives.json needs a LIVE game and so can never be generated here;
+          # it is committed at api/natives.json for that reason -- see tools/dump_natives.py.)
+          python3 build/manifest.py
           # refresh the bundled browser IDE from its own latest release so the zip ships the current build
           curl -sfL "https://github.com/loganw234/mercs2-lua-web-ide/releases/latest/download/mercs2-lua-ide.html" -o tools/mercs2-lua-ide.html || echo "IDE fetch failed -- shipping the committed copy"
           python3 build/package.py
