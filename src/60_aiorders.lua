@@ -22,7 +22,8 @@
 --   animate -> play a canned action ("Cower", "Stand", ...)
 --
 -- opts fields used across behaviors: at={x,y,z}, points={ {x,y,z}, ... }, loop, speed, priority,
--- target=<group name or raw uGuid>, radius, role, action, interval, distance.
+-- target=<group name or raw uGuid>, radius, role, action, interval, distance, onComplete (move, and patrol
+-- when loop=false only -- fires once every guid has finished; a looping patrol never calls it).
 --
 -- CONFIRMED LIVE 2026-07-24: every "go to this raw {x,y,z}" behavior here used to hand Ai.Goal a
 -- "MoveToPos"/Location={x,y,z} table. That's WRONG for an on-foot human -- confirmed by direct live testing
@@ -77,9 +78,16 @@ BEHAVIORS.move = function(tracker, o, guids)
     local p = pri(o.priority)
     local anchor = anchorAt(x, y, z, tracker)
     if not anchor then return end
+    -- o.onComplete (optional) fires once every guid's own MoveTo goal has reported back, regardless of
+    -- each individual outcome -- good enough for "the group is done moving," not a per-unit success guarantee.
+    local pending = #guids
     for _, g in ipairs(guids) do
         local a = actor(g)
-        aiGoal({ AIGuid = a, Goal = "MoveTo", Target = anchor, Priority = p, Force = true })
+        aiGoal({ AIGuid = a, Goal = "MoveTo", Target = anchor, Priority = p, Force = true,
+                 Callback = o.onComplete and function()
+                     pending = pending - 1
+                     if pending <= 0 then pcall(o.onComplete) end
+                 end or nil })
         haste(a, o.speed)
     end
 end
@@ -96,10 +104,13 @@ BEHAVIORS.face = function(tracker, o, guids)
 end
 
 BEHAVIORS.hold = function(tracker, o, guids)
+    -- Force=true added proactively, same reasoning as the confirmed face/attack fixes above -- a unit
+    -- switching to hold FROM another active order (patrol, attack, ...) needs to preempt whatever goal
+    -- that left behind, not just queue behind it.
     for _, g in ipairs(guids) do
         local a = actor(g)
         pcall(Ai.Anchor, { AIGuid = a, AnchorRadius = 0 })
-        aiGoal({ AIGuid = a, Goal = "Idle", Priority = "HiPri" })
+        aiGoal({ AIGuid = a, Goal = "Idle", Priority = "HiPri", Force = true })
     end
 end
 
@@ -134,12 +145,16 @@ BEHAVIORS.attack = function(tracker, o, guids)
         local x, y, z = xyz(o.at)
         if x then fallbackAnchor = anchorAt(x, y, z, tracker) end
     end
+    -- CONFIRMED LIVE 2026-07-24: missing Force=true here the same way `face` was -- a follower coming off a
+    -- `defend`/guard order still holds that order's Ai.Anchor lock, and an Attack goal without Force=true
+    -- silently fails to override it (no error, the unit just keeps standing there). Force=true, matching
+    -- every other combat/movement goal in this file, is what actually preempts it.
     for _, g in ipairs(guids) do
         local a = actor(g)
         if tgt then
-            aiGoal({ AIGuid = a, Goal = "Attack", Target = tgt, Priority = p })
+            aiGoal({ AIGuid = a, Goal = "Attack", Target = tgt, Priority = p, Force = true })
         elseif fallbackAnchor then
-            aiGoal({ AIGuid = a, Goal = "MoveTo", Target = fallbackAnchor, Priority = p })
+            aiGoal({ AIGuid = a, Goal = "MoveTo", Target = fallbackAnchor, Priority = p, Force = true })
         end
         haste(a, o.speed)
     end
@@ -156,12 +171,24 @@ BEHAVIORS.patrol = function(tracker, o, guids)
         local x, y, z = xyz(pt)
         if x then anchors[i] = anchorAt(x, y, z, tracker) end
     end
+    -- o.onComplete (optional, and only for a NON-looping route -- a loop never "finishes") fires once
+    -- every guid has stepped off the end of its route.
+    local pending = #guids
     for _, g in ipairs(guids) do
         local a = actor(g); haste(a, o.speed)
         local i = 0
         local function step()
             i = i + 1
-            if i > #pts then if loop then i = 1 else return end end
+            if i > #pts then
+                if loop then i = 1
+                else
+                    if o.onComplete then
+                        pending = pending - 1
+                        if pending <= 0 then pcall(o.onComplete) end
+                    end
+                    return
+                end
+            end
             local anchor = anchors[i]; if not anchor then return end
             aiGoal({ AIGuid = a, Goal = "MoveTo", Target = anchor, Priority = p, Force = true,
                      Callback = function(_, State) if State == 1 then step() end end })

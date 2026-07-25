@@ -11,6 +11,33 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ### Added
 
+- **`Ess.Followers`** — a lifecycle-aware "who's currently assigned to me" roster, built entirely on
+  `Ess.AIOrders`/`Ess.On.death`/`Ess.Mark` (no new native calls). `Ess.AIOrders.command` is stateless — every
+  call re-passes an explicit guid list, and nothing remembers who you've already recruited, or reverts the
+  `Ai.Feeling`/`Ai.LivingWorld`/`Ai.SetState("Vip")` state `"follow"` sets when following ends.
+  `Ess.Followers.recruit(guid, opts)` runs that sequence AND remembers the guid; `.dismiss(guid)` reverts it
+  AND forgets it; a dead follower prunes itself automatically via `Ess.On.death`, no polling. The actual
+  payoff is `Ess.Followers.order(behavior, opts)` — command the WHOLE current roster (any of `Ess.AIOrders`'
+  11 behaviors) with no guid list to re-thread through your own script every call. `Ess.Easy.Followers` adds
+  `recruit(guid)`/`orderAttack(target)`/`orderPatrol(points)`/`orderGuard(at)` one-liners.
+  - **Markers, ON by default**: a floating world-space icon over every follower's head (each in its own
+    color, stepped by the golden angle so any number of followers stay evenly spread with no fixed palette
+    to exhaust), plus a temporary marker at whatever `order()`'s current destination/target is — cleared the
+    moment a new order supersedes it or the current one naturally completes. `setMarkersEnabled(bool)` /
+    `markersEnabled()` toggle it.
+  - **Auto-resume-follow, on natural completion only** (confirmed live): `attack` resumes Follow the instant
+    its target dies; a non-looping `move`/`patrol` resumes once every follower finishes its route. Guard/
+    hold/a looping patrol have no natural "done" and stay on that order until `order("follow", ...)` is
+    called again.
+  - Two more confirmed-live fixes specific to ordering an ALREADY-following unit onto something else: a
+    follower can still be mid-goal from a PRIOR order when a new one comes in, and `Force=true` alone doesn't
+    reliably preempt it — `order()` now clears it first with `Ai.RemoveGoal({Handle=0})` (the confirmed
+    "whatever's current" wildcard). And the actual root cause of an intermittent "order does nothing" during
+    testing turned out to be priority, not timing: `Ess.AIOrders`' own per-behavior defaults (e.g. attack's
+    `"med"`) are not reliably high enough to override a just-released Follow Role's leftover state, even with
+    `Force=true` — only `"hi"`/`HiPri` worked consistently, so `order()` now defaults every order's priority
+    to `"hi"` (not changed in `Ess.AIOrders.command` itself, whose other callers never had a Role to preempt
+    in the first place).
 - **`Ess.Loop.stats(id)` / `Ess.Loop.list()`** — introspection into the shared heartbeat registry: each
   loop's `interval`, `ticks` (count since last `start()`), `lastDuration`/`avgDuration` (real wall-clock
   tick cost, via `Ess.Time.stamp()`/`.elapsed()`, EMA-smoothed), and `lastError`. Lets a monitor catch a
@@ -44,6 +71,10 @@ version? It still releases, with auto-generated commit notes.) See the README's 
   it first, matching a confirmed real-game sequence (`oilcon002.lua`). `enter` now calls this once before
   issuing the goal — a harmless no-op on a vehicle that's already usable (every placed-in-level vehicle
   already is).
+- **`"attack"` and `"hold"` had the same missing-`Force=true` gap `"face"` did** — a unit coming off a prior
+  `"defend"`/guard order (which leaves an `Ai.Anchor` lock active) silently ignored a follow-up `"attack"`
+  goal with no error; confirmed live and fixed the same way, proactively applied to `"hold"` too once the
+  pattern was clear.
 
 ### Changed
 
