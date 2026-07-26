@@ -16,6 +16,17 @@
 --   Ess.Human.doAction(uChar, sActionName)        Human.DoAction -- e.g. "Cower"/"Stand"/"Proximity"
 --   Ess.Human.disableWeapons(uChar) / .enableWeapons(uChar)
 --   Ess.Human.knockdown(uChar, nDuration)
+--   -- mutators
+--   Ess.Human.setState(uChar, sPosture, sAnim) -> bool   Upright|InVehicle|Subdued|Cower + "Idle"/clip
+--                                                        NO feedback on a bad state -- see impl note
+--   Ess.Human.setFireLock(uChar, b) -> bool         stop firing without disarming
+--   Ess.Human.setJostle(uChar, b) -> bool           stop crowds shoving a placed NPC
+--   Ess.Human.allowCorpseCleanup(uChar, b) -> bool  keep a body for a scene
+--   Ess.Human.preemptiveRagdoll(uChar) -> bool      ragdoll BEFORE the cause (hijack idiom)
+--   Ess.Human.persistTransform(uChar) -> bool
+--   Ess.Human.drop(uChar) -> bool                   false = nothing was carried (meaningful)
+--   Ess.Human.stopGrappling(uChar) -> bool
+--   Ess.Human.forceExitSeat(uChar) -> bool          abrupt eject, no animation
 --   Ess.Human.carrying(uChar) -> bool             hauling a body/crate (blocks climb, swim, most weapons)
 --   Ess.Human.grappling(uChar) -> bool            mid-grapple (hijack/takedown melee)
 --   Ess.Human.swimming(uChar) -> bool             in deep water
@@ -144,6 +155,96 @@ function Ess.Human.grappling(uChar)
     if not uChar then return false end
     local ok, b = Ess.Safe.quiet(Human.IsGrappling, uChar)
     return (ok and b) and true or false
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- MUTATORS. Live-verified 2026-07-26 against a spawned throwaway NPC rather than the player, since a bad
+-- posture can leave a character stuck.
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- Ess.Human.setState(uChar, sPosture, sAnim) -> bool -- the character state machine. 45 call sites in the
+-- shipped scripts, the most-used mutator in this namespace.
+--
+-- Vocabulary, harvested from every corpus call site (there is no way to enumerate it at runtime):
+--   sPosture : "Upright" | "InVehicle" | "Subdued" | "Cower"
+--   sAnim    : "Idle", or a named animation clip
+--              (e.g. "lifestylejobPlayerArmwrestlingWinningloop01")
+-- "Upright","Idle" is by far the most common pairing -- it is the shipped idiom for "return this character
+-- to normal", e.g. after a cutscene or a Cower.
+--
+-- ⚠ NO FEEDBACK WHATSOEVER. The native returns nil for a valid state AND for a garbage one -- verified by
+-- passing "NotAReal","State", which is indistinguishable from success. So this wrapper's `true` means the
+-- call did not throw, NOT that the state was applied. Misspell a posture and it fails silently forever.
+-- Stick to the four strings above unless you have a corpus call site for another.
+function Ess.Human.setState(uChar, sPosture, sAnim)
+    if not uChar or type(sPosture) ~= "string" then return false end
+    local ok = Ess.Safe.quiet(Human.SetState, uChar, sPosture, sAnim or "Idle")
+    return ok and true or false
+end
+
+-- Ess.Human.setFireLock(uChar, bLocked) -> bool -- stop a character firing without disarming them.
+-- Distinct from .disableWeapons(), which takes the weapon away entirely.
+function Ess.Human.setFireLock(uChar, bLocked)
+    if not uChar then return false end
+    local ok, r = Ess.Safe.quiet(Human.SetFireLock, uChar, bLocked and true or false)
+    return (ok and r ~= false) and true or false
+end
+
+-- Ess.Human.setJostle(uChar, bEnabled) -> bool -- whether this character gets shoved by others walking into
+-- them. Turning it off is the usual fix for an NPC placed for a scene drifting out of position in a crowd.
+function Ess.Human.setJostle(uChar, bEnabled)
+    if not uChar then return false end
+    local ok = Ess.Safe.quiet(Human.SetJostleEnabled, uChar, bEnabled and true or false)
+    return ok and true or false
+end
+
+-- Ess.Human.allowCorpseCleanup(uChar, bAllow) -> bool -- whether the engine may despawn this body. Pass
+-- false to keep a corpse around for a scripted scene; the streaming system otherwise reclaims it.
+function Ess.Human.allowCorpseCleanup(uChar, bAllow)
+    if not uChar then return false end
+    local ok, r = Ess.Safe.quiet(Human.SetAllowCorpseCleanup, uChar, bAllow and true or false)
+    return (ok and r ~= false) and true or false
+end
+
+-- Ess.Human.preemptiveRagdoll(uChar) -> bool -- switch to ragdoll BEFORE the thing that would cause it,
+-- which is how the shipped hijack code makes a takedown look right rather than snapping.
+function Ess.Human.preemptiveRagdoll(uChar)
+    if not uChar then return false end
+    local ok = Ess.Safe.quiet(Human.SetPreemptiveRagdoll, uChar)
+    return ok and true or false
+end
+
+-- Ess.Human.persistTransform(uChar) -> bool -- pin the character's current position/orientation so the
+-- engine stops re-deriving it. Used in the corpus around seat exits and scripted placement.
+function Ess.Human.persistTransform(uChar)
+    if not uChar then return false end
+    local ok, r = Ess.Safe.quiet(Human.PersistTransform, uChar)
+    return (ok and r ~= false) and true or false
+end
+
+-- Ess.Human.drop(uChar) -> bool -- drop whatever is being carried. The return is MEANINGFUL: false means
+-- there was nothing to drop (verified on an NPC carrying nothing), so this doubles as a "did I actually
+-- drop something" check. Pairs with .carrying().
+function Ess.Human.drop(uChar)
+    if not uChar then return false end
+    local ok, r = Ess.Safe.quiet(Human.Drop, uChar)
+    return (ok and r ~= false) and true or false
+end
+
+-- Ess.Human.stopGrappling(uChar) -> bool -- break out of a grapple. Pairs with .grappling().
+function Ess.Human.stopGrappling(uChar)
+    if not uChar then return false end
+    local ok = Ess.Safe.quiet(Human.StopGrappling, uChar)
+    return ok and true or false
+end
+
+-- Ess.Human.forceExitSeat(uChar) -> bool -- eject a character from a vehicle seat with NO exit animation
+-- and no reposition ("NoSnap"). Abrupt by design; Ess.Vehicle.exit() is the graceful form. The right tool
+-- when the vehicle is about to be removed and a normal exit would leave the character mid-animation.
+function Ess.Human.forceExitSeat(uChar)
+    if not uChar then return false end
+    local ok = Ess.Safe.quiet(Human.ForceExitSeatNoSnap, uChar)
+    return ok and true or false
 end
 
 -- Ess.Human.swimming(uChar) -> bool -- in deep water and actually swimming.

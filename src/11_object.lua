@@ -43,6 +43,17 @@
 --   Ess.Object.physicsType(uGuid) -> s | nil        engine's own classification, e.g. "human"
 --   Ess.Object.awake(uGuid) -> bool                 physics body simulating vs asleep
 --   Ess.Object.hibernated(uGuid) -> bool            parked by the streaming system
+--   -- mutators
+--   Ess.Object.setName(uGuid, s) -> bool             makes it findable via Ess.Guid / allByName
+--   Ess.Object.setMass(uGuid, nKg) -> bool
+--   Ess.Object.setHibernationDistance(uGuid, n) -> bool   / .revertHibernationDistance(uGuid) -> bool
+--   Ess.Object.setUnkillable(uGuid, bOn, sReason) -> bool  blocks DEATH (cf .setInvincible = blocks damage)
+--   Ess.Object.angularImpulse(uGuid, x,y,z, bLocal) -> bool  SPIN it (.impulse shoves it)
+--   Ess.Object.moveToObject(uGuid, uTarget) -> bool
+--   Ess.Object.fadeOut(uGuid, nDuration, bRemove) -> bool
+--   Ess.Object.playMaterialAnimation(uGuid, s, bLoop) -> bool  / .stopMaterialAnimation(uGuid, s)
+--   Ess.Object.stopAllAnimation(uGuid) -> bool
+--   Ess.Object.openGate(uGuid) / .closeGate(uGuid) -> bool     UNVERIFIED -- see impl note
 --   Ess.Object.vehicleOf(uChar) -> uVehicleGuid | nil
 --   Ess.Object.pollVehicleChange(uChar, onChange, interval) -> stop()
 
@@ -465,6 +476,145 @@ function Ess.Object.hibernated(uGuid)
     if not uGuid then return false end
     local ok, b = Ess.Safe.quiet(Object.IsHibernated, uGuid)
     return (ok and b) and true or false
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- MUTATORS. Live-verified 2026-07-26 against a spawned throwaway car, each by read -> set -> read where the
+-- native has a matching getter, so these are confirmed to take effect and not merely to return true.
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- Ess.Object.setName(uGuid, sName) -> bool -- give an object a script name, which is what makes it findable
+-- by Ess.Guid(sName) / Ess.Probe.allByName(sName). Verified end to end: naming a spawned car and then
+-- looking it up by that string returned exactly that object.
+--
+-- Note the asymmetry, which is real and documented at the bottom of this file: you can SET a name and you
+-- can look one UP, but you cannot READ one back -- Object.GetName returns an opaque handle, not a string.
+function Ess.Object.setName(uGuid, sName)
+    if not uGuid or type(sName) ~= "string" then return false end
+    local ok, r = Ess.Safe.quiet(Object.SetName, uGuid, sName)
+    return (ok and r ~= false) and true or false
+end
+
+-- Ess.Object.setMass(uGuid, nKg) -> bool -- physics mass. Pairs with the existing .mass() getter; verified
+-- 1800 -> 5000 on a car. Changing this changes how impulses move the object, so if you are tuning
+-- Ess.Impulse behaviour, check you have not also retuned the mass underneath it.
+function Ess.Object.setMass(uGuid, nKg)
+    if not uGuid or type(nKg) ~= "number" then return false end
+    local ok, r = Ess.Safe.quiet(Object.SetMass, uGuid, nKg)
+    return (ok and r ~= false) and true or false
+end
+
+-- Ess.Object.setHibernationDistance(uGuid, n) -> bool
+-- Ess.Object.revertHibernationDistance(uGuid) -> bool
+-- How far the player can get before the streaming system parks this object (see .hibernated()). Raise it to
+-- stop a spawned thing freezing when you drive away; the shipped scripts also use a near-zero value
+-- (1.0E-6) to force the opposite.
+--
+-- These are a PAIR and revert genuinely works -- verified 200 -> 999 -> revert -> 200. Prefer revert over
+-- remembering and re-setting the old value yourself: the engine restores whatever the object's own default
+-- was, which is per-template and not necessarily what you read a moment earlier.
+function Ess.Object.setHibernationDistance(uGuid, n)
+    if not uGuid or type(n) ~= "number" then return false end
+    local ok, r = Ess.Safe.quiet(Object.SetHibernationDistance, uGuid, n)
+    return (ok and r ~= false) and true or false
+end
+
+function Ess.Object.revertHibernationDistance(uGuid)
+    if not uGuid then return false end
+    local ok, r = Ess.Safe.quiet(Object.RevertHibernationDistance, uGuid)
+    return (ok and r ~= false) and true or false
+end
+
+-- Ess.Object.setUnkillable(uGuid, bOn, sReason) -> bool -- NOT the same thing as .setInvincible(). Both take
+-- a reason string and both are refcounted by it, but they are separate engine flags: invincible blocks
+-- damage, unkillable blocks the DEATH that damage would cause. A mission that wants an NPC to be shot up
+-- but not die wants this one.
+function Ess.Object.setUnkillable(uGuid, bOn, sReason)
+    if not uGuid then return false end
+    local ok, r = Ess.Safe.quiet(Object.SetUnkillable, uGuid,
+                                 bOn and true or false, sReason or "Ess")
+    return (ok and r ~= false) and true or false
+end
+
+-- Ess.Object.angularImpulse(uGuid, x, y, z, bLocal) -> bool -- SPIN an object, where .impulse() shoves it.
+-- Same argument shape as .impulse (a vector plus a local/world flag); y is the yaw axis, so
+-- angularImpulse(u, 0, 500, 0, true) is a flat spin. Mass-scaled like any impulse, so a heavier object
+-- needs a proportionally larger value -- and see .setMass above if you are tuning both at once.
+function Ess.Object.angularImpulse(uGuid, x, y, z, bLocal)
+    if not uGuid then return false end
+    local ok, r = Ess.Safe.quiet(Object.ApplyAngularImpulse, uGuid,
+                                 x or 0, y or 0, z or 0, bLocal and true or false)
+    return (ok and r ~= false) and true or false
+end
+
+-- Ess.Object.moveToObject(uGuid, uTarget) -> bool -- teleport uGuid onto uTarget's position in one call.
+-- Same effect as reading .pos(uTarget) and calling .setPos(), minus the round trip and the chance of the
+-- target moving in between.
+function Ess.Object.moveToObject(uGuid, uTarget)
+    if not uGuid or not uTarget then return false end
+    local ok, r = Ess.Safe.quiet(Object.SetPositionToObject, uGuid, uTarget)
+    return (ok and r ~= false) and true or false
+end
+
+-- Ess.Object.fadeOut(uGuid, nDuration, bRemove) -> bool -- fade an object out over nDuration, then DESTROY
+-- it. The corpus idiom is Object.FadeOut(u, 10, true), and the removal is confirmed the hard way: a test
+-- car faded with (10, true) was gone a few minutes later -- GetMass returned nil and
+-- GetHibernationDistance -1 on the same guid.
+--
+-- ⚠ So this is a DELETE, not just a visual effect, and it is asynchronous: the guid stays valid for the
+-- whole nDuration and only then goes stale. Anything holding that guid needs to re-check .valid() rather
+-- than assume it survived. Pass bRemove = false explicitly if you only want the fade.
+function Ess.Object.fadeOut(uGuid, nDuration, bRemove)
+    if not uGuid then return false end
+    local ok, r = Ess.Safe.quiet(Object.FadeOut, uGuid, nDuration or 10,
+                                 bRemove ~= false)
+    return (ok and r ~= false) and true or false
+end
+
+-- Ess.Object.playMaterialAnimation(uGuid, sName, bLoop) -> bool
+-- Ess.Object.stopMaterialAnimation(uGuid, sName) -> bool
+-- Material/shader animations by name ("energy_wave", "global_weapon_beacon" in the shipped scripts).
+--
+-- ⚠ The return is meaningful and worth checking: an animation name the object does not have comes back
+-- FALSE rather than erroring -- confirmed by asking a car for "energy_wave". So a silent no-op here is
+-- reported, unlike Ess.Human.setState. There is no way to enumerate the valid names from Lua; take them
+-- from the corpus or from the asset.
+function Ess.Object.playMaterialAnimation(uGuid, sName, bLoop)
+    if not uGuid or type(sName) ~= "string" then return false end
+    local ok, r = Ess.Safe.quiet(Object.PlayMaterialAnimation, uGuid, sName,
+                                 bLoop and true or false)
+    return (ok and r ~= false) and true or false
+end
+
+function Ess.Object.stopMaterialAnimation(uGuid, sName)
+    if not uGuid or type(sName) ~= "string" then return false end
+    local ok = Ess.Safe.quiet(Object.StopMaterialAnimation, uGuid, sName)
+    return ok and true or false
+end
+
+-- Ess.Object.stopAllAnimation(uGuid) -> bool -- stop every animation channel at once.
+function Ess.Object.stopAllAnimation(uGuid)
+    if not uGuid then return false end
+    local ok = Ess.Safe.quiet(Object.StopAllAnimation, uGuid)
+    return ok and true or false
+end
+
+-- Ess.Object.openGate(uGuid) / .closeGate(uGuid) -> bool -- drive a gate/door object.
+--
+-- ⚠ UNVERIFIED against a real gate. Both return nil on a non-gate (tested on a car), so there is no way to
+-- tell "not a gate" from "worked" by return value alone -- the wrapper reports whether the call SURVIVED,
+-- not whether anything moved. Watch the gate, or check with Object.GetNodeHealth-style state, before
+-- trusting it in a mission.
+function Ess.Object.openGate(uGuid)
+    if not uGuid then return false end
+    local ok = Ess.Safe.quiet(Object.OpenGate, uGuid)
+    return ok and true or false
+end
+
+function Ess.Object.closeGate(uGuid)
+    if not uGuid then return false end
+    local ok = Ess.Safe.quiet(Object.CloseGate, uGuid)
+    return ok and true or false
 end
 
 -- NOTE on three natives deliberately NOT wrapped here, all live-checked. Each one's NAME promises a string
