@@ -15,6 +15,13 @@
 --   Ess.Player.teleport(x, y, z, yaw, onDone)    warp the player(s) to a world spot -- the CONFIRMED
 --                                                MrxUtil.TeleportHeroesToLocations idiom (NOT raw SetPosition)
 --   Ess.Player.inVehicle(i) -> uVehicleGuid|nil / .onFoot(i) -> bool    what the player is doing right now
+--   Ess.Player.cash() -> n                       read the economy (giveCash stays the way to CHANGE it)
+--   Ess.Player.fuel() -> nCurrent, nCapacity
+--   Ess.Player.isCoop() -> bool                  a real co-op session, not just "slot 1 exists"
+--   Ess.Player.count() -> n                      occupied player slots (1 in single-player)
+--   Ess.Player.joined(i) -> bool                 is slot i occupied -- wraps a native that takes an INDEX,
+--                                                not a guid, and returns nil (falsy) if handed one
+--   Ess.Player.name(i) -> sName | nil            the slot's profile name
 
 import("MrxPmc")
 import("MrxUtil")
@@ -209,4 +216,68 @@ end
 -- Ess.Player.onFoot(i) -> bool -- the complement: true when the player isn't in any vehicle.
 function Ess.Player.onFoot(i)
     return Ess.Player.inVehicle(i) == nil
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- Economy READ + session shape. All live-probed 2026-07-26 against a loaded save.
+--
+-- Deliberately NOT a wrapper per native: this file's whole point is to collapse the getter sprawl, so what
+-- follows fills genuine capability GAPS rather than mirroring `Player.*` one-for-one. The gap that motivated
+-- it: giveCash/giveFuel could WRITE the economy but nothing here could READ it.
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- Ess.Player.cash() -> n | nil -- current cash. Global to the session, not per-slot (the native takes no
+-- argument). Pairs with giveCash, which stays the correct way to CHANGE it: `Player.SetCash` exists and is
+-- tempting, but it's the raw setter and skips the HUD refresh MrxPmc.AddCashQty triggers -- the same trap
+-- already documented against the fuel/cash setters at the top of this file.
+function Ess.Player.cash()
+    local ok, n = Ess.Safe.quiet(Player.GetCash)
+    if ok then return n end
+    return nil
+end
+
+-- Ess.Player.fuel() -> nCurrent, nCapacity -- both values, because "is the tank full" and "how low am I"
+-- are the two things anyone asks and the capacity is not a constant across saves/upgrades.
+-- Measured on a loaded save: 300 / 300.
+function Ess.Player.fuel()
+    local ok,  cur = Ess.Safe.quiet(Player.GetFuel)
+    local ok2, cap = Ess.Safe.quiet(Player.GetFuelCapacity)
+    return (ok and cur or nil), (ok2 and cap or nil)
+end
+
+-- Ess.Player.isCoop() -> bool -- true only in an actual co-op session.
+function Ess.Player.isCoop()
+    local ok, b = Ess.Safe.quiet(Player.IsCoopMultiplayer)
+    return (ok and b) and true or false
+end
+
+-- Ess.Player.count() -> n -- how many player slots are actually in the session (1 in single-player).
+function Ess.Player.count()
+    local ok, n = Ess.Safe.quiet(Player.GetCurrentPlayers)
+    if ok then return n end
+    return 1
+end
+
+-- Ess.Player.joined(i) -> bool -- is slot i (0 local, 1 co-op partner) actually occupied?
+--
+-- ⚠ THE REASON THIS WRAPPER EXISTS. The native `Player.IsJoined` takes a numeric SLOT INDEX, while every
+-- other Player predicate in this engine takes a player GUID. Handing it a guid does not error -- it returns
+-- nil, which is falsy, so `if Player.IsJoined(Ess.Player.slot(1))` reads as "never joined" forever and looks
+-- like correct code. Live-confirmed: IsJoined(0)=true, IsJoined(1)=false, IsJoined(<guid>)=nil.
+--
+-- Note `Player.GetPlayer(1)` and `Player.GetSecondaryPlayer()` both hand back a real-looking slot handle
+-- (40000015) even when nobody is in it, so a non-nil slot guid is NOT evidence of a second player. This, or
+-- `Ess.Player.character(1) ~= nil`, is the honest test.
+function Ess.Player.joined(i)
+    local ok, b = Ess.Safe.quiet(Player.IsJoined, (i == 1) and 1 or 0)
+    return (ok and b) and true or false
+end
+
+-- Ess.Player.name(i) -> sName | nil -- the slot's profile name ("player0" on a local single-player save).
+function Ess.Player.name(i)
+    local s = Ess.Player.slot(i)
+    if not s then return nil end
+    local ok, n = Ess.Safe.quiet(Player.GetName, s)
+    if ok then return n end
+    return nil
 end

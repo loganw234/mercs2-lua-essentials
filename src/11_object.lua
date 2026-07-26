@@ -36,6 +36,14 @@
 --                                        (hides the yaw->sin/cos "in front of me" trig a beginner won't know;
 --                                        tOpts.useView=true places it where you're LOOKING, not body-facing)
 --   -- vehicle-entry watch
+--   -- identity / hierarchy / physics state (the read side)
+--   Ess.Object.name(uGuid) -> s | nil               INTERNAL script name (not .displayName)
+--   Ess.Object.parent(uGuid) -> uGuid | nil         what this is attached TO
+--   Ess.Object.attached(uGuid) -> { uGuid, ... }    what is attached to THIS (always a table)
+--   Ess.Object.isAttachedTo(uGuid, uOther) -> bool
+--   Ess.Object.physicsType(uGuid) -> s | nil        engine's own classification, e.g. "human"
+--   Ess.Object.awake(uGuid) -> bool                 physics body simulating vs asleep
+--   Ess.Object.hibernated(uGuid) -> bool            parked by the streaming system
 --   Ess.Object.vehicleOf(uChar) -> uVehicleGuid | nil
 --   Ess.Object.pollVehicleChange(uChar, onChange, interval) -> stop()
 
@@ -394,3 +402,85 @@ function Ess.Object.spawnAhead(sTemplate, nDist, nHeight, i, tOpts)
     local x, z = Ess.Math.pointAhead(px, pz, yaw or 0, nDist or 18)
     return Ess.Object.spawn(sTemplate, x, py + (nHeight or 0), z, yaw)
 end
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- Identity, hierarchy and physics STATE -- the read side. All live-probed 2026-07-26.
+--
+-- The gap these fill: this file could already Attach/Detach objects but had no way to ASK about the result,
+-- which is the same read/write asymmetry Ess.Player.cash() closed for the economy. Mutators in this area
+-- (SetName, FadeOut, Open/CloseGate, the winch verbs) are deliberately held for the setters pass.
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- Ess.Object.name(uGuid) -> sName | nil -- the object's INTERNAL script name, i.e. what Pg.GetGuidByName
+-- looks up and what Object.SetName assigns. Not the same thing as .displayName (Object.GetLocalizedName),
+-- which is the translated label a player sees. Most world objects have no internal name at all -- the
+-- player's own character returns nil -- so nil here means "unnamed", not "bad guid".
+function Ess.Object.name(uGuid)
+    if not uGuid then return nil end
+    local ok, s = Ess.Safe.quiet(Object.GetName, uGuid)
+    if ok then return s end
+    return nil
+end
+
+-- Ess.Object.parent(uGuid) -> uParentGuid | nil -- what this object is attached TO (the inverse of
+-- .attached below). Note the engine hands back handles in a different range for these (0x8-prefixed on a
+-- character, versus the 0x4-prefixed guids of ordinary world objects), so don't assume a parent handle is
+-- interchangeable with a spawned-object guid -- check Ess.Object.valid() before passing it on.
+function Ess.Object.parent(uGuid)
+    if not uGuid then return nil end
+    local ok, p = Ess.Safe.quiet(Object.GetParent, uGuid)
+    if ok then return p end
+    return nil
+end
+
+-- Ess.Object.attached(uGuid) -> { uGuid, ... } -- everything currently attached to this object. A real Lua
+-- table (the player's character returns 5 entries: held weapon, etc.), unlike Player.GetAllCharacters which
+-- despite the parallel name hands back an opaque engine collection handle. Always returns a table, empty
+-- rather than nil on failure, so it is safe to ipairs() without a guard.
+function Ess.Object.attached(uGuid)
+    if not uGuid then return {} end
+    local ok, t = Ess.Safe.quiet(Object.GetAttachedObjects, uGuid)
+    if ok and type(t) == "table" then return t end
+    return {}
+end
+
+-- Ess.Object.isAttachedTo(uGuid, uOther) -> bool -- is uGuid attached to uOther specifically?
+function Ess.Object.isAttachedTo(uGuid, uOther)
+    if not uGuid or not uOther then return false end
+    local ok, b = Ess.Safe.quiet(Object.IsAttached, uGuid, uOther)
+    return (ok and b) and true or false
+end
+
+-- Ess.Object.physicsType(uGuid) -> sType | nil -- the engine's own physics classification as a plain
+-- string ("human" for a character). Cheaper and more honest than inferring a type from the model name or
+-- from which getters happen to succeed.
+function Ess.Object.physicsType(uGuid)
+    if not uGuid then return nil end
+    local ok, s = Ess.Safe.quiet(Object.GetPhysicsType, uGuid)
+    if ok then return s end
+    return nil
+end
+
+-- Ess.Object.awake(uGuid) -> bool -- is the physics body simulating, rather than asleep? Pairs with the
+-- fresh-spawn settle caveat documented above: a just-spawned object can read asleep for a tick.
+function Ess.Object.awake(uGuid)
+    if not uGuid then return false end
+    local ok, b = Ess.Safe.quiet(Object.IsAwake, uGuid)
+    return (ok and b) and true or false
+end
+
+-- Ess.Object.hibernated(uGuid) -> bool -- has the streaming system parked this object? A hibernated object
+-- still exists and its guid stays valid, but it is not simulating, so "my spawned thing stopped moving when
+-- I drove away" is usually this rather than a bug. The distance threshold is Object.GetHibernationDistance
+-- (120 on a character); the setters for it are held for the setters pass.
+function Ess.Object.hibernated(uGuid)
+    if not uGuid then return false end
+    local ok, b = Ess.Safe.quiet(Object.IsHibernated, uGuid)
+    return (ok and b) and true or false
+end
+
+-- NOTE on two natives deliberately NOT wrapped here, both live-checked:
+--   Object.GetModelName(uGuid) returns USERDATA, not a string -- an interned model handle. Exposing it as a
+--     ".modelName() -> string" would be a lie, and there is no string form of it reachable from Lua.
+--   Object.GetVelocity(uGuid) returns SCALAR speed, not a vector, despite the name. Ess.Object.speed already
+--     covers that ground via GetVelocitySquared + sqrt; the native would save the sqrt if that ever matters.
