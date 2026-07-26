@@ -30,7 +30,11 @@
 --
 -- 3. THE REGION SYSTEM OWNS THE ATMOSPHERE, NOT YOU. The map is divided into named atmosphere regions
 --    (rgn_atmo_caracas, rgn_atmo_Maracaibo, rgn_atmo_Angelfalls, rgn_atmo_interior, rgn_atmo_PMCinterior,
---    rgn_atmo_carmonaislandrain -- all six resolve to real guids in the vz level). Crossing into one starts
+--    rgn_atmo_carmonaislandrain). There are FORTY of them, not six -- the script corpus only names the six
+--    that shipped missions touch, while the full set lives in the LEVEL data (layers_static) and includes
+--    rgn_atmo_Merida, _Shanty, _Islands, _OilRig, _Amazon, the _Industrial* family and more, all verified
+--    to resolve live. Name lookup is case-insensitive, which is why the extracted list holds 41 strings for
+--    40 regions (rgn_atmo_caracas and rgn_atmo_Caracas are one guid). Crossing into one starts
 --    an INTERPOLATED BLEND, about a second long, from wherever the atmosphere currently is to that region's
 --    own settings.
 --

@@ -9,6 +9,10 @@
 --   Ess.Easy.World.brightness(n)         overall light level (0.05 ~ near-black, 1 = normal)
 --   Ess.Easy.World.hellscape()           fun preset: dark + deep red
 --   Ess.Easy.World.resetAtmosphere()     undo any tint/brightness back to the region default
+--   Ess.Easy.World.night() / .day()      hold the time-of-day clock. NOT map-wide -- regions with their
+--                                        own atmosphere preset override it; see the note at the impl
+--   Ess.Easy.World.lockTimeOfDay(n)      the same, for any 0..1 time
+--   Ess.Easy.World.unlockTimeOfDay(nSpeed)   release the lock, resume the day/night cycle
 
 import("WifVzBoundary")
 
@@ -46,8 +50,16 @@ end
 -- which overwrites your custom look. So these are PERSISTENT by default -- a lightweight keeper loop watches
 -- the active setting (Graphics.Atmosphere.GetCurrentSetting) and snaps your look back the instant a zone
 -- swaps it out, so it survives driving across the map. Ess.Easy.World.resetAtmosphere() stops the keeper and
--- restores the natural look. (The global setters SetTime/SetSky/SetTimeSpeed are deliberately NOT used --
--- confirmed inert in live play; these use the confirmed SetValue/SetColorValue interface.)
+-- restores the natural look.
+--
+-- CORRECTION 2026-07-26: this block previously claimed the global setters SetTime/SetSky/SetTimeSpeed were
+-- "confirmed inert in live play". That is WRONG for SetTime/SetTimeSpeed, and the error mattered -- it
+-- steered work away from the only interface that actually moves the sky. Graphics.Atmosphere.SetTime(0.95)
+-- visibly turns the sky to night (confirmed on screen by a human, and confirmed again by watching it fade
+-- back over ~1s on a zone crossing); SetTimeSpeed(0) freezes the cycle. What IS true is that they are not
+-- SetValue keys and take no part in the Begin/End transaction, so they need their own keeper -- see
+-- lockTimeOfDay below. SetSky remains untested here and IS one of the 61 no-op stubs in the verified EXE
+-- audit, so that part of the old claim may well hold.
 Ess.Easy.World._atmo = Ess.Easy.World._atmo or nil   -- current custom apply fn (nil = none active)
 Ess.Easy.World._atmoTag = nil                        -- last-seen active-setting string (zone-change detector)
 
@@ -103,4 +115,92 @@ function Ess.Easy.World.resetAtmosphere()
     Ess.Easy.World._atmo = nil                        -- keeper stops itself on its next tick
     Ess.Loop.stop("Ess.World.atmoKeeper")
     Ess.Safe.quiet(Graphics.Atmosphere.Restore)
+end
+
+-- Ess.Easy.World.lockTimeOfDay(n) -- freeze the time-of-day clock at n (0..1) and hold it there.
+-- Ess.Easy.World.night() / .day() / .unlockTimeOfDay() are the one-word forms.
+--
+-- ⚠⚠ READ THIS BEFORE USING IT: THIS IS NOT MAP-WIDE, and an earlier version of this comment wrongly said
+-- it was. Measured 2026-07-26, with the keeper confirmed ticking 1,299 times at 10 Hz and the lock holding
+-- at 0.95 the whole time -- and the sky still full daylight on one side of a region boundary.
+--
+-- TIME AND REGION ATMOSPHERE ARE SEPARATE SYSTEMS. A region's authored atmosphere preset paints the sky
+-- DIRECTLY; it is not derived from the time-of-day clock. So SetTime moves a clock that any region with its
+-- own preset simply overrides, and re-asserting faster cannot win because the clock is not the thing being
+-- contested. Where this DOES hold:
+--
+--   * the gaps BETWEEN atmosphere regions (a large part of the map -- the engine falls back to a global
+--     default there, which the clock does drive)
+--   * regions whose preset follows the time clock rather than overriding it
+--
+-- and where it does not: any region with an authored preset of its own. Expect a visible change crossing
+-- into one. That is a property of the engine's data, not a bug in this keeper.
+--
+-- The obvious fix -- reconfigure the regions themselves via Graphics.Atmosphere.ChangeLineRegionSetting --
+-- is only a partial one and is NOT wired up here. All 40 regions are addressable (their names are in the
+-- level data, not the script corpus; see 06_atmosphere.lua), and the call works. But the setting names are
+-- AUTHORED PRESETS we cannot enumerate or create -- "night" is attested on exactly one region and reads as
+-- late evening rather than night -- and the call is expensive enough that six in one chunk caused a
+-- measured 13-second engine stall. A blanket 40-region apply would have to be paced over seconds, and would
+-- still leave the gaps untouched, since a gap is the ABSENCE of a region and has nothing to configure.
+--
+-- Why a keeper is needed at all, and why it is not the same one the tint/brightness helpers use:
+--
+--   * Time is NOT a SetValue key. It has its own natives (SetTime/SetTimeSpeed) which take no part in the
+--     Begin/End transaction, so the existing atmoKeeper cannot carry it.
+--
+--   * Crossing an atmosphere region does not simply overwrite the time -- it starts an INTERPOLATED BLEND,
+--     roughly a second long, from wherever the sky currently is toward that region's own settings. Your
+--     night sky is used as the blend's STARTING POINT. Measured live.
+--
+--   * It re-asserts on EVERY tick, deliberately, including while a blend is running. An earlier version
+--     waited for Ess.Atmosphere.blending() to clear before re-applying, on the theory that fighting a blend
+--     is futile. In practice that was exactly what made crossings ugly: waiting hands the engine a full
+--     second of uncontested daylight and then snaps back, which reads as a jarring flash. Pinning the time
+--     every 0.1s instead keeps the sky where you put it THROUGH the blend, so a crossing is barely visible.
+--
+--     SetTime is a direct assignment rather than a transaction, so re-asserting it costs two native calls
+--     and does not itself start an interpolation -- which is what makes hammering it viable here, and what
+--     makes this different from the tint/brightness keeper (those go through Begin/End and genuinely should
+--     not be spammed).
+--
+-- WHY THIS IS A KEEPER AND NOT ChangeLineRegionSetting: reconfiguring the region itself is the obviously
+-- nicer mechanism, and it does work -- but Graphics.Atmosphere.GetLineRegion() reports FORTY line regions in
+-- the vz level and only SIX of them have names (the rgn_atmo_* set). The other 34 cannot be resolved by
+-- Pg.GetGuidByName, so they cannot be addressed at all. Setting all six named regions to "night" was tried
+-- live: the current region changed immediately, and crossing into one of the unnamed 34 reverted it. A
+-- 6-of-40 solution is not a map-wide one, so the keeper stays.
+--
+-- Also worth knowing if you go that route anyway: the setting names are authored presets, not values you
+-- control. "night" on these regions reads as late evening rather than true night, and blends in far more
+-- slowly than the ~1s a normal crossing takes.
+Ess.Easy.World._timeLock = Ess.Easy.World._timeLock or nil
+
+function Ess.Easy.World.lockTimeOfDay(n)
+    if type(n) ~= "number" then n = 0.95 end
+    Ess.Easy.World._timeLock = n
+    Ess.Atmosphere.setTimeSpeed(0)
+    Ess.Atmosphere.setTime(n)
+    Ess.Loop.start("Ess.World.timeKeeper", 0.1, function()
+        local t = Ess.Easy.World._timeLock
+        if not t then return false end                  -- unlocked -> stop the loop
+        -- Re-assert EVERY tick, including mid-blend. See the note below on why waiting is worse.
+        Ess.Atmosphere.setTimeSpeed(0)
+        Ess.Atmosphere.setTime(t)
+        return true
+    end)
+    return true
+end
+
+-- Ess.Easy.World.night() / .day() -- the two you actually want. 0.95 reads as night, 0.3 as daytime.
+function Ess.Easy.World.night() return Ess.Easy.World.lockTimeOfDay(0.95) end
+function Ess.Easy.World.day()   return Ess.Easy.World.lockTimeOfDay(0.30) end
+
+-- Ess.Easy.World.unlockTimeOfDay(nSpeed) -- stop the keeper and let the day/night cycle run again. Pass a
+-- speed to resume at (default 1); pass 0 to leave the clock frozen where it is.
+function Ess.Easy.World.unlockTimeOfDay(nSpeed)
+    Ess.Easy.World._timeLock = nil
+    Ess.Loop.stop("Ess.World.timeKeeper")
+    Ess.Atmosphere.setTimeSpeed(nSpeed or 1)
+    return true
 end
