@@ -210,10 +210,10 @@
  },
  "counts": {
   "engine": 41,
-  "game_script": 238,
+  "game_script": 237,
   "internal": 4,
   "engine_fns": 965,
-  "game_script_fns": 3202,
+  "game_script_fns": 3200,
   "internal_fns": 122
  },
  "namespaces": {
@@ -3702,8 +3702,18 @@
    ],
    "called_by_ess": [
     "AddBlip",
+    "AddLineRegion",
+    "AddMission",
     "GetSelectedMission",
-    "RemoveBlip"
+    "RemoveBlip",
+    "RemoveLineRegion",
+    "RemoveMission",
+    "SetBeaconTutorialMode",
+    "SetFakePlayerLocation",
+    "SetMissionChangeAllowed",
+    "SetMissionTrackCallback",
+    "SetMissionTrackable",
+    "SetSelectedMission"
    ],
    "source": "resident/mrxguiinterface.lua"
   },
@@ -4775,17 +4785,6 @@
    "called_by_ess": [],
    "source": "resident/levelbootstrap.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.levelbootstrap, or import() it first"
-  },
-  "_MODULES.materialanimation_largecanopy01": {
-   "kind": "game_script",
-   "count": 2,
-   "functions": [
-    "OnStateChange",
-    "_PlayMaterialAnims"
-   ],
-   "called_by_ess": [],
-   "source": "resident/materialanimation_largecanopy01.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.materialanimation_largecanopy01, or import() it first"
   },
   "_MODULES.materialanimation_treeplaza02": {
    "kind": "game_script",
