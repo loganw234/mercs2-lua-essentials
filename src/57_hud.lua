@@ -21,6 +21,8 @@
 --   Ess.Hud.image(sTexture [,nSlot] [,nW] [,nH])   put an image in an objective-tray slot
 --   Ess.Hud.cash(n) / Ess.Hud.fuel(n [,nMax])     the resource readouts -- DISPLAY ONLY
 --   Ess.Hud.resources(bShow [,nDur]) / Ess.Hud.suppressResources(bCash, bFuel)
+--   Ess.Hud.Faction.*                     the faction meters, the pursuit bar, and the ON-SCREEN COUNTDOWN
+--                                         (add/set/timer/pursuit/inZone/hide/show/levels)
 --
 -- ═════════════════════════════════════════════════════════════════════════════════════════════════════════
 -- THIS WHOLE NAMESPACE IS READABLE LUA, NOT A BLACK BOX
@@ -341,6 +343,203 @@ function Ess.Hud.suppressResources(bCash, bFuel)
     Ess.Safe.named("Ess.Hud.suppressResources", function()
         Hud.ResourceCounter:SetSuppressed({ bSuppressCash = bCash and true or false,
                                             bSuppressFuel = bFuel and true or false })
+    end)
+    return true
+end
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════════════
+-- Ess.Hud.Faction -- the faction meters, the pursuit bar, and the on-screen countdown
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════════════
+-- A sub-table rather than eight more flat Ess.Hud verbs, because this is one coherent widget: a row of
+-- labelled gauges, each belonging to a faction, that can show a value, flip into a red PURSUIT state, or run
+-- a TIMER. The timer is the reason to care -- it is the only on-screen countdown the game exposes, it comes
+-- with real HUD chrome, and it fires a Lua callback when it expires. Anything on a clock (defuse this,
+-- survive this, reach it before the convoy) gets a native-looking presentation for four lines of code.
+--
+--   Ess.Hud.Faction.add(sFaction [,sTexture])       create a meter
+--   Ess.Hud.Faction.set(sFaction, nValue [,bInit])  0..100
+--   Ess.Hud.Faction.timer(sFaction, nSeconds [,fn]) countdown; fn() on expiry
+--   Ess.Hud.Faction.pursuit(sFaction, nSeconds [,fn])
+--   Ess.Hud.Faction.inZone(sFaction, bInside [,bInit])
+--   Ess.Hud.Faction.hide(sFaction) / .show([nDuration])
+--   Ess.Hud.Faction.levels(tThresholds, tNames [,sPursuitName] [,bShow])
+--
+-- ── WHAT TO KNOW BEFORE USING IT ───────────────────────────────────────────────────────────────────────
+--
+-- VALUES ARE 0..100. mrxguihudfactiongauge.lua fixes _knMin = 0 and _knMax = 100, and the bar maths divides
+-- by the gap between thresholds, so feeding it a relation value straight from Ess.Relations will not do --
+-- the game converts first (ConvertRelationToMeterValue).
+--
+-- THRESHOLDS ARE GLOBAL, NOT PER-FACTION. .levels() writes module-level state shared by every gauge on
+-- screen. Defaults are {0, 25, 50, 75} with four localisation-token names. Changing them for one meter
+-- changes them for all.
+--
+-- SETTING A VALUE ABOVE ZERO CANCELS AN ACTIVE PURSUIT (SetValue calls StopPursuit when
+-- bPursuitActive and nValue > _knMin). So do not drive a meter's value while its pursuit is running unless
+-- ending it is what you meant.
+--
+-- THE TIMER CANNOT BE STOPPED through this namespace. The widget HAS a StopTimer, but Hud.FactionDisplay
+-- never wraps it -- ten functions, and that is not one of them. Starting a new timer on the same faction is
+-- the only way to displace a running one. (The widget's StopTimer is also mildly broken anyway: it calls
+-- oTimer:Stop(nTime) where nTime is an undeclared global.)
+--
+-- THE TIMER CALLBACK TAKES NO ARGUMENTS AND FIRES ONCE. _TimerCallback unpacks only the callback data --
+-- which this passes none of, as everywhere else in Ess -- and clears the stored callback before calling it.
+--
+-- NOT WRAPPED: RemoveMeter and RemoveAllMeters. Both are EMPTY FUNCTIONS in mrxguiinterface.lua. Callable,
+-- return nil, do nothing. Use .hide() instead, which is real.
+Ess.Hud.Faction = Ess.Hud.Faction or {}
+
+-- The stock thresholds and value range, so a caller can reason about levels without reading the widget.
+Ess.Hud.Faction.RANGE = { nMin = 0, nMax = 100 }
+Ess.Hud.Faction.DEFAULT_THRESHOLDS = { 0, 25, 50, 75 }
+
+local function factionGuard(sLabel, sFaction)
+    if type(sFaction) ~= "string" or sFaction == "" then
+        Ess.Safe.reject(sLabel, "sFaction must be a non-empty faction code (PMC/AN/CH/GR/OC/PR/VZ)")
+        return false
+    end
+    return true
+end
+
+-- Ess.Hud.Faction.add(sFaction [,sTexture]) -- put a meter on screen for this faction. sTexture is the
+-- marker icon shown beside it; the game passes each faction's own marker texture.
+function Ess.Hud.Faction.add(sFaction, sTexture)
+    if not factionGuard("Ess.Hud.Faction.add", sFaction) then return false end
+    Ess.Safe.named("Ess.Hud.Faction.add", function()
+        Hud.FactionDisplay:AddMeter({ sFaction = sFaction, sTexture = sTexture })
+    end)
+    return true
+end
+
+-- Ess.Hud.Faction.set(sFaction, nValue [,bInitialize]) -- 0..100. bInitialize snaps instead of animating.
+-- Values outside the range are passed through rather than clamped, because the widget's own level maths
+-- treats the ends as open and clamping here would silently disagree with it.
+function Ess.Hud.Faction.set(sFaction, nValue, bInitialize)
+    if not factionGuard("Ess.Hud.Faction.set", sFaction) then return false end
+    local v = tonumber(nValue)
+    if not v then
+        Ess.Safe.reject("Ess.Hud.Faction.set", "nValue must be a number 0..100, got " .. type(nValue))
+        return false
+    end
+    Ess.Safe.named("Ess.Hud.Faction.set", function()
+        Hud.FactionDisplay:SetValue({ sFaction = sFaction, nValue = v,
+                                      bInitialize = bInitialize and true or nil, bForceOnClient = true })
+    end)
+    return true
+end
+
+-- Ess.Hud.Faction.timer(sFaction, nSeconds [,fn]) -- the on-screen countdown. fn() fires once on expiry.
+function Ess.Hud.Faction.timer(sFaction, nSeconds, fn)
+    if not factionGuard("Ess.Hud.Faction.timer", sFaction) then return false end
+    local t = tonumber(nSeconds)
+    if not t or t <= 0 then
+        Ess.Safe.reject("Ess.Hud.Faction.timer", "nSeconds must be a positive number")
+        return false
+    end
+    Ess.Safe.named("Ess.Hud.Faction.timer", function()
+        Hud.FactionDisplay:StartTimer({ sFaction = sFaction, nDuration = t,
+                                        fCallback = type(fn) == "function"
+                                            and function() pcall(fn) end or nil })
+    end)
+    return true
+end
+
+-- Ess.Hud.Faction.pursuit(sFaction, nSeconds [,fn]) -- the red "you are being hunted" gauge, draining over
+-- nSeconds. fn() on completion. Pass nSeconds <= 0 for an indefinite pursuit with no callback, which is
+-- what the game does for a pursuit that ends on an event rather than a clock.
+function Ess.Hud.Faction.pursuit(sFaction, nSeconds, fn)
+    if not factionGuard("Ess.Hud.Faction.pursuit", sFaction) then return false end
+    local t = tonumber(nSeconds) or -1
+    Ess.Safe.named("Ess.Hud.Faction.pursuit", function()
+        Hud.FactionDisplay:StartPursuit({ sFaction = sFaction, nDuration = t, bForceOnClient = true,
+                                          fCallback = type(fn) == "function"
+                                              and function() pcall(fn) end or nil })
+    end)
+    return true
+end
+
+-- Ess.Hud.Faction.inZone(sFaction, bInside [,bInitialize]) -- mark the player as inside that faction's
+-- territory, which is how the game highlights the relevant meter as you cross a border.
+function Ess.Hud.Faction.inZone(sFaction, bInside, bInitialize)
+    if not factionGuard("Ess.Hud.Faction.inZone", sFaction) then return false end
+    Ess.Safe.named("Ess.Hud.Faction.inZone", function()
+        Hud.FactionDisplay:SetInsideFactionZone({ sFaction = sFaction, bInside = bInside and true or false,
+                                                  bInitialize = bInitialize and true or nil })
+    end)
+    return true
+end
+
+-- Ess.Hud.Faction.hide(sFaction) -- hide one meter. The real teardown, since RemoveMeter is a no-op.
+function Ess.Hud.Faction.hide(sFaction)
+    if not factionGuard("Ess.Hud.Faction.hide", sFaction) then return false end
+    Ess.Safe.named("Ess.Hud.Faction.hide", function()
+        Hud.FactionDisplay:HideMeter({ sFaction = sFaction, bForceOnClient = true })
+    end)
+    return true
+end
+
+-- Ess.Hud.Faction.show([nDuration]) -- reveal ALL meters for nDuration seconds (the native takes no faction).
+function Ess.Hud.Faction.show(nDuration)
+    Ess.Safe.named("Ess.Hud.Faction.show", function()
+        Hud.FactionDisplay:Show({ nDuration = tonumber(nDuration) })
+    end)
+    return true
+end
+
+-- Ess.Hud.Faction.levels(tThresholds, tNames [,sPursuitName] [,bShow]) -- redefine the level bands shared by
+-- every gauge. tThresholds ascending numbers STARTING AT 0, tNames the same length.
+--
+-- The native validates hard and returns false on any of: a non-number threshold, a non-string name, a first
+-- threshold that is not 0, or mismatched lengths. Those four are checked here first so the failure comes
+-- with a reason rather than a bare false.
+--
+-- It LOOKS like it validates ascending order too, and it does not: that check compares every threshold
+-- against a nPrevLevel initialised to -1 and never updated inside the loop, so it can only ever fire for a
+-- value below -1. Descending or duplicate thresholds sail through and produce a gauge whose level maths
+-- divides by a negative or zero range. This wrapper does the ordering check the engine intended.
+function Ess.Hud.Faction.levels(tThresholds, tNames, sPursuitName, bShow)
+    local L = "Ess.Hud.Faction.levels"
+    if type(tThresholds) ~= "table" or type(tNames) ~= "table" then
+        Ess.Safe.reject(L, "tThresholds and tNames must both be tables")
+        return false
+    end
+    if #tThresholds ~= #tNames then
+        Ess.Safe.reject(L, "tThresholds has " .. #tThresholds .. " entries but tNames has " .. #tNames)
+        return false
+    end
+    if #tThresholds == 0 then
+        Ess.Safe.reject(L, "need at least one threshold")
+        return false
+    end
+    if tThresholds[1] ~= 0 then
+        Ess.Safe.reject(L, "the first threshold must be exactly 0, got " .. tostring(tThresholds[1]))
+        return false
+    end
+    local prev
+    for i, v in ipairs(tThresholds) do
+        if type(v) ~= "number" then
+            Ess.Safe.reject(L, "threshold " .. i .. " is not a number")
+            return false
+        end
+        -- The check the engine meant to make; see the note above.
+        if prev and v <= prev then
+            Ess.Safe.reject(L, "thresholds must ascend: entry " .. i .. " (" .. v .. ") is not above "
+                            .. "the previous (" .. prev .. ")")
+            return false
+        end
+        prev = v
+    end
+    for i, s in ipairs(tNames) do
+        if type(s) ~= "string" then
+            Ess.Safe.reject(L, "level name " .. i .. " is not a string")
+            return false
+        end
+    end
+    Ess.Safe.named(L, function()
+        Hud.FactionDisplay:ConfigureThresholds({ tLevelThresholds = tThresholds, tLevelNames = tNames,
+                                                 sPursuitName = sPursuitName,
+                                                 bDisplayResult = bShow and true or nil })
     end)
     return true
 end
