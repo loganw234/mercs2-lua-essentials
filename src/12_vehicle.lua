@@ -10,6 +10,15 @@
 --   Ess.Vehicle.evictAll(uVeh) -> ok                                  force EVERY occupant out (Ai.EveryoneOut)
 --   Ess.Vehicle.repair(uVeh) -> ok                                    full heal + rearm (RestoreHealth/RestoreAmmo)
 --   Ess.Vehicle.isFlipped(uVeh) -> bool
+--   -- mutators
+--   Ess.Vehicle.setPart(uVeh, sPart, bOn) -> bool   LightFront | CtrlRotation | LightBrake
+--                                                   SELF-VALIDATING: nil return = no such part
+--   Ess.Vehicle.openDoor(uVeh, sDoor) / .closeDoor(uVeh, sDoor) -> bool    "pivot" | "DriverHatch"
+--   Ess.Vehicle.setCanPlayerUse(uVeh, sSeatType, bCan) -> bool   return is ambiguous -- see impl note
+--   Ess.Vehicle.clearControls(uVeh) -> bool
+--   Ess.Vehicle.enableTurret(uVeh, sTurret, bEnable, sAxis) -> bool   "main_turret" | "head"
+--   Ess.Vehicle.setTurretAim(uVeh, sTurret, nPitch, nYaw) -> bool     collapses SetTurretPitch/Yaw
+--   Ess.Vehicle.transferToSeat(uChar, uSeat, bForce) -> bool          use .seatTransfers() to find targets
 --   -- seat inspection (the read side)
 --   Ess.Vehicle.seatInfo(uSeat) -> tParams | nil    IsDriver/IsGunner/IsHijackable/IsRiderVulnerable/...
 --   Ess.Vehicle.seatBlocked(uSeat) -> bool          Ess.Vehicle.seatIsLadder(uSeat) -> bool
@@ -266,6 +275,105 @@ end
 -- no way to ask anything ABOUT one, so "can this seat be hijacked", "is the rider exposed", "is it blocked"
 -- all meant dropping to raw natives.
 -- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- MUTATORS. Live-verified 2026-07-26 against a throwaway spawned car.
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- Ess.Vehicle.setPart(uVeh, sPart, bOn) -> bool -- toggle a named vehicle part. 54 call sites, the
+-- most-used mutator in the namespace, and almost all of it is lights.
+--
+-- Part names from every corpus call site (there is no runtime enumeration):
+--   "LightFront"   (28 sites)  headlights
+--   "CtrlRotation" (18)        rotation control
+--   "LightBrake"   (8)         brake lights
+--
+-- ⚠ The return is SELF-VALIDATING and worth checking, unlike Ess.Human.setState: a real part returns true,
+-- an unknown one returns nil (verified with a bogus name). So `if not Ess.Vehicle.setPart(v, name, true)`
+-- genuinely catches a typo, which makes it safe to try a part name you are not certain about.
+function Ess.Vehicle.setPart(uVeh, sPart, bOn)
+    if not uVeh or type(sPart) ~= "string" then return false end
+    local ok, r = Ess.Safe.quiet(Vehicle.SetParts, uVeh, sPart, bOn and true or false)
+    -- nil means "no such part" here, so require an explicitly non-nil, non-false result.
+    return (ok and r ~= nil and r ~= false) and true or false
+end
+
+-- Ess.Vehicle.openDoor(uVeh, sDoor) / .closeDoor(uVeh, sDoor) -> bool
+-- Door names seen in the corpus: "pivot", "DriverHatch". Both returned nil on a car that has neither, and
+-- unlike setPart there is no confirmed true-on-success case to contrast against, so a nil here cannot be
+-- read as "no such door" with confidence -- treat the return as "the call did not throw".
+function Ess.Vehicle.openDoor(uVeh, sDoor)
+    if not uVeh or type(sDoor) ~= "string" then return false end
+    local ok = Ess.Safe.quiet(Vehicle.OpenDoor, uVeh, sDoor)
+    return ok and true or false
+end
+
+function Ess.Vehicle.closeDoor(uVeh, sDoor)
+    if not uVeh or type(sDoor) ~= "string" then return false end
+    local ok = Ess.Safe.quiet(Vehicle.CloseDoor, uVeh, sDoor)
+    return ok and true or false
+end
+
+-- Ess.Vehicle.setCanPlayerUse(uVeh, sSeatType, bCan) -> bool -- allow/deny the player boarding a specific
+-- seat ("d" for driver, matching Vehicle.GetSeatByType). The corpus uses it to reserve a heli's pilot seat.
+--
+-- ⚠ Returned FALSE on a live car when denying the driver seat, which is ambiguous: it may be reporting the
+-- new state, the previous state, or a refusal. Not resolved. Check the effect (try to board) rather than
+-- trusting the return.
+function Ess.Vehicle.setCanPlayerUse(uVeh, sSeatType, bCan)
+    if not uVeh or type(sSeatType) ~= "string" then return false end
+    local ok = Ess.Safe.quiet(Vehicle.SetCanPlayerUse, uVeh, sSeatType, bCan and true or false)
+    return ok and true or false
+end
+
+-- Ess.Vehicle.clearControls(uVeh) -> bool -- release whatever inputs are being held on the vehicle. The
+-- shipped scripts call it when handing control back after a scripted drive.
+function Ess.Vehicle.clearControls(uVeh)
+    if not uVeh then return false end
+    local ok = Ess.Safe.quiet(Vehicle.ClearControls, uVeh)
+    return ok and true or false
+end
+
+-- Ess.Vehicle.enableTurret(uVeh, sTurret, bEnable, sAxis) -> bool
+-- Turret names in the corpus: "main_turret", "head". sAxis is optional and restricts which axis is affected
+-- -- "all" and "pitch" are the observed values; omit it for the engine default. The native accepts both a
+-- 3-argument and a 5-argument form; this passes 5 only when sAxis is given, matching the corpus.
+function Ess.Vehicle.enableTurret(uVeh, sTurret, bEnable, sAxis)
+    if not uVeh or type(sTurret) ~= "string" then return false end
+    local ok
+    if sAxis then
+        ok = Ess.Safe.quiet(Vehicle.EnableTurret, uVeh, sTurret,
+                            bEnable and true or false, sAxis, false)
+    else
+        ok = Ess.Safe.quiet(Vehicle.EnableTurret, uVeh, sTurret, bEnable and true or false)
+    end
+    return ok and true or false
+end
+
+-- Ess.Vehicle.setTurretAim(uVeh, sTurret, nPitch, nYaw) -> bool -- point a turret. Collapses
+-- SetTurretPitch/SetTurretYaw, which are always wanted together; pass nil for either to leave that axis
+-- alone. Both natives returned true on a car with no turret, so the return means "did not throw" and NOT
+-- "this vehicle has that turret" -- there is no cheap way to check the latter.
+function Ess.Vehicle.setTurretAim(uVeh, sTurret, nPitch, nYaw)
+    if not uVeh or type(sTurret) ~= "string" then return false end
+    local any = false
+    if nPitch then
+        if Ess.Safe.quiet(Vehicle.SetTurretPitch, uVeh, sTurret, nPitch) then any = true end
+    end
+    if nYaw then
+        if Ess.Safe.quiet(Vehicle.SetTurretYaw, uVeh, sTurret, nYaw) then any = true end
+    end
+    return any
+end
+
+-- Ess.Vehicle.transferToSeat(uChar, uSeat, bForce) -> bool -- move a rider to another seat WITHOUT getting
+-- out. Use Ess.Vehicle.seatTransfers(uCurrentSeat) to find legal destinations first; a plain car's driver
+-- seat returns none, so this is mostly for multi-seat vehicles.
+function Ess.Vehicle.transferToSeat(uChar, uSeat, bForce)
+    if not uChar or not uSeat then return false end
+    local ok = Ess.Safe.quiet(Vehicle.TransferToSeat, uChar, uSeat, bForce and true or false)
+    return ok and true or false
+end
 
 -- Ess.Vehicle.seatInfo(uSeat) -> tParams | nil -- everything the engine knows about a seat. Live-confirmed
 -- keys on a car's driver seat:

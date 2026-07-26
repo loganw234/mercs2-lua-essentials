@@ -59,9 +59,38 @@ wrapper so callers can't leak the override.
 
 ---
 
-## 2. Needs a throwaway save (writes persistent state)
+## 2. DELIBERATELY NOT EXPOSED — decided 2026-07-26, not a TODO
 
-Do **not** run these against a save anyone cares about.
+Two groups are **not** getting Ess wrappers. This is a settled decision, recorded so it isn't re-opened as
+though it were unfinished work.
+
+### The economy setters
+`Player.SetCash`, `AddCash`, `SetFuel`, `AddFuel`, `SetFuelCapacity`, and the profile/costume writers
+(`SetProfileCostume`, `SetAvailableCostumes`, `SetProfileCharacter`, `SetProfileUpgrade`).
+
+They write the player's save. Ess already exposes the *safe* halves of this: `Ess.Player.giveCash` /
+`giveFuel` route through `MrxPmc.AddCashQty` / `AddFuelQty`, which update the HUD counter — the raw setters
+do not, so a wrapper would either duplicate the existing verb or offer a worse version of it. `Ess.Player.cash()`
+and `.fuel()` cover reading. There is no gap left worth the risk.
+
+### The game-state drivers
+`Sys.RequestGameState` (86 call sites), `Sys.StartSingleplayer`, `Sys.SetLevelName`, `Sys.SetMasterScriptName`,
+`Sys.SetNumberOfViewports`, `Sys.SetLuaSaveVersion`, `Pg.UnloadAsset` (54), `Pg.UnloadLayer`, `Pg.LoadLayer`,
+`Pg.ReloadLayer`, `Pg.LoadGame`.
+
+These drive the engine's own state machine or the asset streamer. A wrong argument does something drastic —
+unloading live content or tearing down the session — rather than nothing, and `RequestGameState`'s valid
+state strings have never been enumerated. Wrapping them would put a one-line trap in a framework whose whole
+premise is that its calls are safe to make.
+
+Anyone who genuinely needs one can call the native directly, which is the appropriate friction for an
+operation that can end the session.
+
+---
+
+## 2b. Would need a throwaway save (reference only)
+
+Left here for completeness; superseded by the decision above for anything economy-related.
 
 | Native | Sites | Sample call site |
 |---|--:|---|
