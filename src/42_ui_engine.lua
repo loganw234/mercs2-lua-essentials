@@ -21,10 +21,13 @@ Ess.UI.VERSION = "1.0"  -- Ess's port of uilib v2.2 -- see FEATURE_SHEET.md for 
 -- tests (that test never had visual confirmation the movie content actually rendered, only that the
 -- widget object constructed without erroring -- don't copy that convention here without re-verifying it).
 --
--- `runtime` is the new single asset: one movie whose payload is an AS2 UI toolkit that draws
--- every widget at runtime from theme parameters. The per-widget entries are kept because
--- they are part of the published surface and because widgets are being migrated one at a
--- time -- anything not yet retargeted still loads its own movie.
+-- `runtime` is the single asset the kit now uses: one movie whose payload is an AS2 UI toolkit
+-- that draws every widget from theme parameters. The migration is COMPLETE -- all eight widgets
+-- draw through it and nothing loads a per-widget movie any more.
+--
+-- The per-widget entries below are kept anyway, because they are part of the published surface
+-- and a third-party script may reference Ess.UI.FILES.panel. They are inert as far as Ess is
+-- concerned; the .gfx assets still exist for anyone driving them directly through Ess.Gfx.
 Ess.UI.FILES = Ess.UI.FILES or {
     runtime = "ess_ui.gfx",
     list = "ui_list.gfx", panel = "ui_panel.gfx", bar = "ui_bar.gfx",
@@ -113,12 +116,33 @@ function Ess.UI.isWide()
     return ok and tostring(r):upper():find("WIDE") ~= nil
 end
 
--- The widget RECTANGLE, in MrxGui widget space -- distinct from the canvas the movie draws
--- in. On widescreen the two coincide (853x480). On 4:3 the widget space is only 640 wide, so
--- the 16:9 stage is letterboxed into 640x360 rather than squeezed into 640x480.
+-- The widget RECTANGLE, in MrxGui widget space -- distinct from the canvas the movie draws in.
+--
+-- THIS IS DELIBERATELY INDEPENDENT OF SCALE. The rect maps the movie's STAGE onto widget space;
+-- SCALE then shrinks the content INSIDE that stage. Those are two different jobs and applying
+-- the scale to both double-counts it.
+--
+-- Working it through: content at scale s, in a rect of R widget units, with stage S mapped onto
+-- R, lands at `x * s * (R/S)` widget units. For the documented contract to hold -- that
+-- x = CANVAS_W is the right-hand screen edge, where CANVAS_W = S/s -- that has to equal the 853
+-- widget units of a widescreen display:
+--
+--     (S/s) * s * (R/S) = R  =>  R = 853
+--
+-- The scale cancels out entirely, so the rect is just the stage size. An earlier version
+-- returned CANVAS_W/CANVAS_H here, which inflated the rect by 1/s as well: a 520-unit panel then
+-- covered 61% of the screen instead of the 520/1895 = 27% its coordinates imply, and everything
+-- looked "massive" at scale 100 and only sane around 10.
+--
+-- It also means the rect never needs rebuilding. rtEnsure runs once and Ess.Gfx has no resize, so
+-- a scale-dependent rect could never have tracked a live setScale() anyway -- CANVAS_W would move
+-- and the rect would not, leaving anchors computing against a canvas the widget no longer matched.
+--
+-- On 4:3 the widget space is only 640 wide, so the 16:9 stage is letterboxed into 640x360 rather
+-- than squeezed into 640x480. Same cancellation: x = CANVAS_W lands on 640, the real edge.
 function Ess.UI.widgetRect()
-    if Ess.UI.isWide() then return Ess.UI.CANVAS_W, Ess.UI.CANVAS_H end
-    return 640, math.floor(640 * Ess.UI.CANVAS_H / Ess.UI.CANVAS_W + 0.5)
+    if Ess.UI.isWide() then return Ess.UI.STAGE_W, Ess.UI.STAGE_H end
+    return 640, math.floor(640 * Ess.UI.STAGE_H / Ess.UI.STAGE_W + 0.5)
 end
 
 function Ess.UI.canvasW() return Ess.UI.CANVAS_W end
@@ -153,7 +177,8 @@ function Ess.UI.anchor(a)
     return x, y, w, h
 end
 
--- Toasts default to the RIGHT side (fixed 640x480 virtual canvas, Scaleform scales it to any resolution).
+-- Toasts default to the RIGHT side, positioned against the CANVAS (Ess.UI.CANVAS_W/H), which Scaleform
+-- scales to any resolution -- so use Ess.UI.anchor rather than hardcoding an x.
 Ess.UI.TOAST_W = Ess.UI.TOAST_W or 190
 Ess.UI.TOAST_H = Ess.UI.TOAST_H or 22
 -- GAP is the pitch between stacked slots; a title-less toast is ~30 units tall,
@@ -288,8 +313,9 @@ local function rtBecomeReady(why)
     Ess.Log("UI runtime ready (" .. tostring(why) .. ")")
 end
 
--- Builds the shared runtime widget on first use. Fullscreen, because widgets position
--- themselves inside the movie's own 640x480 canvas rather than via the widget rectangle.
+-- Builds the shared runtime widget on first use, at the stage size, because widgets position
+-- themselves inside the movie's own CANVAS (853x480 stage / SCALE) rather than via the rectangle.
+-- Runs ONCE -- see widgetRect() for why the rect deliberately does not depend on the scale.
 local function rtEnsure()
     if S.rt and S.rt.gfx then return S.rt end
     S.rt = { gfx = nil, ready = false, queue = {}, ids = {} }

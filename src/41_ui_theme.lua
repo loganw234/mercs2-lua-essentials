@@ -39,7 +39,9 @@ local DEFAULTS = {
     -- Not drawn by any chrome -- a shared palette for YOUR code to reference via
     -- Ess.UI.Theme.get("danger"), so a mod's own colours track the active theme.
     warn = 0xFFC448, danger = 0xE05252,
-    -- metrics (px, on the movie's 640x480 virtual canvas)
+    -- metrics, in CANVAS units -- Ess.UI.CANVAS_W x CANVAS_H, which is the movie's 853x480 stage
+    -- divided by Ess.UI.SCALE (1895x1066 at the default 45). NOT pixels, and not the 640x480 the
+    -- engine's own widget space uses.
     radius = 4, rowHeight = 18, titleHeight = 26, padding = 8,
     scrollbarWidth = 4, crumbHeight = 14, hintHeight = 14,
     -- type
@@ -71,7 +73,7 @@ local PRESETS = {
     slate = {
         accent = 0x4A5160, accentText = 0xE1E5EC,
         panelFill = 0x14161A, panelAlpha = 96, panelBorder = 0x39404D,
-        rowFill = 0x191C22, rowFillAlt = 0x1D212800,
+        rowFill = 0x191C22, rowFillAlt = 0x1D2128,
         rowSelected = 0x7A8394, rowSelectedText = 0xFFFFFF,
         textAccent = 0xAEB7C6, radius = 2,
     },
