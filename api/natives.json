@@ -210,10 +210,10 @@
  },
  "counts": {
   "engine": 41,
-  "game_script": 243,
+  "game_script": 236,
   "internal": 4,
   "engine_fns": 965,
-  "game_script_fns": 3225,
+  "game_script_fns": 3193,
   "internal_fns": 122
  },
  "namespaces": {
@@ -824,8 +824,14 @@
     "UpdateObjective"
    ],
    "called_by_ess": [
+    "AddLineRegion",
     "AddObjective",
-    "RemoveObjective"
+    "AnimateObjectiveAlpha",
+    "AnimateObjectiveSize",
+    "AnimateObjectiveSonar",
+    "RemoveLineRegion",
+    "RemoveObjective",
+    "UnanimateObjective"
    ],
    "source": "resident/mrxguiinterface.lua"
   },
@@ -1751,7 +1757,8 @@
     "_SetSupportMenuMode"
    ],
    "called_by_ess": [
-    "AddWidget"
+    "AddWidget",
+    "GetWidgetByName"
    ],
    "source": "resident/mrxguibase.lua"
   },
@@ -1834,13 +1841,12 @@
   },
   "MrxGuiHudMessage": {
    "kind": "game_script",
-   "count": 60,
+   "count": 59,
    "functions": [
     "AddFanfareLineItem",
     "AnimationFinishCallback",
     "CardFanfareCommence",
     "CardFanfareSetParameters",
-    "Clamp",
     "CommenceFanfare",
     "ContactFanfareCommence",
     "CreateFanfare",
@@ -3529,6 +3535,7 @@
     "GetParent",
     "GetPhysicsType",
     "GetPosition",
+    "GetVelocity",
     "GetVelocitySquared",
     "GetVelocityVector",
     "GetYaw",
@@ -3954,6 +3961,7 @@
     "GetAnyCharacter",
     "GetCamera",
     "GetCash",
+    "GetControlledObject",
     "GetCurrentPlayers",
     "GetFuel",
     "GetFuelCapacity",
@@ -4492,40 +4500,6 @@
    ],
    "called_by_ess": []
   },
-  "_MODULES.airstrike_atomsphere_daisycutter": {
-   "kind": "game_script",
-   "count": 2,
-   "functions": [
-    "OnActivate",
-    "_GraphicsAto"
-   ],
-   "called_by_ess": [],
-   "source": "resident/airstrike_atomsphere_daisycutter.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.airstrike_atomsphere_daisycutter, or import() it first"
-  },
-  "_MODULES.alarm": {
-   "kind": "game_script",
-   "count": 14,
-   "functions": [
-    "AlarmActivated",
-    "AlarmDeactivated",
-    "CheckAlarm",
-    "MuteAlarm",
-    "NetEventCallback",
-    "NetSafeAlarmActivated",
-    "NetSafeAlarmDeactivated",
-    "OnActivate",
-    "OnDeactivate",
-    "OnDeath",
-    "OnUse",
-    "SendPlayerJoinEventsAlarm",
-    "SetupActivationEvents",
-    "SetupDeactivationEvents"
-   ],
-   "called_by_ess": [],
-   "source": "resident/alarm.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.alarm, or import() it first"
-  },
   "_MODULES.antiair": {
    "kind": "game_script",
    "count": 18,
@@ -4552,29 +4526,6 @@
    "called_by_ess": [],
    "source": "resident/antiair.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.antiair, or import() it first"
-  },
-  "_MODULES.autogunship": {
-   "kind": "game_script",
-   "count": 4,
-   "functions": [
-    "LaunchMissile",
-    "OnActivate",
-    "Salvo",
-    "Start"
-   ],
-   "called_by_ess": [],
-   "source": "resident/autogunship.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.autogunship, or import() it first"
-  },
-  "_MODULES.barbell": {
-   "kind": "game_script",
-   "count": 1,
-   "functions": [
-    "UnUse"
-   ],
-   "called_by_ess": [],
-   "source": "resident/barbell.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.barbell, or import() it first"
   },
   "_MODULES.bench": {
    "kind": "game_script",
@@ -4663,19 +4614,6 @@
    "source": "resident/enemyblippable.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.enemyblippable, or import() it first"
   },
-  "_MODULES.fountain": {
-   "kind": "game_script",
-   "count": 4,
-   "functions": [
-    "QueryActiveUse",
-    "QueryRepair",
-    "SuperUse",
-    "Use"
-   ],
-   "called_by_ess": [],
-   "source": "resident/fountain.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.fountain, or import() it first"
-  },
   "_MODULES.friendlygate": {
    "kind": "game_script",
    "count": 15,
@@ -4759,19 +4697,6 @@
    "called_by_ess": [],
    "source": "resident/hero.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.hero, or import() it first"
-  },
-  "_MODULES.hijack_ah1z": {
-   "kind": "game_script",
-   "count": 5,
-   "functions": [
-    "Deinit",
-    "Init",
-    "Initialize",
-    "OnFailureEvents",
-    "StartHijack"
-   ],
-   "called_by_ess": [],
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.hijack_ah1z, or import() it first"
   },
   "_MODULES.homingmissile": {
    "kind": "game_script",
@@ -6982,16 +6907,6 @@
    "called_by_ess": [],
    "source": "resident/supportairplane.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.supportairplane, or import() it first"
-  },
-  "_MODULES.telephone": {
-   "kind": "game_script",
-   "count": 1,
-   "functions": [
-    "Use"
-   ],
-   "called_by_ess": [],
-   "source": "resident/telephone.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.telephone, or import() it first"
   },
   "_MODULES.treetrunk": {
    "kind": "game_script",

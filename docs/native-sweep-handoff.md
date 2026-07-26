@@ -140,7 +140,7 @@ math case hid because `Math == math` is one table under two names. Engine surfac
 | Sys | 10/64 | 20/64 (new `Ess.Sys`, `src/05_sys.lua`) |
 | Pg | 32/80 | 35/80 |
 | Atmosphere | 6/37 | new `Ess.Atmosphere`, `src/06_atmosphere.lua` |
-| Hud + Pda | 8/106 | 28/106 (`src/57_hud.lua` extended, new `src/58_pda.lua`) |
+| Hud + Pda | 8/106 | 34/106 (`src/57_hud.lua` extended, new `src/58_pda.lua`, new `src/57_minimap.lua`) |
 
 **New modules:** `05_sys.lua` (environment/build/settings), `06_atmosphere.lua` (transaction model + key
 vocabulary + region system).
@@ -219,6 +219,36 @@ vocabulary + region system).
 - PDA log `sType` "objective" / "event" / "dialog" all route and display. `sColor` is bare hex, no `#`.
 - Re-adding a dossier entry with the same `sTitle` **edits** it rather than duplicating.
 
+### The three marker layers (Ess.Mark) — alignment and colour
+
+- **The three surfaces do not share an icon namespace.** The same objective is `HUD_objective_destroy` in
+  the world, `objective_destroy` on the radar and `icon_destroy_1_mc` on the PDA, each validated against a
+  different fixed table in `mrxutil.lua` by a different lookup function. Nothing in the engine relates them.
+  `Ess.Mark.KINDS` now records the correspondence for **action / destroy / defend / verify / deliverable /
+  outpost / generic** plus `faction_*`, every name verified present in all three tables.
+- **Colour is available on two of the three.** `rgb` tints the radar dot and the world icon/ring, verified
+  with three otherwise-identical markers rendering red/green/blue. **`Pda.Map.AddMapBlip` has no colour
+  argument at all** — thirteen parameters, none of them rgb — so the PDA layer can only be coloured by
+  choosing a different texture. This is a hard engine limit, not a gap in the wrapper.
+
+### The minimap widget (`Ess.Minimap`) — reachable, and the range fights back
+
+- `Hud.Radar` can only add/remove/animate objectives. The **widget** underneath carries `SetRange`,
+  `SetRotation`, `SetBorder` and `SetVisible`, none reachable through any `Hud.*` function. Get it with
+  `MrxGuiBase.GetWidgetByName("Minimap")` — the game does the same thing at `mrxguiinterface.lua:511`.
+- **The range is recomputed from player speed on every minimap update** (`MinimapDataUpdateHandler`,
+  `mrxguibase.lua:1532`: 150 below speed 10, 400 above 50, linear between). A bare `SetRange` applies and
+  visibly holds until the next update — measured: range 1500 held while standing still, snapped back on
+  turning.
+- **Two traps in overriding it**, both hit and both fixed: `_G.MinimapDataUpdateHandler` is **nil** because
+  `import()` namespaces resident globals (it is `MrxGuiBase.MinimapDataUpdateHandler`), and patching that
+  module entry would not work anyway because **the widget captures the handler by value at construction**
+  (`mrxguibase.lua:1445`). The override has to go on the widget via its own `SetEventHandler`, which is also
+  narrower and properly reversible. Confirmed holding through turning and driving.
+- The widget is **rebuilt on level load**, taking any override with it. Re-apply after a load.
+- Other handlers on the widget, all untouched so far: `SetGPSDest`, `ClearGPSDest`, `SetTargetMarker`,
+  `HomingLockStart/Update/Clear`, `HomingLaunched`. The GPS routing layer is the obvious next thing here.
+
 ---
 
 ## 6. What is next
@@ -231,9 +261,9 @@ Blocked on verification: there is no audio channel to the agent, so a human must
 
 ### Hud/Pda leftovers, in rough value order
 
-- **`Hud.Radar`** 7 uncovered — `AnimateObjectiveSize/Alpha/Sonar`, `UnanimateObjective`, `AddLineRegion`,
-  `RemoveLineRegion`, `UpdateObjective`. The sonar pulse has a full 14-field call site in
-  `mrxfactionmanager.lua` worth copying. These extend `Ess.Mark` naturally.
+- **`Hud.Radar` is done** (8/9). Only `UpdateObjective` is unwrapped, and deliberately: it calls the exact
+  same `oWidget:AddObjective` as `AddObjective` with the same arguments, so re-adding under an existing
+  name already is the update. Not worth a second name.
 - **`Pda.Map`** 11 uncovered — the mission system (`AddMission`, `SetSelectedMission`,
   `SetMissionTrackCallback`, `SetMissionTrackable`). This is how a mod registers as a real trackable
   mission rather than a loose blip, and `Ess.Contract` is the obvious consumer.
