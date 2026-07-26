@@ -73,6 +73,7 @@ MANIFEST = [
     "55_ui_board.lua",
     "56_sound.lua",
     "57_hud.lua",
+    "58_pda.lua",
     "58_support.lua",
     "59_objective.lua",
     "90_override.lua",

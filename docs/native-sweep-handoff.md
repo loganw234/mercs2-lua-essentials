@@ -13,14 +13,25 @@ Last updated 2026-07-26.
 
 Ess wraps Mercenaries 2's engine natives. `api/natives.json` is a live `pairs(_G)` walk of the running game
 and is the inventory of what exists; `called_by_ess` on each namespace is the coverage flag, so the gap
-between them is the worklist. The engine has **1108 native functions across 79 namespaces**, and Ess reaches
-a small fraction.
+between them is the worklist. The engine has **965 native functions**, plus a much larger script-backed
+surface, and Ess reaches a fraction of both.
 
-**No source exists for engine natives.** Evidence comes from four places, in descending order of authority:
+**No source exists for engine natives — but check that a namespace IS one before assuming.** The single
+biggest correction this project has made was discovering that `Hud.*` and `Pda.*`, 106 functions catalogued
+as opaque natives, are ordinary resident Lua with readable source. `natives.json`'s `kind` field is now
+trustworthy on this point (see §2), but the instinct to check first is worth keeping.
+
+Evidence comes from four places, in descending order of authority:
 
 1. **Live probing** through the lua-bridge REPL — the only ground truth for behaviour.
-2. **The decompiled corpus** — `~/Desktop/Mercs2_Decompiled_Lua`, 834 `.lua` files. Shows real call sites,
-   so arity and argument vocabulary. It only covers what shipped scripts happen to call.
+2. **The decompiled corpus** — `~/Desktop/Mercs2_Decompiled_Lua`. Shows real call sites, so arity and
+   argument vocabulary. It only covers what shipped scripts happen to call.
+
+   **Use `docs/mercs2-luacd/src` (370 files), not the repo root.** The repo contains the same 370 scripts
+   TWICE — once at `./src/{resident,shell,vz}` and once at `./docs/mercs2-luacd/src/{...}` — so an `rglob`
+   from the root double-counts every call site. Any call-site figure in this document from before
+   2026-07-26 is doubled: `Hud.ObjectiveTray` is 98 sites and not 196, `Hud.Radar` 41 and not 82. The tell
+   is that every count comes out even.
 3. **The notes repo** — `../notes-on-the-released-game`. Its `docs/lua_engine_bindings_audit_deep_dive.md`
    is the *verified* EXE binding audit (31 namespaces, 1081 bindings, **61 no-op stubs**). Its
    `output/extracted/` holds LEVEL data, which contains things the script corpus does not — this is how the
@@ -33,9 +44,13 @@ a small fraction.
 ## 2. Operational knowledge — the expensive-to-rediscover part
 
 ### Verifying what is loaded
-- **`Ess.VERSION` is NOT sufficient.** It did not change across three commits' worth of new functions. A
-  relaunched game reported `v0.4.2` while missing everything added that session. **Check function presence
-  instead**: `type(Ess.Object.physicsType)`, etc.
+- **`Ess.VERSION` is NOT sufficient.** It sat at `0.4.2` across two sessions' worth of new functions before
+  being bumped to `0.5.0`. **Check function presence instead**: `type(Ess.Pda.blip)`, etc. Bump the version
+  when you add a module so the next person has a coarse signal at all.
+- **Hot-reload without a relaunch**: `Loader.LoadFile("OnLoad/1_Ess.lua")` after `launch.py --deploy`. The
+  path is relative to `<game>/scripts/`, so the prefix is `OnLoad/…` and **not** `scripts/OnLoad/…` — the
+  wrong path returns cleanly and loads nothing, which looks exactly like a load that did not take. It
+  cannot REMOVE a function (see below), but it is otherwise the fast loop.
 - A relaunch loads whatever is **deployed** at `<game>/scripts/OnLoad/1_Ess.lua`, which is frequently stale.
   `python tools/launch.py --status` reports `SIZE MISMATCH -- redeploy`. Run `--build --deploy` before
   trusting anything after a relaunch.
@@ -59,6 +74,19 @@ a small fraction.
   prints stack residue as "results". The threshold is ~200-240 results and it is INTERMITTENT with live
   traffic. **Accepted as a known limitation** — use smaller queries from the REPL. Scripts running inside
   the game get a normal engine frame and are unaffected.
+
+### The UI cluster is script, and it is method-called
+- **`Hud.*` and `Pda.*` are NOT engine natives.** `resident/mrxguiinterface.lua` opens with
+  `_G.Hud = HudInterface` / `_G.Pda = PdaInterface`, and all 106 functions are thin wrappers that resolve a
+  Scaleform widget by name (`_GetWidgetsForPlayers(vPlayer, "Objective Tray")`) and forward to it. The
+  widget classes are script too — `mrxguimanager.lua`, `mrxguitextbuffer.lua`, `mrxguipda.lua`,
+  `mrxguihudmessage.lua`. **Read these rather than probing.** Every non-obvious fact in `57_hud.lua` and
+  `58_pda.lua` came from the source in minutes; probing would have taken a session and missed most of it.
+- **They are COLON calls taking one named-field table**: `Hud.MessageBox:AddMessage{sMessage=...}`. The
+  wrappers use `self` (MessageBox reads `self.sName` to choose its widget; `Hud.SubtitleBuffer` is literally
+  the same functions bound to a table with a different `sName`). A dot-call hits the wrong widget.
+- Every wrapper accepts `vPlayer` (nil = all players, which is what singleplayer wants) and `bDontNetSync`.
+  `Net.IsServer()` is **true** in singleplayer, so the co-op broadcast branches do execute.
 
 ### Engine quirks that will bite
 - **String escapes are OCTAL, not decimal.** `"\101"` is `"A"` (65), not 101. Base-8 accumulator with no
@@ -112,6 +140,7 @@ math case hid because `Math == math` is one table under two names. Engine surfac
 | Sys | 10/64 | 20/64 (new `Ess.Sys`, `src/05_sys.lua`) |
 | Pg | 32/80 | 35/80 |
 | Atmosphere | 6/37 | new `Ess.Atmosphere`, `src/06_atmosphere.lua` |
+| Hud + Pda | 8/106 | 28/106 (`src/57_hud.lua` extended, new `src/58_pda.lua`) |
 
 **New modules:** `05_sys.lua` (environment/build/settings), `06_atmosphere.lua` (transaction model + key
 vocabulary + region system).
@@ -135,6 +164,16 @@ vocabulary + region system).
 - **The hijack state machine is skipped** — 11 natives driving one sequence with invariants. Deserves its
   own focused pass, not a tail-end batch.
 - **`ChangeLineRegionSetting` not wrapped** — see §5.
+- **`Pda.Database.AddHelpEntry` not wrapped — it is a write-only dead end.** The widget stores it exactly
+  like a dossier entry into `oPda.CustomData.tDataHelp`, and that table is initialised in one place,
+  appended to in one place, and **read in none**. `tDataDossiers` is read at `mrxguipda.lua:1388` and
+  rendered, which is why dossiers appear and help entries do not. Confirmed live: nowhere in the PDA.
+- **`Hud.FactionDisplay.RemoveMeter` / `.RemoveAllMeters` have EMPTY BODIES** in the shipped script.
+  Callable, return nil, do nothing. Not wrapped.
+- **`Hud.Tutorial.ShowTutorialOnscreen` / `.ShowTutorialForObject` not wrapped** — broken for any explicit
+  `vPlayer`: a userdata player builds an empty target list (silent no-op) and a table player reads an
+  undeclared global and errors inside `pairs(nil)`. Only the omitted-`vPlayer` path works, and nothing in
+  the corpus ever called either.
 
 ---
 
@@ -158,22 +197,56 @@ vocabulary + region system).
 
 ---
 
+## 5a. The Hud/Pda findings (2026-07-26, all live-confirmed on screen)
+
+- **PDA map coordinates are world X and world Z** (`nY` is Z — the render path adds `nZOffset` to it).
+  Height is not representable. **The X axis is MIRRORED**: measured with a four-blip cross, `nY+400` drew
+  above the player, `nX+400` drew LEFT and `nX-400` drew RIGHT. The flip is inside the Flash movie.
+- **A blip with no `sTexture` is INVISIBLE** — placed and hoverable, but nothing is drawn until the cursor
+  is over it. **A blip with no `sLabel` displays its TEXTURE NAME** (the render path builds a positional
+  array whose label slot goes nil, and the movie shows the texture instead). This is why `Ess.Mark`'s blips
+  read "icon_yellow_mc". `Ess.Pda.blip` now defaults both.
+- **Icon names are CLOSED SETS**, enumerated in `mrxutil.lua` and now exposed as `Ess.Pda.ICONS` (32) and
+  `Ess.Hud.RADAR_ICONS` (23). `MarkerGetIndexByName_*` linear-searches them and returns 0 for anything else.
+- **`Hud.MessageBox` `nDuration < 0` means PERMANENT** (the widget converts it to duration 10000 +
+  `bPersistent`). Confirmed still on screen many minutes later. Priority is 0–5, out-of-range clamps to 5.
+- **`ModifyPendingMessage` means "pending" literally** — it searches the queue, so a message already on
+  screen cannot be found and you get a bare `false`. Adding to an empty box displays immediately, so the
+  very next modify fails. Not a bug.
+- **`Hud.Tutorial:SetText` is STICKY** — no duration, stays until cleared with `sText = nil`.
+- **`Hud.ClassyText` is the nicest text primitive in the game** (animated `text_effect.swf`). 640×480
+  virtual space; `nX` is overwritten by the game so it is always horizontally centred.
+- PDA log `sType` "objective" / "event" / "dialog" all route and display. `sColor` is bare hex, no `#`.
+- Re-adding a dossier entry with the same `sTitle` **edits** it rather than duplicating.
+
+---
+
 ## 6. What is next
 
-### Immediate: `Hud.*` and `Pda.*` (visual), then `Sound` (audio)
+### `Sound` (audio) — the remaining cluster
 
-**`Hud.*`** — ~50 functions across ~20 small namespaces, all currently 0 covered: `Hud.Radar` (8 uncovered,
-82 call sites), `Hud.Shop` (6), `Hud.FactionDisplay` (6), `Hud.ResourceCounter` (5), `Hud.ObjectiveTray` (3
-but 196 call sites), `Hud.MessageBox`, `Hud.Fanfare`, `Hud.SupportMenu`, `Hud.SubtitleBuffer`, plus a dozen
-single-function fanfare namespaces. **Genuinely new capability** — Ess's existing UI layer (40-49_ui_*.lua)
-is custom Scaleform Flash, not the game's native HUD.
+**`Sound`** — 88 total, 5 covered, 49 uncovered with evidence, ~325 call sites (halved; see §1). **9 known
+stubs**, and unlike Hud/Pda this one really is engine-native, so it must be probed rather than read.
+Blocked on verification: there is no audio channel to the agent, so a human must confirm anything plays.
 
-**`Pda.*`** — `Pda.Map` (14 uncovered, 12 with evidence), `Pda.Database` (6), `Pda.Support` (6).
+### Hud/Pda leftovers, in rough value order
 
-**`Sound`** — 88 total, 5 covered, 49 uncovered with evidence, 649 call sites. **9 known stubs.** Blocked on
-verification: there is no audio channel to the agent, so a human must confirm anything actually plays.
+- **`Hud.Radar`** 7 uncovered — `AnimateObjectiveSize/Alpha/Sonar`, `UnanimateObjective`, `AddLineRegion`,
+  `RemoveLineRegion`, `UpdateObjective`. The sonar pulse has a full 14-field call site in
+  `mrxfactionmanager.lua` worth copying. These extend `Ess.Mark` naturally.
+- **`Pda.Map`** 11 uncovered — the mission system (`AddMission`, `SetSelectedMission`,
+  `SetMissionTrackCallback`, `SetMissionTrackable`). This is how a mod registers as a real trackable
+  mission rather than a loose blip, and `Ess.Contract` is the obvious consumer.
+- **`Hud.Shop`** 7, all uncovered — `Create`/`AddItemFull`/`SetCallback`/`Commence`. A working native
+  purchase UI with callbacks; the biggest single unexplored piece here.
+- **`Hud.FactionDisplay`** — `StartTimer` is an on-screen countdown with a callback; `AddMeter`/`SetValue`
+  drive arbitrary labelled meters. (`RemoveMeter`/`RemoveAllMeters` are dead — see §4.)
+- The fanfare family (`Fanfare`, `SupportFanfare`, `ContactFanfare`, `CardFanfare`, `JobFanfare`,
+  `TextFanfare`, `FanfareQueue`) — `Ess.Contract` already drives `EventFanfare`; the others are the same
+  shape.
+- `Hud.Cinematic` (letterbox/play/pause) pairs with `Ess.Cinematic`.
 
-Both clusters need a human watching/listening. That is the constraint, not the code.
+Both remaining areas need a human watching/listening. That is the constraint, not the code.
 
 ### Also outstanding
 - **`mercs2-lua-essentials/tools/test_bridge_client.js`** contains a deliberate line-for-line port of the

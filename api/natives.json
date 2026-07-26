@@ -213,7 +213,7 @@
   "game_script": 243,
   "internal": 4,
   "engine_fns": 965,
-  "game_script_fns": 3224,
+  "game_script_fns": 3225,
   "internal_fns": 122
  },
  "namespaces": {
@@ -689,7 +689,9 @@
    "functions": [
     "ShowText"
    ],
-   "called_by_ess": [],
+   "called_by_ess": [
+    "ShowText"
+   ],
    "source": "resident/mrxguiinterface.lua"
   },
   "Hud.ContactFanfare": {
@@ -769,7 +771,9 @@
    "functions": [
     "Show"
    ],
-   "called_by_ess": [],
+   "called_by_ess": [
+    "Show"
+   ],
    "source": "resident/mrxguiinterface.lua"
   },
   "Hud.MessageBox": {
@@ -781,7 +785,12 @@
     "ModifyPendingMessage",
     "RemovePendingMessage"
    ],
-   "called_by_ess": [],
+   "called_by_ess": [
+    "AddMessage",
+    "Clear",
+    "ModifyPendingMessage",
+    "RemovePendingMessage"
+   ],
    "source": "resident/mrxguiinterface.lua"
   },
   "Hud.ObjectiveTray": {
@@ -795,6 +804,7 @@
    ],
    "called_by_ess": [
     "ClearSlot",
+    "SetSlotToImage",
     "SetSlotToText"
    ],
    "source": "resident/mrxguiinterface.lua"
@@ -829,7 +839,13 @@
     "SetSuppressed",
     "Show"
    ],
-   "called_by_ess": [],
+   "called_by_ess": [
+    "Hide",
+    "SetCash",
+    "SetFuel",
+    "SetSuppressed",
+    "Show"
+   ],
    "source": "resident/mrxguiinterface.lua"
   },
   "Hud.Satellite": {
@@ -909,7 +925,9 @@
     "ShowTutorialForObject",
     "ShowTutorialOnscreen"
    ],
-   "called_by_ess": [],
+   "called_by_ess": [
+    "SetText"
+   ],
    "source": "resident/mrxguiinterface.lua"
   },
   "Human": {
@@ -1816,12 +1834,13 @@
   },
   "MrxGuiHudMessage": {
    "kind": "game_script",
-   "count": 59,
+   "count": 60,
    "functions": [
     "AddFanfareLineItem",
     "AnimationFinishCallback",
     "CardFanfareCommence",
     "CardFanfareSetParameters",
+    "Clamp",
     "CommenceFanfare",
     "ContactFanfareCommence",
     "CreateFanfare",
@@ -3618,7 +3637,9 @@
    "functions": [
     "SetSuppressed"
    ],
-   "called_by_ess": [],
+   "called_by_ess": [
+    "SetSuppressed"
+   ],
    "source": "resident/mrxguiinterface.lua"
   },
   "Pda.Database": {
@@ -3632,7 +3653,13 @@
     "AddStatisticEntry",
     "SetFactionAttitude"
    ],
-   "called_by_ess": [],
+   "called_by_ess": [
+    "AddDossierEntry",
+    "AddLogEntry",
+    "AddStatisticCategory",
+    "AddStatisticEntry",
+    "SetFactionAttitude"
+   ],
    "source": "resident/mrxguiinterface.lua"
   },
   "Pda.Map": {
@@ -3656,6 +3683,7 @@
    ],
    "called_by_ess": [
     "AddBlip",
+    "GetSelectedMission",
     "RemoveBlip"
    ],
    "source": "resident/mrxguiinterface.lua"
