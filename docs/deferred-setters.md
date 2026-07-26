@@ -126,6 +126,100 @@ not `false`). Get a cargo helicopter first, then this whole cluster can be done 
 
 ---
 
+## 3b. Vehicle — the hijack state machine, and the rest
+
+`Vehicle` is 17/40 wrapped after the seat-inspection pass. Its mutators split into one coherent subsystem
+and a handful of odds and ends.
+
+### The hijack state machine — do these as ONE unit, not piecemeal
+Eleven natives that clearly drive a single sequence. Wrapping them individually would expose a state machine
+without its invariants, which is worse than not wrapping it. Needs a hijackable vehicle plus an NPC to
+hijack it — `seatInfo(seat).IsHijackable` is now the way to find a valid target.
+
+| Native | Sites | Sample |
+|---|--:|---|
+| `Vehicle.HijackStart` | 2 | `Vehicle.HijackStart(self._hijacker, self._hijackee, self._vehicle, self)` — 4 args, last is a **handler table** |
+| `Vehicle.HijackComplete` | 2 | `Vehicle.HijackComplete(self._hijacker)` |
+| `Vehicle.HijackAbort` | 2 | `Vehicle.HijackAbort(self._hijacker)` |
+| `Vehicle.HijackAbortDone` | 4 | `Vehicle.HijackAbortDone(self._hijacker)` |
+| `Vehicle.CancelHijack` | 3 | `Vehicle.CancelHijack(L4_2)` |
+| `Vehicle.SetHijackState` | 2 | `Vehicle.SetHijackState(self._hijacker, i)` — integer state |
+| `Vehicle.SetHijackSuccess` | 2 | `Vehicle.SetHijackSuccess(self._hijacker, false)` |
+| `Vehicle.IsHijackRemote` | 2 | guarded in the corpus as `Vehicle.IsHijackRemote and Vehicle.IsHijackRemote(...)` — the shipped script **defends against it not existing** |
+| `Vehicle.IsHijackBad` | 0 | — |
+| `Vehicle.StartTankHijackMotion` | 0 | — |
+| `Vehicle.StopTankHijackMotion` | 4 | `Vehicle.StopTankHijackMotion(self._vehicle)` |
+
+The `IsHijackRemote and IsHijackRemote(...)` guard is worth heeding: a shipped game script does not trust
+that binding to be present, which hints at a build/version difference. Probe for existence before use.
+
+### Everything else
+| Native | Sites | Sample | Notes |
+|---|--:|---|---|
+| `Vehicle.SetParts` | 54 | `Vehicle.SetParts(uGuid, "LightFront", false)` | most-used uncovered native in the namespace; returns a value (`bLightStart = ...`) |
+| `Vehicle.Enter` | 36 | `Vehicle.Enter(uVeh, uStarter)` | `Ess.Vehicle.enterBestSeat` already covers the common path |
+| `Vehicle.CloseDoor` / `OpenDoor` | 6 / 4 | `Vehicle.OpenDoor(guid, "DriverHatch")` | door name is a **string** |
+| `Vehicle.SetCanPlayerUse` | 4 | `Vehicle.SetCanPlayerUse(uHeli, "d", true)` | seat-type string |
+| `Vehicle.EnableTurret` | 12 | `Vehicle.EnableTurret(self._hijackee, "head", false, "all", false)` | 5 args |
+| `Vehicle.SetTurretPitch` | 2 | `Vehicle.SetTurretPitch(self._vehicle, "main_turret", 0)` | |
+| `Vehicle.SetTurretYaw` | 0 | — | pairs with the above |
+| `Vehicle.TransferToSeat` | 3 | `Vehicle.TransferToSeat(A0_2, L5_2, false)` | `Ess.Vehicle.seatTransfers` finds valid targets |
+| `Vehicle.ClearControls` | 2 | `Vehicle.ClearControls(self._vehicle)` | |
+| `Vehicle.SpinHeli` | 0 | — | |
+
+### Unresolved getter
+`Vehicle.GetFromSeat` (0 call sites) returned **nil** for both a seat guid and a vehicle guid, so its
+argument type is still unknown — deliberately left unwrapped rather than guessed. `GetRiderFromSeat` covers
+the obvious reading and is wrapped as `Ess.Vehicle.riderInSeat`.
+
+---
+
+## 3c. Human and Sys
+
+### Human — 8/21 wrapped
+Three queries wrapped this pass (`carrying`, `grappling`, `swimming`). The rest are mutators, and one of
+them is the most-used uncovered native across every namespace surveyed so far.
+
+| Native | Sites | Sample | Notes |
+|---|--:|---|---|
+| `Human.SetState` | **45** | `Human.SetState(L6_2, "Upright", "Idle")` | two **string** state args — a stance/action pair. Highest-value single native left anywhere; deserves a proper enum-ish wrapper rather than a passthrough |
+| `Human.ForceExitSeatNoSnap` | 18 | `Human.ForceExitSeatNoSnap(Player.GetCharacter(...))` | "no snap" = skip the exit animation/teleport |
+| `Human.SetFireLock` | 8 | `Human.SetFireLock(uChar1, false)` | |
+| `Human.SetPreemptiveRagdoll` | 8 | `Human.SetPreemptiveRagdoll(self._hijackee)` | |
+| `Human.SetAllowCorpseCleanup` | 6 | `Human.SetAllowCorpseCleanup(uGuid, false)` | **returns a value** (corpus logs the result) |
+| `Human.StopGrappling` | 5 | `Human.StopGrappling(L6_2)` | pairs with the wrapped `.grappling()` |
+| `Human.SetJostleEnabled` | 3 | `Human.SetJostleEnabled(L7_2, A0_2)` | |
+| `Human.Drop` | 8 | `Human.Drop(L7_2)` | pairs with the wrapped `.carrying()` |
+| `Human.PersistTransform` | 8 | `Human.PersistTransform(L7_2)` | |
+| `Human.Scrub` | 3 | `Human.Scrub(L7_2)` | |
+| `Human.Emote` / `EquipWeapon` / `StowWeapon` | 0 | — | all three **exist** live (type == "function"), just unused by shipped scripts |
+
+Note `Human.EquipWeapon`/`StowWeapon` are distinct from the already-wrapped
+`Human.Inventory.EquipWeapon` that `Ess.Human.equipWeapon` uses — same names, different tables.
+
+### Sys — 20/64 wrapped
+The environment/settings half is now `Ess.Sys` (05_sys.lua); timing and autosave were already covered by
+`Ess.Time` / `Ess.Save`. What's left are mostly **game-state machine drivers** — dangerous, not just
+persistent-state-changing.
+
+| Native | Sites | Sample | Notes |
+|---|--:|---|---|
+| `Sys.RequestGameState` | **86** | `Sys.RequestGameState("unloading")` | most-called uncovered native in the survey. Drives the engine's own state machine — mis-sequencing it could hard-lock or unload the level. Needs its valid state strings enumerated from the corpus BEFORE anything is wrapped |
+| `Sys.StartSingleplayer` | 4 | `Sys.StartSingleplayer(sLevelName, sMasterScript)` | starts a level — will tear down the current session |
+| `Sys.SetLevelName` / `SetMasterScriptName` | 2 / 2 | | paired with the above |
+| `Sys.SetSkipMission` | 17 | `Sys.SetSkipMission("")` | |
+| `Sys.AddStringDb` / `ClearStringDb` | 3 / 1 | `Sys.AddStringDb("patch01")` | localisation DB loading — relevant to DLC/patch work |
+| `Sys.SetAssetRequestMax` | 4 | `Sys.SetAssetRequestMax(_knOrigAssetRequestMax)` | corpus saves the old value first and restores it — copy that idiom |
+| `Sys.SetNumberOfViewports` | 4 | `Sys.SetNumberOfViewports(1)` | splitscreen |
+| `Sys.SetLuaSaveVersion` | 4 | | save-format versioning |
+| `Sys.SetTutorialsEnabled` / `SetINIBriefing` | 2 / 3 | | the write side of two `Ess.Sys.settings()` reads |
+| `Sys.PlayIntroMovies` / `StartWithResources` | 4 / 2 | | both read as predicates despite the verb-ish names — check before assuming they mutate |
+
+`Sys.RequestGameState` is the one to be careful with: 86 call sites means it is central, and that also means
+a wrong state string is likely to do something drastic rather than nothing.
+
+---
+
 ## 4. Dark — no call sites anywhere, arity unknown
 
 Only reachable by live probing. `Player` and `Object` both have **zero** no-op stubs per the verified EXE

@@ -10,6 +10,12 @@
 --   Ess.Vehicle.evictAll(uVeh) -> ok                                  force EVERY occupant out (Ai.EveryoneOut)
 --   Ess.Vehicle.repair(uVeh) -> ok                                    full heal + rearm (RestoreHealth/RestoreAmmo)
 --   Ess.Vehicle.isFlipped(uVeh) -> bool
+--   -- seat inspection (the read side)
+--   Ess.Vehicle.seatInfo(uSeat) -> tParams | nil    IsDriver/IsGunner/IsHijackable/IsRiderVulnerable/...
+--   Ess.Vehicle.seatBlocked(uSeat) -> bool          Ess.Vehicle.seatIsLadder(uSeat) -> bool
+--   Ess.Vehicle.riderInSeat(uSeat) -> uCharGuid | nil   per-seat counterpart to .riders()
+--   Ess.Vehicle.seatTransfers(uSeat, bAll) -> { ... }   seats reachable without getting out
+--   Ess.Vehicle.isFlying(uVeh) -> bool               normalises a native nil (see note at the impl)
 --   Ess.Vehicle.land(uHeliOrPilot) -> ok                              command an AI heli to descend (Ai.HeliLand)
 --   Ess.Vehicle.flyTo(uHeli, x, y, z, opts) -> cancel()               send an AI heli to a point (driver-wait
 --                                        + Ai.Deliver); opts.onReady(driver) fires when the order is issued
@@ -251,4 +257,75 @@ function Ess.Easy.Vehicle.summon(sTemplate, opts)
     if not v then return nil end
     Ess.Vehicle.enterBestSeat(Ess.Player.character(0), v)
     return v
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- Seat INSPECTION. All live-probed 2026-07-26 against a real world car (Ess.Probe.nearby(..., "vehicle")).
+--
+-- The gap: this file could FIND a seat (Vehicle.GetSeatByType, via enterBestSeat/enterSeatExcluding) but had
+-- no way to ask anything ABOUT one, so "can this seat be hijacked", "is the rider exposed", "is it blocked"
+-- all meant dropping to raw natives.
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- Ess.Vehicle.seatInfo(uSeat) -> tParams | nil -- everything the engine knows about a seat. Live-confirmed
+-- keys on a car's driver seat:
+--   IsDriver, IsGunner, IsCargo            what the seat is for
+--   IsHijackable, IsHijackBlocker          whether the hijack system can target it
+--   IsRiderVulnerable, IsRiderBashable,    how exposed whoever sits there is
+--     IsRiderInvisible
+--   IsStowable, StowSeatGuid               stow-away seat pairing (guid, not a name)
+-- Returns the engine's own table as-is rather than re-keying it -- the names are already descriptive and
+-- copying them would just create a second thing to keep in sync. Always check for nil: a non-seat guid
+-- gives nil rather than an empty table.
+function Ess.Vehicle.seatInfo(uSeat)
+    if not uSeat then return nil end
+    local ok, t = Ess.Safe.quiet(Vehicle.GetSeatParams, uSeat)
+    if ok and type(t) == "table" then return t end
+    return nil
+end
+
+-- Ess.Vehicle.seatBlocked(uSeat) -> bool -- is the seat currently unusable (obstructed / occupied)?
+function Ess.Vehicle.seatBlocked(uSeat)
+    if not uSeat then return false end
+    local ok, b = Ess.Safe.quiet(Vehicle.IsSeatBlocked, uSeat)
+    return (ok and b) and true or false
+end
+
+-- Ess.Vehicle.seatIsLadder(uSeat) -> bool -- ladder "seats" are traversal points, not places to ride; they
+-- come back from the same seat queries as real seats, so anything iterating seats wants to skip them.
+function Ess.Vehicle.seatIsLadder(uSeat)
+    if not uSeat then return false end
+    local ok, b = Ess.Safe.quiet(Vehicle.IsSeatALadder, uSeat)
+    return (ok and b) and true or false
+end
+
+-- Ess.Vehicle.riderInSeat(uSeat) -> uCharGuid | nil -- who is sitting in this specific seat (nil if empty).
+-- The per-seat counterpart to .riders(), which only says who is aboard somewhere.
+function Ess.Vehicle.riderInSeat(uSeat)
+    if not uSeat then return nil end
+    local ok, u = Ess.Safe.quiet(Vehicle.GetRiderFromSeat, uSeat)
+    if ok then return u end
+    return nil
+end
+
+-- Ess.Vehicle.seatTransfers(uSeat, bIncludeAll) -> { ... } -- seats reachable from this one WITHOUT getting
+-- out (a gunner sliding to the driver's seat). Always a table; empty is the common case -- a plain car's
+-- driver seat returns zero entries.
+function Ess.Vehicle.seatTransfers(uSeat, bIncludeAll)
+    if not uSeat then return {} end
+    local ok, t = Ess.Safe.quiet(Vehicle.GetSeatToSeat, uSeat, bIncludeAll and true or false)
+    if ok and type(t) == "table" then return t end
+    return {}
+end
+
+-- Ess.Vehicle.isFlying(uVeh) -> bool -- airborne right now (helis/planes under power).
+--
+-- ⚠ Normalises a nil. The native `Vehicle.IsFlying` returns nil -- NOT false -- for a vehicle that cannot
+-- fly at all; live-confirmed on a ground car. It is falsy either way so it mostly passes unnoticed, but
+-- `Vehicle.IsFlying(v) == false` is never true for a car, which is exactly the kind of comparison that
+-- looks correct and silently never fires. This always gives a real boolean.
+function Ess.Vehicle.isFlying(uVeh)
+    if not uVeh then return false end
+    local ok, b = Ess.Safe.quiet(Vehicle.IsFlying, uVeh)
+    return (ok and b) and true or false
 end

@@ -16,6 +16,9 @@
 --   Ess.Human.doAction(uChar, sActionName)        Human.DoAction -- e.g. "Cower"/"Stand"/"Proximity"
 --   Ess.Human.disableWeapons(uChar) / .enableWeapons(uChar)
 --   Ess.Human.knockdown(uChar, nDuration)
+--   Ess.Human.carrying(uChar) -> bool             hauling a body/crate (blocks climb, swim, most weapons)
+--   Ess.Human.grappling(uChar) -> bool            mid-grapple (hijack/takedown melee)
+--   Ess.Human.swimming(uChar) -> bool             in deep water
 --   Ess.Human.ammo(uWeapon) -> n                  Weapon.GetReserveAmmo
 --   Ess.Human.setAmmo(uWeapon, n)                 Weapon.SetReserveAmmo
 --   Ess.Human.maxAmmo(uWeapon) -> n                Weapon.GetMaxReserveAmmo
@@ -120,4 +123,37 @@ function Ess.Easy.Human.giveWeapon(uChar, sTemplateName)
         return false
     end
     return Ess.Human.equipWeapon(uChar, uWeapon)
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- Character STATE queries. Live-probed 2026-07-26; all three return real booleans (no nil-for-false trap,
+-- unlike Vehicle.IsFlying / Object.IsWinched).
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- Ess.Human.carrying(uChar) -> bool -- is this character hauling something (a body, a crate)? The state
+-- that blocks climbing, swimming and most weapon use, so it's usually the reason an action "silently
+-- doesn't work" on an NPC.
+function Ess.Human.carrying(uChar)
+    if not uChar then return false end
+    local ok, b = Ess.Safe.quiet(Human.IsCarrying, uChar)
+    return (ok and b) and true or false
+end
+
+-- Ess.Human.grappling(uChar) -> bool -- mid-grapple (the hijack/takedown melee state).
+function Ess.Human.grappling(uChar)
+    if not uChar then return false end
+    local ok, b = Ess.Safe.quiet(Human.IsGrappling, uChar)
+    return (ok and b) and true or false
+end
+
+-- Ess.Human.swimming(uChar) -> bool -- in deep water and actually swimming.
+--
+-- Shipped game scripts call this as `Human.IsSwimming and Human.IsSwimming(uChar)` -- Pandemic's own code
+-- guards against the binding being absent, which suggests it isn't present in every build. It IS present
+-- here (live-confirmed), and Ess.Safe.quiet makes the guard moot either way: a missing binding comes back
+-- false rather than throwing.
+function Ess.Human.swimming(uChar)
+    if not uChar then return false end
+    local ok, b = Ess.Safe.quiet(Human.IsSwimming, uChar)
+    return (ok and b) and true or false
 end

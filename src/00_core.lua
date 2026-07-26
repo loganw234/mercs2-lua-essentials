@@ -29,6 +29,8 @@
 --                                                    .map/.filter/.find/.reduce, .slice/.reverse, .copy/.merge
 --   Ess.Guid(name) -> uGuid | nil                   Pg.GetGuidByName, pcall-wrapped, one canonical name
 --   Ess.Name(uGuid) -> sHash | nil                  Sys.GuidToString, pcall-wrapped (confirmed to throw on some objects)
+--   Ess.Unname(sHash) -> uGuid | nil                Sys.StringToGuid -- the exact inverse of Ess.Name, for
+--                                                    getting a guid through a string-only channel
 
 _G.Ess = _G.Ess or {}
 local Ess = _G.Ess
@@ -433,5 +435,23 @@ end
 function Ess.Name(uGuid)
     local ok, s = Ess.Safe.quiet(Sys.GuidToString, uGuid)
     if ok then return s end
+    return nil
+end
+
+-- Ess.Unname(sHash) -> uGuid | nil -- the INVERSE of Ess.Name. Sys.StringToGuid turns the "0x4000563D"
+-- form back into a real guid, and the round trip is exact (live-verified: a character guid -> string ->
+-- guid compares == to the original).
+--
+-- Why it matters: a guid is userdata, so it cannot be stored by Loader.SaveVar / Ess.Save (numbers,
+-- strings and booleans only) and cannot be sent over the bridge or a Net message. Ess.Name/Ess.Unname is
+-- the pair that gets one through any string-only channel intact.
+--
+-- ⚠ WITHIN ONE SESSION ONLY. Guids are runtime handles, not stable identifiers -- a string persisted to
+-- disk and read back after a reload will resolve to whatever now occupies that handle, or to nothing.
+-- For anything that must survive a reload, persist the object's NAME and go back through Ess.Guid.
+function Ess.Unname(sHash)
+    if not sHash then return nil end
+    local ok, g = Ess.Safe.quiet(Sys.StringToGuid, sHash)
+    if ok then return g end
     return nil
 end
