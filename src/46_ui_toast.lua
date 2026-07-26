@@ -53,6 +53,8 @@ function Ess.UI.Toast(text, opts)
         S.toasts[pick] = t
     end
 
+    -- Toasts are deliberately title-less: a Panel with no title draws no header band,
+    -- which is what stops a one-line notification from carrying a big empty accent bar.
     t.text = tostring(text)
     Ess.UI._rtcall("PanelLine", { t._rtid, 0, t.text })
     Ess.UI._rtcall("Show", { t._rtid, 1 })

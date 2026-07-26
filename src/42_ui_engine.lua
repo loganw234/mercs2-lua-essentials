@@ -67,8 +67,45 @@ Ess.UI.FILES = Ess.UI.FILES or {
 --
 -- Do NOT read MrxGuiBase.nScreenWidth/nScreenHeight. They report 640x480 with scale 1
 -- regardless of the real display -- defaults, not measurements.
-Ess.UI.CANVAS_H = Ess.UI.CANVAS_H or 480
-Ess.UI.CANVAS_W = Ess.UI.CANVAS_W or 853   -- the movie's stage width; lay out against this
+-- ess_ui.gfx's stage, fixed at build time. The CANVAS below is this divided by the
+-- global scale, which is what layout code should use.
+Ess.UI.STAGE_W = 853
+Ess.UI.STAGE_H = 480
+
+-- Global UI scale, as a percentage. Scaling the whole thing uniformly is what "make it
+-- smaller" means -- shrinking only font sizes would leave the text rattling around inside
+-- boxes that stayed the same size.
+--
+-- Scaling DOWN enlarges the usable canvas: at 75% the same widget rect holds 853/0.75 =
+-- 1137 units across, so there is MORE room to lay out in, not less.
+-- 45 is the default: the density the kit was judged to read best at on a 1440p display.
+--
+-- What SCALE actually does depends on how a widget is positioned, which is worth
+-- understanding before changing it:
+--
+--   * FIXED coordinates (x = 40, w = 300 -- how nearly every mod is written, including
+--     the spawn menus in the wild) shrink or grow with the scale, as you would expect.
+--   * Coordinates DERIVED from CANVAS_W keep filling the screen at any scale, because the
+--     canvas grows as the scale shrinks. For those, lowering SCALE makes text and chrome
+--     finer relative to the same-sized boxes, rather than making anything smaller.
+--
+-- Override before first use, or call Ess.UI.setScale() any time.
+Ess.UI.SCALE = Ess.UI.SCALE or 45
+Ess.UI.CANVAS_W = Ess.UI.CANVAS_W or math.floor(Ess.UI.STAGE_W * 100 / Ess.UI.SCALE)
+Ess.UI.CANVAS_H = Ess.UI.CANVAS_H or math.floor(Ess.UI.STAGE_H * 100 / Ess.UI.SCALE)
+
+-- Set the global scale and re-derive the canvas. Takes effect immediately; safe to call
+-- repeatedly while tuning.
+function Ess.UI.setScale(pct)
+    pct = tonumber(pct) or 100
+    if pct < 25 then pct = 25 end
+    if pct > 200 then pct = 200 end
+    Ess.UI.SCALE = pct
+    Ess.UI.CANVAS_W = math.floor(Ess.UI.STAGE_W * 100 / pct)
+    Ess.UI.CANVAS_H = math.floor(Ess.UI.STAGE_H * 100 / pct)
+    Ess.UI._rtcall("SetScale", { pct })
+    return pct, Ess.UI.CANVAS_W, Ess.UI.CANVAS_H
+end
 
 -- True when the display is widescreen, so the widget rect can match the stage 1:1.
 function Ess.UI.isWide()
@@ -117,9 +154,11 @@ function Ess.UI.anchor(a)
 end
 
 -- Toasts default to the RIGHT side (fixed 640x480 virtual canvas, Scaleform scales it to any resolution).
-Ess.UI.TOAST_W = Ess.UI.TOAST_W or 160
+Ess.UI.TOAST_W = Ess.UI.TOAST_W or 190
 Ess.UI.TOAST_H = Ess.UI.TOAST_H or 22
-Ess.UI.TOAST_GAP = Ess.UI.TOAST_GAP or 25
+-- GAP is the pitch between stacked slots; a title-less toast is ~30 units tall,
+-- so 34 leaves a small visual gap without them drifting far down the screen.
+Ess.UI.TOAST_GAP = Ess.UI.TOAST_GAP or 34
 -- TOAST_X is deliberately left UNSET. The usable width depends on Graphics.GetScreenRatio(),
 -- which may not be answerable at OnLoad time, so Ess.UI.Toast resolves it lazily against the
 -- real canvas. Setting it explicitly still overrides, exactly as before.
@@ -239,6 +278,11 @@ local function rtBecomeReady(why)
     -- defaults and then visibly restyles.
     if Ess.UI.Theme and Ess.UI.Theme._push then
         Ess.UI.Theme._push(function(fn, args) Ess.Gfx.call(rt.gfx, fn, args) end)
+    end
+    -- Scale before flushing: queued draw calls should land at the right size rather
+    -- than being drawn at 100% and then jumping.
+    if Ess.UI.SCALE and Ess.UI.SCALE ~= 100 then
+        Ess.Gfx.call(rt.gfx, "SetScale", { Ess.UI.SCALE })
     end
     rtFlush()
     Ess.Log("UI runtime ready (" .. tostring(why) .. ")")
