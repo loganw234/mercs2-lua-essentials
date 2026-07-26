@@ -1,11 +1,16 @@
 -- Ess/48_ui_input.lua -- Ess.UI.Input: one-shot typed prompt. Enter -> onSubmit(text), Esc -> onCancel().
--- One at a time (a singleton, matching uilib.lua's UI.Input exactly). Uses Ess.Input.VkToChar for
--- character typing instead of a private copy of the VK->char table.
+-- One at a time (a singleton). Uses Ess.Input.VkToChar for character typing.
 --
 -- Ess.UI.Input{ prompt, text, max, onSubmit, onCancel }
+--
+-- RETARGETED onto the shared ess_ui.gfx runtime. Public API, key handling, the caret blink
+-- and the focus save/restore are unchanged -- the blink is still driven by the heartbeat
+-- (it checks _isInput and calls _echo), because it is input state rather than decoration.
 
 local Ess = _G.Ess
 Ess.UI = Ess.UI or {}
+
+local ECHO_COLS = 40   -- how much of a long entry stays visible, tail-anchored
 
 function Ess.UI.Input(opts)
     opts = opts or {}
@@ -13,17 +18,22 @@ function Ess.UI.Input(opts)
     local o = S.input
     if not o then
         o = {}
-        o._gfx = Ess.Gfx.widget(Ess.UI.FILES.input, opts.x or 160, opts.y or 260, 340, 56)
-        local function c(fn, args) Ess.Gfx.call(o._gfx, fn, args) end
-        o._call = c
-        Ess.UI._attachCommon(o); Ess.UI._register(o)
+        local id = Ess.UI._rtId("input")
+        Ess.UI._attachRuntimeCommon(o, id)
+        Ess.UI._register(o)
+        o._id = id
         o._isInput = true
+        Ess.UI._rtcall("Panel", { id, opts.x or 160, opts.y or 260, 340, 56 })
+        Ess.UI._rtcall("PanelFit", { id, 0 })
+
         function o:_echo()
             local t = o._text or ""
-            if #t > 40 then t = "..." .. t:sub(#t - 40 + 1) end
-            c("SetInput", { "> " .. t .. (o._blink and "_" or " ") })
+            if #t > ECHO_COLS then t = "..." .. t:sub(#t - ECHO_COLS + 1) end
+            -- Foot() rather than a body line: the echo is drawn in the primary text colour
+            -- along the bottom, which is where the old ui_input.gfx put it.
+            Ess.UI._rtcall("Foot", { o._id, "> " .. t .. (o._blink and "_" or " ") })
         end
-        function o:_repaint() c("SetTitle", { o._t or "INPUT" }); o:_echo() end
+
         function o:_char(ch)
             if #(o._text or "") < (o._max or 120) then o._text = (o._text or "") .. ch; o:_echo() end
         end
@@ -53,14 +63,15 @@ function Ess.UI.Input(opts)
         end
         S.input = o
     end
+
     o._t = tostring(opts.prompt or "INPUT -- ENTER SUBMIT   ESC CANCEL")
     o._text = tostring(opts.text or "")
     o._max = opts.max or 120
     o._cb, o._cancel = opts.onSubmit, opts.onCancel
     o._blink, o._blinkClock = true, 0
     o._prev = S.focus
-    o._warmup = Ess.UI._WARMUP
-    o:_repaint()
+    Ess.UI._rtcall("PanelTitle", { o._id, o._t })
+    o:_echo()
     o:show()
     o:focus()
     return o
