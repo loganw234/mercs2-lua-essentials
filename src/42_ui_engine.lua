@@ -43,32 +43,47 @@ Ess.UI.FILES = Ess.UI.FILES or {
 -- scale 1 regardless of the real display, because g_nGuiScreenWidthTemp was nil when that
 -- module loaded -- they are defaults, not measurements.
 --
--- MEASURED (1440p, 16:9), and then CORRECTED:
+-- MEASURED (1440p, 16:9), over three attempts. The wrong turns are recorded because each
+-- was a plausible reading of real data:
 --
--- First reading: a 640-wide marker strip filled ~75% of the screen, which looked like
--- "the canvas is 853 units wide (480 * 16/9) and 640 is only part of it". Setting
--- CANVAS_W = 853 and anchoring a marker to right=0 then put it COMPLETELY OFF SCREEN.
+--   1. A 640-wide marker strip filled ~75% of the screen -> "the canvas must be 853 units
+--      (480 * 16/9) and 640 is only part of it". Setting CANVAS_W = 853 put a right-anchored
+--      marker completely off screen.
+--   2. So -> "the canvas is 640 after all". But then centre and right anchors sat at 37% and
+--      75% of the screen instead of 50% and 100%.
+--   3. Correct: BOTH readings were right. Deriving px-per-unit from two markers at known
+--      positions gives 2.354 px/unit, so 640 units = 75.4% of the display and the full
+--      widget space really is ~853 units. The canvas was never the limit -- OUR WIDGET was.
+--      rtEnsure built it 640x480 and the movie's stage was 640x480, so the whole UI lived in
+--      the left three-quarters of a widescreen display.
 --
--- The real constraint is not the canvas, it is OUR WIDGET. rtEnsure() builds the runtime
--- FlashWidget with SetLocation(0, 0, 640, 480) and ess_ui.gfx's stage is 640x480, so
--- anything drawn past x=640 is outside the widget rectangle and gets clipped. The 75%
--- figure was measuring how much of a widescreen display a 640-wide WIDGET covers -- not
--- how wide the canvas is.
+-- Fixed by widening both: ess_ui.gfx's stage is now 853x480 (16:9), and the widget rect is
+-- sized per aspect below. Lay out in 853x480 and it fills the screen.
 --
--- So the usable drawing area is 640x480, full stop, and CANVAS_W is 640 on every display.
--- The right quarter of a widescreen display is simply outside our widget.
+-- MrxGui's widget space is 480 tall and (480 * aspect) wide -- 853 on 16:9, 640 on 4:3
+-- (mrxguibase.lua:1791 defines the 640x480 base). Graphics.GetScreenRatio() reports a
+-- CATEGORY ("WIDESCREEN" / otherwise), not a number, so only those two cases can be told
+-- apart; 16:10 is treated as 16:9, the same approximation the game itself makes.
 --
--- TO ACTUALLY USE THE FULL WIDTH you would need BOTH: rebuild ess_ui.gfx with a wider
--- stage, AND widen the widget rect to match. Neither alone is enough -- widening only the
--- rect stretches the 640 stage across it. Deliberately not done: it needs a decision about
--- what 4:3 displays should then do (an 853-wide stage squeezed into a 640-wide rect
--- distorts), and the kit has always lived in a 640x480 box.
+-- Do NOT read MrxGuiBase.nScreenWidth/nScreenHeight. They report 640x480 with scale 1
+-- regardless of the real display -- defaults, not measurements.
 Ess.UI.CANVAS_H = Ess.UI.CANVAS_H or 480
+Ess.UI.CANVAS_W = Ess.UI.CANVAS_W or 853   -- the movie's stage width; lay out against this
 
-Ess.UI.CANVAS_W = Ess.UI.CANVAS_W or 640
+-- True when the display is widescreen, so the widget rect can match the stage 1:1.
+function Ess.UI.isWide()
+    local ok, r = Ess.Safe.quiet(Graphics.GetScreenRatio)
+    return ok and tostring(r):upper():find("WIDE") ~= nil
+end
 
--- The usable virtual width. A function rather than a bare constant so that widening the
--- widget + stage later is a change in one place rather than at every call site.
+-- The widget RECTANGLE, in MrxGui widget space -- distinct from the canvas the movie draws
+-- in. On widescreen the two coincide (853x480). On 4:3 the widget space is only 640 wide, so
+-- the 16:9 stage is letterboxed into 640x360 rather than squeezed into 640x480.
+function Ess.UI.widgetRect()
+    if Ess.UI.isWide() then return Ess.UI.CANVAS_W, Ess.UI.CANVAS_H end
+    return 640, math.floor(640 * Ess.UI.CANVAS_H / Ess.UI.CANVAS_W + 0.5)
+end
+
 function Ess.UI.canvasW() return Ess.UI.CANVAS_W end
 
 -- w, h, ratio -- ratio is the game's own category string ("WIDESCREEN" / "NORMAL"), not a number.
@@ -234,7 +249,8 @@ end
 local function rtEnsure()
     if S.rt and S.rt.gfx then return S.rt end
     S.rt = { gfx = nil, ready = false, queue = {}, ids = {} }
-    local gfx = Ess.Gfx.widget(Ess.UI.FILES.runtime, 0, 0, 640, 480, function()
+    local rw, rh = Ess.UI.widgetRect()
+    local gfx = Ess.Gfx.widget(Ess.UI.FILES.runtime, 0, 0, rw, rh, function()
         rtBecomeReady("load callback")
     end)
     if not gfx then
