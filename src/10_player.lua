@@ -9,6 +9,8 @@
 --   Ess.Player.pose(i)      -> x, y, z, yaw, uChar, uPlayerSlot
 --   Ess.Player.targetUnderReticle(i) -> uGuid|nil, x, y, z    "what am I aiming at" -- the flagship reason
 --                                        the wiki's whole Engine Namespaces section exists at all
+--   Ess.Player.viewPoint(nDist, nHeight, i) -> x, y, z | nil   a point ahead of where the player is LOOKING
+--                                        (engine camera vector -- no reticle fallback, no obstacle test)
 --   Ess.Player.removeBoundaries() -> nCleared    lifts every active out-of-bounds volume, all players
 --   Ess.Player.setInputEnabled(bOn, i)           freeze/restore gameplay input (Player.SetInputEnabled)
 --   Ess.Player.rumble(i, fLength)                Pg.Rumble -- controller haptic feedback
@@ -143,6 +145,44 @@ function Ess.Player.viewYaw(i)
         return Ess.Math.angleTo(px, pz, rx, rz), true
     end
     return bodyYaw or 0, false
+end
+
+-- Ess.Player.viewPoint(nDist, nHeight, i) -> x, y, z | nil
+-- A world point nDist ahead of where the player is LOOKING, nHeight above the ground there.
+--
+-- This is the engine's own answer to the problem Ess.Player.viewYaw works around. viewYaw DERIVES a look
+-- bearing from the reticle hit and falls back to the body yaw when there is no usable hit (aiming at open
+-- sky); Pg.FindPointFromCamera uses the camera vector directly, so it never degrades and needs no reticle.
+-- Prefer this over `pose()` + Ess.Math.pointAhead whenever you mean "in front of the player" in the sense a
+-- PLAYER means it. Ess.Object.spawnAhead still uses the body yaw by design -- the two are different
+-- questions, and were measured 135 degrees apart during verification.
+--
+-- Live-verified 2026-07-26 from two positions, with the body 135 degrees off the view: the returned point's
+-- bearing matched Ess.Player.viewYaw to within a degree both times.
+--
+-- Three things worth knowing, all measured:
+--
+--   * nDist is measured FROM THE CAMERA, which sits ~3 units behind the character. The achieved distance
+--     from the PLAYER is therefore a flat 3 less than requested, at every scale -- 25->22, 100->97,
+--     400->397, 1600->1597. A constant offset, not a percentage. This wrapper does not "correct" it, since
+--     the raw value is what shipped scripts pass and matching them keeps behaviour predictable; just don't
+--     expect exactly nDist at short range, where 3 units is a large fraction of it.
+--
+--   * NO OBSTACLE TEST. The point is not raycast against geometry -- a request for 1600 units achieved 1597
+--     straight through a building. Y comes out at ground level for that horizontal position (a car spawned
+--     at nHeight=0 measured 0.52 above ground), so it samples terrain height, but it will happily hand you
+--     a point inside a wall. Check it before spawning something solid there.
+--
+--   * The native takes a third argument that every shipped script passes as -1. It has no observable effect
+--     whatsoever: -1/0/1/2/3/4/8/16/-2 and nil all returned byte-identical points, over open ground and
+--     while facing a building. This passes -1 to match the corpus rather than inventing a meaning for it.
+function Ess.Player.viewPoint(nDist, nHeight, i)
+    local uChar = Ess.Player.character(i or 0)
+    if not uChar then return nil end
+    local ok, x, y, z = Ess.Safe.quiet(Pg.FindPointFromCamera,
+                                       nDist or 20, nHeight or 0, -1, uChar)
+    if ok and x then return x, y, z end
+    return nil
 end
 
 -- Ess.Player.removeBoundaries() -- CONFIRMED (wiki/snippets.md): clears every out-of-bounds volume
