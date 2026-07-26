@@ -12,7 +12,9 @@
 --   Ess.Easy.World.night() / .day()      hold the time-of-day clock. NOT map-wide -- regions with their
 --                                        own atmosphere preset override it; see the note at the impl
 --   Ess.Easy.World.lockTimeOfDay(n)      the same, for any 0..1 time
---   Ess.Easy.World.unlockTimeOfDay(nSpeed)   release the lock, resume the day/night cycle
+--   Ess.Easy.World.freezeTime()          stop the day/night cycle -- THIS ONE IS RELIABLY MAP-WIDE
+--   Ess.Easy.World.setTimeSpeed(n)       rescale the cycle (0 = frozen); no getter exists to restore it
+--   Ess.Easy.World.unlockTimeOfDay(nSpeed)   release the lock; leaves the clock where it is unless given
 
 import("WifVzBoundary")
 
@@ -196,11 +198,38 @@ end
 function Ess.Easy.World.night() return Ess.Easy.World.lockTimeOfDay(0.95) end
 function Ess.Easy.World.day()   return Ess.Easy.World.lockTimeOfDay(0.30) end
 
--- Ess.Easy.World.unlockTimeOfDay(nSpeed) -- stop the keeper and let the day/night cycle run again. Pass a
--- speed to resume at (default 1); pass 0 to leave the clock frozen where it is.
+-- Ess.Easy.World.unlockTimeOfDay(nSpeed) -- stop the keeper. Pass a speed to resume the cycle at; omit it
+-- and the clock is LEFT WHERE IT IS (frozen if .freezeTime or a lock had stopped it).
+--
+-- ⚠ Deliberately does not "restore normal speed", because there is no way to know what normal was: the
+-- namespace has SetTimeSpeed but NO GetTimeSpeed, so the original rate cannot be read back or restored once
+-- changed. An earlier version defaulted to 1 on the assumption that meant normal -- it does not, it is far
+-- faster (a full day in a few seconds). Guessing a rate is worse than leaving the clock alone. If you need
+-- the game's authored rate back, reload the level.
 function Ess.Easy.World.unlockTimeOfDay(nSpeed)
     Ess.Easy.World._timeLock = nil
     Ess.Loop.stop("Ess.World.timeKeeper")
-    Ess.Atmosphere.setTimeSpeed(nSpeed or 1)
+    if type(nSpeed) == "number" then Ess.Atmosphere.setTimeSpeed(nSpeed) end
     return true
 end
+
+-- Ess.Easy.World.freezeTime() / .setTimeSpeed(n) -- stop (or rescale) the day/night cycle.
+--
+-- THIS ONE IS GENUINELY MAP-WIDE, and it is the reliable half of time control. Verified live with NO keeper
+-- running: SetTimeSpeed(0) survives a region crossing intact, where SetTime does not.
+--
+-- The asymmetry is the useful thing to know, and it is not guessable:
+--   * the time RATE is global state that region presets leave alone      -> freezing sticks, everywhere
+--   * the time VALUE is overridden by any region's authored preset       -> forcing a time does not stick
+--
+-- So "stop the sky changing" is reliably achievable map-wide; "make it night everywhere" is not (see
+-- lockTimeOfDay above). For most mission work -- keeping lighting stable across a scripted sequence so a
+-- cutscene or a timed objective does not drift into dusk -- freezing is what you actually wanted anyway.
+--
+-- No restore: see the note on unlockTimeOfDay about the missing GetTimeSpeed.
+function Ess.Easy.World.setTimeSpeed(n)
+    if type(n) ~= "number" then return false end
+    return Ess.Atmosphere.setTimeSpeed(n)
+end
+
+function Ess.Easy.World.freezeTime() return Ess.Easy.World.setTimeSpeed(0) end
