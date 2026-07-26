@@ -58,8 +58,12 @@ CORPUS = pathlib.Path.home() / "Desktop" / "Mercs2_Decompiled_Lua" / "docs" / "m
 #   Ess          -- this framework; ess.json is its manifest, listing it here would just duplicate it
 #   _G           -- _G contains itself, so every namespace also appears as "_G.Whatever". Pure noise.
 #   math/string/table/os/coroutine -- Lua's own stdlib, not this engine's surface
-# NOTE the capitalised Math/String/Table are NOT excluded: those are separate engine-provided namespaces
-# that genuinely exist here alongside the lowercase stdlib ones.
+# CORRECTION 2026-07-26: the capitalised Math is NOT a separate namespace. `Math == math` is TRUE in the
+# live VM -- verified over the bridge -- so it is one table reachable under two names. Because `math` was
+# excluded and `Math` was not, the entire stdlib table leaked back in under the capital name, carrying the
+# lua-bridge polyfills with it (see BRIDGE_* below). `Math` therefore has to be excluded on the same footing
+# as `math`, with its genuinely engine-provided extras re-added explicitly -- they are the only part of that
+# table worth recording, and they are listed in MATH_ENGINE_EXTRAS.
 #
 # `_MODULES` is deliberately NOT in this list, despite being the classifier and despite its underscore. An
 # earlier version excluded it wholesale and silently dropped 104 REAL modules -- antiair, helicopter, hero,
@@ -68,7 +72,48 @@ CORPUS = pathlib.Path.home() / "Desktop" / "Mercs2_Decompiled_Lua" / "docs" / "m
 # ordinary callable Lua with readable source, so they belong in the manifest. The bare `_MODULES` table
 # itself is skipped (it holds only sub-tables, no functions of its own).
 EXCLUDE_PREFIX = ("_G", "Ess")
-EXCLUDE_EXACT = {"math", "string", "table", "os", "coroutine", "io", "debug", "package", "_MODULES"}
+EXCLUDE_EXACT = {"math", "Math", "string", "table", "os", "coroutine", "io", "debug", "package", "_MODULES"}
+
+# --- lua-bridge contamination -------------------------------------------------------------------------
+# This dump runs THROUGH lua-bridge, so the bridge's own registrations are sitting in _G while we walk it and
+# are indistinguishable from engine natives at runtime -- they are real C functions in real tables. Recording
+# them would claim the engine provides things only the bridge does.
+#
+# How badly this bit before it was caught: `Math` carried 36 functions, the engine's verified luaL_Reg table
+# has 17, and the overlap with the bridge's polyfill set was exactly 19. 36 - 19 = 17, reconciling the live
+# walk with the static EXE audit in docs/lua_engine_bindings_audit_deep_dive.md to the digit.
+#
+# SOURCE OF TRUTH for both lists: Merc2-Mods-Exp/mods/lua-bridge-DEV/lua_bridge_DEV.c -- `loader_lib[]`,
+# `tcp_lib[]` and `math_lib[]`. If the bridge gains a function, add it here or it reappears as a phantom
+# native. The dump warns when it sees the bridge, so a stale list shows up as a count mismatch rather than
+# silently sailing through.
+BRIDGE_NAMESPACES = {"Loader", "Tcp"}
+BRIDGE_MATH_FNS = {
+    "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sinh", "cosh", "tanh", "sqrt",
+    "log", "log10", "fmod", "ldexp", "modf", "frexp", "random", "randomseed", "FreedomUnits",
+}
+
+# The part of the engine's `math` table that is NOT stock Lua 5.1 and NOT a bridge polyfill -- i.e. the only
+# genuinely engine-provided entries in it. Signatures live-probed 2026-07-26; several are counter-intuitive
+# and are documented on the wiki:
+#   Length(x,y,z) / Normalize(x,y,z) -> nx,ny,nz (zero vector -> 0,0,0, never NaN)
+#   CrossProduct(ax,ay,az, bx,by,bz) -> x,y,z
+#   GetXZHeading(x,y,z) -> DEGREES (+Z = 0, +X = 90)
+#   PolarToRect(angleDEGREES, radius) -> x,y      <-- angle FIRST, degrees not radians
+#   round(n) half-away-from-zero;  randi(min,max) inclusive
+#   randf() -> [0,1);  randf(a,b) -> [a, b+1)     <-- overshoots, borrows randi's inclusive span
+MATH_ENGINE_EXTRAS = [
+    "CrossProduct", "GetXZHeading", "Length", "Normalize", "PolarToRect",
+    "randf", "randi", "round",
+]
+
+# Stock Lua 5.1 math names, used only to spot a name that is none of the three known categories -- which
+# would mean one of the lists above has gone stale against a newer bridge or a different game build.
+STOCK_MATH_51 = {
+    "abs", "ceil", "floor", "max", "min", "mod", "pow", "sqrt", "random", "randomseed", "deg", "rad",
+    "exp", "huge", "pi", "fmod", "modf", "frexp", "ldexp", "sin", "cos", "tan", "asin", "acos", "atan",
+    "atan2", "sinh", "cosh", "tanh", "log", "log10",
+}
 
 DUMP_CHUNK = r"""
 -- Walk _G and emit every namespace's function names through Loader.Printf. Batched several names per line
@@ -234,10 +279,29 @@ def build(dump, aliases, game_dir):
     called = ess_called_names()
 
     out = {}
+    # What the bridge contributed to this capture, recorded so natives.json carries its own provenance
+    # instead of being quietly filtered. A reader can see exactly what was removed and why.
+    bridge_seen = sorted(n for n in BRIDGE_NAMESPACES if n in dump)
+    bridge_math_removed = sorted(BRIDGE_MATH_FNS & set(dump.get("Math", []) or dump.get("math", [])))
+    if bridge_seen:
+        print("[natives] lua-bridge detected in the live VM (%s) -- excluding its registrations"
+              % ", ".join(bridge_seen), file=sys.stderr)
+    if bridge_math_removed:
+        print("[natives] filtered %d bridge math polyfills out of the math table"
+              % len(bridge_math_removed), file=sys.stderr)
+        stale = set(dump.get("Math", [])) - set(MATH_ENGINE_EXTRAS) - BRIDGE_MATH_FNS - STOCK_MATH_51
+        if stale:
+            print("[natives] WARNING: %d math name(s) are neither stock Lua, a known bridge polyfill, nor a "
+                  "listed engine extra: %s -- BRIDGE_MATH_FNS/MATH_ENGINE_EXTRAS may be stale"
+                  % (len(stale), ", ".join(sorted(stale))), file=sys.stderr)
+
     counts = {k: 0 for k in ("engine", "game_script", "internal",
                              "engine_fns", "game_script_fns", "internal_fns")}
     for key, fns in sorted(dump.items()):
         root = key.split(".", 1)[0]
+        # The bridge's own namespaces are not engine surface. They are this toolchain looking at itself.
+        if root in BRIDGE_NAMESPACES:
+            continue
         # EXCLUDE_EXACT matches the FULL key, never the root: `_MODULES` the bare registry is excluded while
         # `_MODULES.antiair` -- a real module underneath it -- is not. Matching on root here is what made an
         # earlier pass drop all 104 registry-only modules even after they were deliberately un-excluded.
@@ -275,9 +339,29 @@ def build(dump, aliases, game_dir):
         counts[kind] += 1
         counts[kind + "_fns"] += len(fns)
 
+    # Re-add the engine's own additions to the math table. Both `math` and `Math` are excluded above (they
+    # are the same table, and it is overwhelmingly stdlib + bridge polyfills), but these eight ARE engine
+    # natives with no equivalent in stock Lua, and dropping them would lose the most immediately useful
+    # thing in the whole capture: native 3D vector maths.
+    present = set(dump.get("Math", [])) | set(dump.get("math", []))
+    extras = [f for f in MATH_ENGINE_EXTRAS if f in present]
+    if extras:
+        out["math"] = {
+            "kind": "engine",
+            "count": len(extras),
+            "functions": extras,
+            "called_by_ess": sorted(f for f in extras if "math." + f in called),
+            "note": ("only the engine's OWN additions to the math table are listed. Stock Lua 5.1 names and "
+                     "lua-bridge's polyfills are excluded -- `Math` and `math` are the SAME table (Math == "
+                     "math is true live), so the capital alias is not a separate namespace."),
+        }
+        counts["engine"] += 1
+        counts["engine_fns"] += len(extras)
+
     # Aliases are recorded, not dropped: "why is MrxPmc.MrxUtil missing" has an answer in the file itself.
     alias_out = {a: c for a, c in sorted(aliases.items())
-                 if not a.split(".", 1)[0] in EXCLUDE_PREFIX}
+                 if not a.split(".", 1)[0] in EXCLUDE_PREFIX
+                 and not a.split(".", 1)[0] in BRIDGE_NAMESPACES}
 
     return {
         "aliases": alias_out,
@@ -291,6 +375,17 @@ def build(dump, aliases, game_dir):
         "generated": datetime.date.today().isoformat(),
         "source": "live pairs(_G) walk via lua-bridge",
         "game_dir": str(game_dir),
+        # Provenance for the filtering, so this is auditable from the file rather than only from the script.
+        # The walk necessarily runs through lua-bridge, so the bridge is IN the VM being surveyed; without
+        # this its registrations were recorded as engine natives (29 of them, before 2026-07-26).
+        "bridge_filtered": {
+            "namespaces": bridge_seen,
+            "math_polyfills": bridge_math_removed,
+            "why": "lua-bridge's own registrations live in _G alongside the engine's and are "
+                   "indistinguishable at runtime. They are this toolchain, not the game, so they are "
+                   "excluded. `Math` is an alias of `math` (same table), which is how the stdlib and these "
+                   "polyfills previously leaked in under the capital name.",
+        },
         "kinds": {
             "engine": "a C++ native. No source exists anywhere -- probe it, or check the wiki.",
             "game_script": "a resident Lua module's global function, namespaced by import(). "
@@ -372,10 +467,14 @@ def main():
               f"-- the walk may be incomplete, or the game genuinely changed.")
 
     manifest = build(dump, aliases, args.game_dir)
-    DIST.mkdir(exist_ok=True)
-    (DIST / "natives.json").write_text(json.dumps(manifest, indent=1) + "\n", encoding="utf-8")
+    # api/, not dist/ -- natives.json is captured from a running game, so CI cannot reproduce it and a
+    # gitignored copy would be missing from every release zip. See the API constant's comment.
+    # (Until 2026-07-26 these three lines still referred to DIST, which is defined nowhere: the script
+    # raised NameError before writing anything, so it could not regenerate its own output at all.)
+    API.mkdir(exist_ok=True)
+    (API / "natives.json").write_text(json.dumps(manifest, indent=1) + "\n", encoding="utf-8")
     c = manifest["counts"]
-    print(f"[natives] wrote {DIST / 'natives.json'}")
+    print(f"[natives] wrote {API / 'natives.json'}")
     print(f"[natives]   engine:      {c['engine']:3} namespaces, {c['engine_fns']:5} functions")
     print(f"[natives]   game script: {c['game_script']:3} namespaces, {c['game_script_fns']:5} functions")
     print(f"[natives]   internal:    {c['internal']:3} namespaces, {c['internal_fns']:5} functions")

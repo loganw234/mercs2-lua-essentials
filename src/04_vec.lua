@@ -76,3 +76,26 @@ end
 function V.cross(ax, ay, az, bx, by, bz)
     return ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx
 end
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- THE NATIVE EQUIVALENTS, AND WHY THIS FILE STILL DOESN'T CALL THEM
+--
+-- The engine's `math` table carries eight functions that are NOT stock Lua 5.1 -- easy to miss, because
+-- `Math` and `math` are the SAME table (`Math == math` is true live) and the capital alias makes them look
+-- like a separate namespace. Three of them overlap this file:
+--
+--   Math.Length(x,y,z)                       == V.length
+--   Math.Normalize(x,y,z) -> nx,ny,nz        == V.normalize   (zero vector -> 0,0,0 natively too, no NaN)
+--   Math.CrossProduct(ax,ay,az, bx,by,bz)    == V.cross
+--
+-- A/B'd live against these implementations on 2026-07-26 across a spread of vectors including zero and
+-- negative components: ALL THREE AGREE. So this file's arithmetic is now verified against the engine's own,
+-- which is a better reason to keep it than the original "no reason to call a native" -- these are three
+-- multiplications, they are correct, and staying in Lua keeps Ess.Vec dependency-free and inspectable.
+--
+-- The remaining five natives are NOT vector helpers and are documented where they belong:
+--   Math.GetXZHeading / Math.PolarToRect  -> see Ess.Math (01_math.lua). PolarToRect in particular is a
+--                                            TRAP: it does not use the game's yaw convention.
+--   Math.round / Math.randi / Math.randf  -> Ess.Math.round and Ess.RNG already cover these, and
+--                                            Math.randf(a,b) is off-by-one (see 01_math.lua).
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────

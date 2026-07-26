@@ -172,19 +172,48 @@
  },
  "aliases_note": "name -> the canonical name holding the SAME table. The module system puts an imported module's table onto every importer (MrxPmc.MrxUtil is MrxUtil), and each module self-references as _THIS. Deduped by table identity, not by name: some same-named tables are genuinely distinct (SubtitleBuffer ~= Pda.SubtitleBuffer).",
  "_comment": "Every Lua function callable in the live game, dumped from a running VM. See tools/dump_natives.py for how, and why the engine/game_script split is evidence-based rather than guessed. Ess's own surface is in ess.json, not here.",
- "generated": "2026-07-25",
+ "generated": "2026-07-26",
  "source": "live pairs(_G) walk via lua-bridge",
  "game_dir": "C:\\Games\\Mercenaries 2 World in Flames",
+ "bridge_filtered": {
+  "namespaces": [
+   "Loader",
+   "Tcp"
+  ],
+  "math_polyfills": [
+   "FreedomUnits",
+   "acos",
+   "asin",
+   "atan",
+   "atan2",
+   "cos",
+   "cosh",
+   "fmod",
+   "frexp",
+   "ldexp",
+   "log",
+   "log10",
+   "modf",
+   "random",
+   "randomseed",
+   "sin",
+   "sinh",
+   "sqrt",
+   "tan",
+   "tanh"
+  ],
+  "why": "lua-bridge's own registrations live in _G alongside the engine's and are indistinguishable at runtime. They are this toolchain, not the game, so they are excluded. `Math` is an alias of `math` (same table), which is how the stdlib and these polyfills previously leaked in under the capital name."
+ },
  "kinds": {
   "engine": "a C++ native. No source exists anywhere -- probe it, or check the wiki.",
   "game_script": "a resident Lua module's global function, namespaced by import(). `source` is its file in the decompiled corpus -- you can just read it."
  },
  "counts": {
-  "engine": 81,
-  "game_script": 197,
+  "engine": 79,
+  "game_script": 200,
   "internal": 4,
-  "engine_fns": 1146,
-  "game_script_fns": 3048,
+  "engine_fns": 1108,
+  "game_script_fns": 3059,
   "internal_fns": 122
  },
  "namespaces": {
@@ -996,30 +1025,6 @@
    ],
    "called_by_ess": []
   },
-  "Loader": {
-   "kind": "engine",
-   "count": 9,
-   "functions": [
-    "ClearKeyEvents",
-    "GetKeyboardState",
-    "IsGameFocused",
-    "IsKeyDown",
-    "LoadVar",
-    "PopKeyEvents",
-    "Printf",
-    "SaveVar",
-    "WsSend"
-   ],
-   "called_by_ess": [
-    "ClearKeyEvents",
-    "GetKeyboardState",
-    "IsKeyDown",
-    "LoadVar",
-    "PopKeyEvents",
-    "Printf",
-    "SaveVar"
-   ]
-  },
   "MapLabel": {
    "kind": "engine",
    "count": 1,
@@ -1062,49 +1067,6 @@
     "Pulse",
     "Remove"
    ]
-  },
-  "Math": {
-   "kind": "engine",
-   "count": 36,
-   "functions": [
-    "CrossProduct",
-    "GetXZHeading",
-    "Length",
-    "Normalize",
-    "PolarToRect",
-    "abs",
-    "acos",
-    "asin",
-    "atan",
-    "atan2",
-    "ceil",
-    "cos",
-    "cosh",
-    "deg",
-    "exp",
-    "floor",
-    "fmod",
-    "frexp",
-    "ldexp",
-    "log",
-    "log10",
-    "max",
-    "min",
-    "modf",
-    "pow",
-    "rad",
-    "randf",
-    "randi",
-    "random",
-    "randomseed",
-    "round",
-    "sin",
-    "sinh",
-    "sqrt",
-    "tan",
-    "tanh"
-   ],
-   "called_by_ess": []
   },
   "MessageBox": {
    "kind": "engine",
@@ -4120,14 +4082,6 @@
    ],
    "called_by_ess": []
   },
-  "Tcp": {
-   "kind": "engine",
-   "count": 1,
-   "functions": [
-    "Send"
-   ],
-   "called_by_ess": []
-  },
   "VO": {
    "kind": "engine",
    "count": 11,
@@ -4403,6 +4357,19 @@
    "source": "resident/antiair.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.antiair, or import() it first"
   },
+  "_MODULES.autogunship": {
+   "kind": "game_script",
+   "count": 4,
+   "functions": [
+    "LaunchMissile",
+    "OnActivate",
+    "Salvo",
+    "Start"
+   ],
+   "called_by_ess": [],
+   "source": "resident/autogunship.lua",
+   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.autogunship, or import() it first"
+  },
   "_MODULES.bench": {
    "kind": "game_script",
    "count": 5,
@@ -4574,6 +4541,19 @@
    "source": "resident/hero.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.hero, or import() it first"
   },
+  "_MODULES.hijack_ah1z": {
+   "kind": "game_script",
+   "count": 5,
+   "functions": [
+    "Deinit",
+    "Init",
+    "Initialize",
+    "OnFailureEvents",
+    "StartHijack"
+   ],
+   "called_by_ess": [],
+   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.hijack_ah1z, or import() it first"
+  },
   "_MODULES.homingmissile": {
    "kind": "game_script",
    "count": 4,
@@ -4612,6 +4592,17 @@
    "called_by_ess": [],
    "source": "resident/levelbootstrap.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.levelbootstrap, or import() it first"
+  },
+  "_MODULES.materialanimation_largecanopy01": {
+   "kind": "game_script",
+   "count": 2,
+   "functions": [
+    "OnStateChange",
+    "_PlayMaterialAnims"
+   ],
+   "called_by_ess": [],
+   "source": "resident/materialanimation_largecanopy01.lua",
+   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.materialanimation_largecanopy01, or import() it first"
   },
   "_MODULES.materialanimation_treeplaza02": {
    "kind": "game_script",
@@ -7033,6 +7024,22 @@
     "_MODULEINDEX"
    ],
    "called_by_ess": []
+  },
+  "math": {
+   "kind": "engine",
+   "count": 8,
+   "functions": [
+    "CrossProduct",
+    "GetXZHeading",
+    "Length",
+    "Normalize",
+    "PolarToRect",
+    "randf",
+    "randi",
+    "round"
+   ],
+   "called_by_ess": [],
+   "note": "only the engine's OWN additions to the math table are listed. Stock Lua 5.1 names and lua-bridge's polyfills are excluded -- `Math` and `math` are the SAME table (Math == math is true live), so the capital alias is not a separate namespace."
   }
  }
 }

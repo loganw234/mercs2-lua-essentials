@@ -16,6 +16,14 @@
 --   => ALWAYS calibrate this facing EAST/WEST. An earlier calibration done facing north "passed" and let
 --      the mirror survive; a second one misread the residual as camera parallax. Don't repeat either.
 --
+-- ✔ INDEPENDENT CORROBORATION (2026-07-26): the engine exposes a native `Math.GetXZHeading(x,y,z) -> deg`
+-- that nothing in Ess calls. Fed the forward vector for a spread of yaws (0, +-45, +-90, 135, 180) it
+-- returns the yaw back to within 0.05 deg EVERY time -- i.e. the engine itself agrees that forward is
+-- (+sin, +cos). That is a second, independent witness for the convention above, from the engine rather
+-- than from a marker test, and it is why this comment can now say "confirmed" rather than "calibrated".
+-- Useful as a re-calibration oracle too: if this convention is ever doubted again, compare against
+-- Math.GetXZHeading before re-running the ring test.
+--
 -- ⚠ SEPARATELY (a real, DIFFERENT phenomenon -- don't conflate it with the above): Object.GetYaw(character)
 -- is the CHEST/BODY orientation, NOT where the player is LOOKING. Stand still and swing the mouse and the
 -- view rotates while the body does not; running forward re-aligns them. So even with the trig correct,
@@ -33,6 +41,28 @@
 --   Ess.Math.clamp01(v) -> n                  Ess.Math.remap(v, inLo,inHi, outLo,outHi) -> n  (linear rescale)
 --   Ess.Math.smoothstep(t) -> n (ease 0..1)   Ess.Math.lerpAngle(a,b,t) -> deg (shortest path)   Ess.Math.wrap(v,lo,hi) -> n
 --   Ess.Math.dist2DSq/.dist3DSq(...) -> n (no sqrt)   Ess.Math.within2D(x1,z1,x2,z2,r) / .within3D(...) -> bool (range test)
+
+-- ⚠ THE ENGINE'S OWN `Math.*` NATIVES -- TWO OF THEM ARE TRAPS. `Math` and `math` are the SAME table
+-- (`Math == math` is true live), so the capital alias is not a separate namespace; eight of its entries are
+-- engine additions rather than stock Lua 5.1. Ess covers the useful ones already, but anyone reaching for
+-- the natives directly needs these two warnings, both live-measured 2026-07-26:
+--
+--   Math.PolarToRect(angleDEGREES, radius) -> x, y
+--     NOT yaw-compatible. It is a plain textbook polar->cartesian: (r*cos, r*sin), zero degrees along +X,
+--     whereas this engine's forward is (sin, cos) with zero along +Z. So the outputs are TRANSPOSED against
+--     everything else here -- feeding a yaw into it puts the result 90 degrees off AND mirrored, which is
+--     the exact failure documented above. Note also the argument order is (angle, radius), not (r, theta).
+--     If you ever do want it: PolarToRect(90 - yaw, dist) reproduces Ess.Math.pointAhead(0, 0, yaw, dist).
+--     Verified: pointAhead disagrees with the raw native at every yaw tested, and agrees after that fix.
+--
+--   Math.randf(a, b)  -> uniform over [a, b+1), NOT [a, b]
+--     It borrows Math.randi's inclusive-integer span (max-min+1). Measured over 300 samples, randf(5,10)
+--     produced a maximum of 10.96. `Math.randf()` with no arguments is a normal [0,1). Use Ess.RNG instead
+--     -- it is seedable, reproducible, and documented against this engine's 32-bit-float trap.
+--
+-- The other six are fine: Length / Normalize / CrossProduct match Ess.Vec exactly (A/B'd), GetXZHeading is
+-- the corroboration noted above, round is half-away-from-zero (Ess.Math.round adds decimal places), and
+-- randi(min,max) is a correct inclusive integer roll.
 
 local Ess = _G.Ess
 Ess.Math = Ess.Math or {}
