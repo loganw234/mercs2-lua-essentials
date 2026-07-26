@@ -31,13 +31,35 @@ Ess.Gfx = Ess.Gfx or {}
 -- got the fix and still passes `SetLocation(x, y, w, h)` directly -- a currently-shipping instance of an
 -- already-solved bug (renders slightly small rather than crashing, which is exactly why it went
 -- unnoticed). Doing the x+w/y+h math here, once, makes it structurally impossible to get wrong again.
-function Ess.Gfx.widget(file, x, y, w, h)
+-- `onLoad` (optional) is called once the movie has finished loading.
+--
+-- SetSwfFile's 2nd/3rd parameters are a load-completion callback and its argument table --
+-- the engine's own answer to the async-load problem, which this code previously passed as
+-- nil and worked around with warmupRerender() instead. The game itself uses it:
+--
+--     _oFadeFlash:SetSwfFile("loadingscreen_standalone", _CompleteFadeFlashLoad, {0})
+--
+-- and registers its SetFlashEventHandlers inside that callback (resident/mrxgui.lua). tData
+-- is UNPACKED as the callback's arguments, so {widget} arrives as onLoad(widget).
+--
+-- Prefer this over warmupRerender for new code: it fires exactly once, when the movie is
+-- actually ready, instead of re-sending state a fixed number of times and hoping one lands.
+-- warmupRerender stays for callers that predate this and as a belt-and-braces fallback,
+-- since a callback that never fires would otherwise hang a widget forever.
+function Ess.Gfx.widget(file, x, y, w, h, onLoad)
     local okp, player = Ess.Safe.quiet(Player.GetLocalPlayer)
     local ok, wg = pcall(function()
         local wg = MrxGuiBase.FlashWidget:new()
         if okp and player then pcall(function() wg:SetOwner(player) end) end
         wg:SetLocation(x, y, x + w, y + h)
-        wg:SetSwfFile(file, nil, nil)
+        if onLoad then
+            wg:SetSwfFile(file, function(...)
+                local okc, err = pcall(onLoad, ...)
+                if not okc then Ess.Log("Gfx.widget onLoad error: " .. tostring(err)) end
+            end, {})
+        else
+            wg:SetSwfFile(file, nil, nil)
+        end
         MrxGuiBase.AddWidget(wg)
         if okp and player then pcall(function() MrxGuiManager.AddWidgetToHud(player, wg) end) end
         return wg

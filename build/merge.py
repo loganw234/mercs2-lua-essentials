@@ -57,6 +57,9 @@ MANIFEST = [
     "32_on.lua",
     "40_gfx.lua",
     "41_scrolllog.lua",
+    # Theme before the engine: the engine pushes the theme to the runtime movie as part of
+    # its ready handshake, so Ess.UI.Theme has to exist by then.
+    "41_ui_theme.lua",
     "42_ui_engine.lua",
     "43_ui_list.lua",
     "44_ui_panel.lua",

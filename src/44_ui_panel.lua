@@ -1,56 +1,79 @@
--- Ess/44_ui_panel.lua -- Ess.UI.Panel: title bar + up to 8 lines, body auto-resizes. Direct port of
--- uilib.lua's UI.Panel.
+-- Ess/44_ui_panel.lua -- Ess.UI.Panel: title bar + body lines, body auto-resizes.
 --
--- Ess.UI.Panel{ x, y, title, lines }
---   :title(s)  :line(i,s)  :fit(n)  :clear()
+-- Ess.UI.Panel{ x, y, w, h, title, lines }
+--   :title(s)  :line(i,s)  :fit(n)  :clear()  :show() :hide() :focus() :blur() :destroy()
+--
+-- RETARGETED onto the shared ess_ui.gfx runtime (see 42_ui_engine.lua). The public API is
+-- unchanged -- every call above behaves exactly as it did against ui_panel.gfx -- with two
+-- differences, both widenings:
+--
+--   * THE 8-LINE CAP IS GONE. ui_panel.gfx hand-listed eight text fields (p_line0..7), so
+--     :line(8, s) and beyond silently did nothing and :fit(n) clamped at 8. The runtime
+--     creates rows on demand, so :line(20, s) now works. Behaviour for i <= 7 is identical.
+--   * No warm-up re-painting. Calls made before the movie finishes loading are queued and
+--     flushed in order, so state cannot be dropped -- which is what the old _warmup /
+--     _repaint pair existed to paper over.
+--
+-- The old Lua-side line cache is also gone: it only existed to re-send state during
+-- warm-up, and the queue makes that unnecessary. Panels are now write-through.
 
 local Ess = _G.Ess
 Ess.UI = Ess.UI or {}
 
-local function panel_px(n) return 40 + 18 * n end
-
 function Ess.UI.Panel(opts)
     opts = opts or {}
     local o = {}
-    o._gfx = Ess.Gfx.widget(Ess.UI.FILES.panel, opts.x or 20, opts.y or 120, opts.w or 300, opts.h or 200)
-    o._shown = true
-    local function c(fn, args) Ess.Gfx.call(o._gfx, fn, args) end
-    o._call = c
-    Ess.UI._attachCommon(o); Ess.UI._register(o)
-    o._lines = 8
-    o._titleStr = opts.title
-    o._L = {}
-    o._cur, o._tgt = 100, 100
-    o._setsize = function(v) c("SetSize", { v }) end
+    local id = Ess.UI._rtId("panel")
+    local x = opts.x or 20
+    local y = opts.y or 120
+    local w = opts.w or 300
+    local h = opts.h or 200
 
-    function o:title(s) o._titleStr = s; c("SetTitle", { tostring(s) }) return self end
+    Ess.UI._attachRuntimeCommon(o, id)
+    Ess.UI._register(o)
+    o._lines = 0
+
+    Ess.UI._rtcall("Panel", { id, x, y, w, h })
+
+    function o:title(s)
+        Ess.UI._rtcall("PanelTitle", { id, tostring(s) })
+        return self
+    end
+
+    -- No upper bound any more. Negative still clamps to 0, which is what :clear() relies on.
     function o:fit(n)
-        n = tonumber(n) or 0; if n < 0 then n = 0 end; if n > 8 then n = 8 end
+        n = tonumber(n) or 0
+        if n < 0 then n = 0 end
         o._lines = n
-        Ess.UI._setTarget(o, 100 * panel_px(n) / 200)
+        Ess.UI._rtcall("PanelFit", { id, n })
         return self
     end
+
+    -- i is 0-based, as before. Auto-grows to fit, as before -- it just no longer stops at 8.
     function o:line(i, s)
-        o._L[i] = tostring(s)
-        c("SetLine", { i, tostring(s) })
-        if o._L[i]:gsub("%s", "") ~= "" and (i + 1) > (o._lines or 0) then o:fit(i + 1) end
+        i = tonumber(i) or 0
+        if i < 0 then return self end
+        s = tostring(s)
+        Ess.UI._rtcall("PanelLine", { id, i, s })
+        if s:gsub("%s", "") ~= "" and (i + 1) > o._lines then o._lines = i + 1 end
         return self
     end
+
     function o:clear()
-        for i = 0, 7 do o._L[i] = ""; c("SetLine", { i, "" }) end
-        o:fit(0)
+        o._lines = 0
+        Ess.UI._rtcall("PanelClear", { id })
         return self
     end
-    function o:_repaint()
-        if o._titleStr then c("SetTitle", { tostring(o._titleStr) }) end
-        for i = 0, 7 do if o._L[i] then c("SetLine", { i, o._L[i] }) end end
-        if o._setsize then o._setsize(o._cur) end
+
+    -- The movie owns the layout, so ask it rather than recomputing the arithmetic here --
+    -- duplicating it is what previously drew a bar through the middle of a tall panel.
+    -- Answers asynchronously; `cb(w, h)` is called when the movie replies.
+    function o:measure(cb)
+        Ess.UI._rtMetrics(id, cb)
+        return self
     end
 
     if opts.title then o:title(opts.title) end
     o:fit(opts.lines or 0)
-    o._cur = o._tgt; o._setsize(o._cur)
-    o._warmup = Ess.UI._WARMUP
-    Ess.UI._ensureTick()
     return o
 end
