@@ -231,6 +231,36 @@ vocabulary + region system).
   argument at all** — thirteen parameters, none of them rgb — so the PDA layer can only be coloured by
   choosing a different texture. This is a hard engine limit, not a gap in the wrapper.
 
+### GPS and the shop (`Ess.Gps`, `Ess.Shop`, `Ess.On.script`)
+
+- **GPS is not a routing system.** No pathfinding, no route line. The whole feature at script level is one
+  radar objective under the reserved name `"GPS Beacon Marker"` with texture `MiniMap_Icon_GPS_Marker`.
+- **`Player.ClearGPS` exists; there is no `Player.SetGPS`** — absent from a full `pairs(_G)` walk. Setting a
+  beacon is a UI action, so a script-placed one is cosmetic: the engine does not treat it as the
+  destination.
+- **`MiniMap_Icon_GPS_Marker` is NOT in `tObjRadarMaker`** and the game's own GPS handler uses it anyway.
+  So the icon tables gate only the **co-op net-sync path** (which sends an index), not local rendering,
+  which passes the string straight to the widget. Textures outside the list render locally and silently
+  fail to replicate. Correcting an earlier overstatement that they were a closed set for all purposes.
+- **`Ess.On.script(sName, fn)` is new and general** — Ess previously had no way to hear the ~28 named
+  events the game posts (`"PDA Open"`, `"Support Menu Open"`, `"SupportUsed"`, the Satellite events,
+  `"mpPlayerJoin"`, …). **The callback data comes FIRST and the posted payload AFTER it**; pass no callback
+  data and the payload is argument 1.
+- The PDA's stored `nMarkerX/nMarkerZ` **lag the real state** (read 3008 after a clear, correctly nil after
+  a later cycle). The script events were exact across four firings. `Ess.Gps` tracks the events.
+- **`Hud.Shop`'s `nCurrentStock`/`nMaxStock` are the PLAYER'S STOCKPILE**, not shelf inventory — an item
+  with 0 is one the player owns none of, not one that is sold out. `Ess.Shop` names them `nOwned`/`nCap`.
+- **The short `AddItem` is for the game's catalogue, not a convenience.** `_SetupShopFlash` renders an item
+  only if it has description + texture + stock, or if its `sId` is in `MrxSupportData`. A custom short-form
+  item renders nothing, silently. Always use the full form.
+- **⚠ `ReleaseControlFocus` leaves `ControlModeManager` stuck when the queue empties** — it only reassigns
+  the flag if there is a NEXT holder. Closing the shop with Escape left the player **with no game control**
+  despite every callback firing correctly and the shop deregistering. This affects **any** modal that is the
+  last focus holder, not just the shop. `Ess.Shop.close()` repairs it (conditionally — only when the queue
+  is genuinely empty, so a legitimate holder is not stamped on) and doubles as the escape hatch.
+- The shop also calls `LTILibName.ChangeShellState(true)` on open with **no matching `false`** anywhere in
+  `mrxguisupportshop.lua`; `mrxbriefing.lua` balances its pairs. `Ess.Shop.close()` balances it.
+
 ### The minimap widget (`Ess.Minimap`) — reachable, and the range fights back
 
 - `Hud.Radar` can only add/remove/animate objectives. The **widget** underneath carries `SetRange`,
@@ -267,8 +297,8 @@ Blocked on verification: there is no audio channel to the agent, so a human must
 - **`Pda.Map`** 11 uncovered — the mission system (`AddMission`, `SetSelectedMission`,
   `SetMissionTrackCallback`, `SetMissionTrackable`). This is how a mod registers as a real trackable
   mission rather than a loose blip, and `Ess.Contract` is the obvious consumer.
-- **`Hud.Shop`** 7, all uncovered — `Create`/`AddItemFull`/`SetCallback`/`Commence`. A working native
-  purchase UI with callbacks; the biggest single unexplored piece here.
+- **`Hud.Shop` is done** — `Ess.Shop.open/close/isOpen`, live-verified end to end including a real purchase
+  (`BUY ess_covert x4`). Only the short `AddItem` is unwrapped, deliberately (see above).
 - **`Hud.FactionDisplay`** — `StartTimer` is an on-screen countdown with a callback; `AddMeter`/`SetValue`
   drive arbitrary labelled meters. (`RemoveMeter`/`RemoveAllMeters` are dead — see §4.)
 - The fanfare family (`Fanfare`, `SupportFanfare`, `ContactFanfare`, `CardFanfare`, `JobFanfare`,

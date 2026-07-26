@@ -210,10 +210,10 @@
  },
  "counts": {
   "engine": 41,
-  "game_script": 236,
+  "game_script": 238,
   "internal": 4,
   "engine_fns": 965,
-  "game_script_fns": 3193,
+  "game_script_fns": 3202,
   "internal_fns": 122
  },
  "namespaces": {
@@ -875,7 +875,14 @@
     "SetCallback",
     "SetCloseCallback"
    ],
-   "called_by_ess": [],
+   "called_by_ess": [
+    "AddItemFull",
+    "Close",
+    "Commence",
+    "Create",
+    "SetCallback",
+    "SetCloseCallback"
+   ],
    "source": "resident/mrxguiinterface.lua"
   },
   "Hud.SubtitleBuffer": {
@@ -1097,7 +1104,9 @@
     "LTIVideoSwitchOpt1",
     "LTIupdateSupportQuickSlot"
    ],
-   "called_by_ess": []
+   "called_by_ess": [
+    "ChangeShellState"
+   ]
   },
   "MapLabel": {
    "kind": "game_script",
@@ -1758,7 +1767,9 @@
    ],
    "called_by_ess": [
     "AddWidget",
-    "GetWidgetByName"
+    "GetWidgetByName",
+    "SetDialogBoxMode",
+    "SetSupportMenuMode"
    ],
    "source": "resident/mrxguibase.lua"
   },
@@ -1937,7 +1948,8 @@
     "_SetupMasterLayouts"
    ],
    "called_by_ess": [
-    "AddWidgetToHud"
+    "AddWidgetToHud",
+    "ToggleHud"
    ],
    "source": "resident/mrxguimanager.lua"
   },
@@ -3957,6 +3969,7 @@
     "VehicleDisguise"
    ],
    "called_by_ess": [
+    "ClearGPS",
     "GetAllPlayers",
     "GetAnyCharacter",
     "GetCamera",
@@ -4527,6 +4540,19 @@
    "source": "resident/antiair.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.antiair, or import() it first"
   },
+  "_MODULES.autogunship": {
+   "kind": "game_script",
+   "count": 4,
+   "functions": [
+    "LaunchMissile",
+    "OnActivate",
+    "Salvo",
+    "Start"
+   ],
+   "called_by_ess": [],
+   "source": "resident/autogunship.lua",
+   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.autogunship, or import() it first"
+  },
   "_MODULES.bench": {
    "kind": "game_script",
    "count": 5,
@@ -4697,6 +4723,19 @@
    "called_by_ess": [],
    "source": "resident/hero.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.hero, or import() it first"
+  },
+  "_MODULES.hijack_ah1z": {
+   "kind": "game_script",
+   "count": 5,
+   "functions": [
+    "Deinit",
+    "Init",
+    "Initialize",
+    "OnFailureEvents",
+    "StartHijack"
+   ],
+   "called_by_ess": [],
+   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.hijack_ah1z, or import() it first"
   },
   "_MODULES.homingmissile": {
    "kind": "game_script",

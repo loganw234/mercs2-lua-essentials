@@ -74,7 +74,10 @@ MANIFEST = [
     "56_sound.lua",
     "57_hud.lua",
     "57_minimap.lua",
+    # After 32_on.lua: Ess.Gps.onSet/onClear are thin wrappers over Ess.On.script.
+    "57_gps.lua",
     "58_pda.lua",
+    "58_shop.lua",
     "58_support.lua",
     "59_objective.lua",
     "90_override.lua",

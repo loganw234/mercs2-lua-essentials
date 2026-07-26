@@ -18,6 +18,8 @@
 --   Ess.On.tick(interval, fn)             fn() every `interval` seconds (a named, reload-safe Ess.Loop)
 --   Ess.On.labeled(label, r, fn [,i])     fn(uGuid) ONCE per world-labeled object as it streams in near
 --                                         player i (the ObjectFilter + Event.ObjectProximity discovery idiom)
+--   Ess.On.script(sName, fn)              fn(tPayload) when the GAME posts the named script event -- the
+--                                         one hook here that listens to the shipped game rather than polling
 
 local Ess = _G.Ess
 Ess.On = Ess.On or {}
@@ -150,5 +152,54 @@ function Ess.On.labeled(sLabel, nRadius, fn, i)
     local oke, e = Ess.Safe.quiet(Event.CreatePersistent, Event.ObjectProximity,
         { filter, char, "<", nRadius or 300, false, false }, onProx, {})
     if oke then ev = e end
+    return function() if ev then Ess.Safe.quiet(Event.Delete, ev); ev = nil end end
+end
+
+-- Ess.On.script(sName, fn) -> stop() -- fire fn(tPayload) whenever the GAME posts the named script event.
+--
+-- Every other hook in this file watches the world by polling or by an engine event. This one listens to the
+-- shipped game's own announcements: `Event.Post("GPS Beacon Set", {nX = ..., nY = ...})` and friends. That
+-- makes it the cheapest way to react to something the base game already knows about, instead of polling for
+-- its side effects.
+--
+-- THE CALLBACK ARGUMENT ORDER IS NOT OBVIOUS, and getting it wrong is a silent nil-index. Event.Create's
+-- callback data comes FIRST and the POSTED TABLE arrives after it. Measured 2026-07-26 with a probe event:
+-- callback data "CALLBACKDATA" landed in argument 1 and the posted `{marker="PAYLOAD"}` in argument 2. This
+-- is also why oilcon020.lua reads `.nX` off what looks like its own callback data -- it passes
+-- `{self, tBeaconData}` where tBeaconData is an undeclared global, so the array is really just `{self}` and
+-- the payload lands in the second slot by accident of that nil. Passing no callback data at all, as below,
+-- makes the payload argument 1 and the whole thing legible.
+--
+-- Event names the shipped game posts (exact strings, spaces and capitals included):
+--   "GPS Beacon Set" / "GPS Beacon Cleared"   -- see Ess.Gps, which wraps these two
+--   "PDA Open" / "PDA Close"
+--   "Support Menu Open" / "Support Menu Close" / "SupportUsed"
+--   "Satellite Targetting Start" / " Success" / " Cancelled"
+--   "Satellite Minigame Start" / " Sector Hit" / " Sector Miss"
+--   "Transit Interface Open" / " Success" / "transitStart" / "transitEnd"
+--   "MunitionsPickup" / "NoMunitions" / "UntagMunitions"
+--   "mpPlayerJoin" / "mpPlayerLeft" / "InFocus" / "Airstrike" / "RecruitAvailable" / "HeroReported"
+--   "MedevacComplete" / "SurvivalMode" / "SurvivalCooldownEnded" / "parkingLotStart" / "oilrigDestroyed"
+--
+-- The validation function is required by Event.ScriptEvent (it filters which posts you care about); this
+-- passes an accept-everything one, matching what the game's own call sites do.
+function Ess.On.script(sName, fn)
+    if type(sName) ~= "string" or sName == "" then
+        Ess.Safe.reject("Ess.On.script", "event name must be a non-empty string, got " .. type(sName))
+        return function() end
+    end
+    if type(fn) ~= "function" then
+        Ess.Safe.reject("Ess.On.script", "no callback given for '" .. sName .. "' -- not armed")
+        return function() end
+    end
+    local ev
+    local ok, e = Ess.Safe.quiet(Event.CreatePersistent, Event.ScriptEvent,
+        { sName, function() return true end },
+        function(tPayload) pcall(fn, tPayload) end, {})
+    if not ok then
+        Ess.Safe.reject("Ess.On.script", "could not create ScriptEvent for '" .. sName .. "'")
+        return function() end
+    end
+    ev = e
     return function() if ev then Ess.Safe.quiet(Event.Delete, ev); ev = nil end end
 end
