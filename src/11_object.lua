@@ -36,8 +36,7 @@
 --                                        (hides the yaw->sin/cos "in front of me" trig a beginner won't know;
 --                                        tOpts.useView=true places it where you're LOOKING, not body-facing)
 --   -- vehicle-entry watch
---   -- identity / hierarchy / physics state (the read side)
---   Ess.Object.name(uGuid) -> s | nil               INTERNAL script name (not .displayName)
+--   -- hierarchy / physics state (the read side)
 --   Ess.Object.parent(uGuid) -> uGuid | nil         what this is attached TO
 --   Ess.Object.attached(uGuid) -> { uGuid, ... }    what is attached to THIS (always a table)
 --   Ess.Object.isAttachedTo(uGuid, uOther) -> bool
@@ -411,17 +410,6 @@ end
 -- (SetName, FadeOut, Open/CloseGate, the winch verbs) are deliberately held for the setters pass.
 -- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
--- Ess.Object.name(uGuid) -> sName | nil -- the object's INTERNAL script name, i.e. what Pg.GetGuidByName
--- looks up and what Object.SetName assigns. Not the same thing as .displayName (Object.GetLocalizedName),
--- which is the translated label a player sees. Most world objects have no internal name at all -- the
--- player's own character returns nil -- so nil here means "unnamed", not "bad guid".
-function Ess.Object.name(uGuid)
-    if not uGuid then return nil end
-    local ok, s = Ess.Safe.quiet(Object.GetName, uGuid)
-    if ok then return s end
-    return nil
-end
-
 -- Ess.Object.parent(uGuid) -> uParentGuid | nil -- what this object is attached TO (the inverse of
 -- .attached below). Note the engine hands back handles in a different range for these (0x8-prefixed on a
 -- character, versus the 0x4-prefixed guids of ordinary world objects), so don't assume a parent handle is
@@ -479,8 +467,22 @@ function Ess.Object.hibernated(uGuid)
     return (ok and b) and true or false
 end
 
--- NOTE on two natives deliberately NOT wrapped here, both live-checked:
---   Object.GetModelName(uGuid) returns USERDATA, not a string -- an interned model handle. Exposing it as a
---     ".modelName() -> string" would be a lie, and there is no string form of it reachable from Lua.
+-- NOTE on three natives deliberately NOT wrapped here, all live-checked. Each one's NAME promises a string
+-- or a vector and none of them delivers one, which is exactly why they are called out rather than silently
+-- omitted -- the next person to read the native list will assume otherwise.
+--
+--   Object.GetName(uGuid) returns USERDATA, not a string. It is an interned name TOKEN, and there is no
+--     string form of it reachable from Lua: Sys.ToStringL hands the same handle straight back, and
+--     Sys.GuidToString merely hex-formats it ("0x1FF2DC3A"). An earlier pass did wrap this as
+--     ".name() -> sName | nil"; that was wrong and is withdrawn. The unnamed player character returns nil,
+--     which is what masked the real return type until a named object was tested.
+--
+--     Going the OTHER way works fine and is already covered: Ess.Guid(sName) (Pg.GetGuidByName) and
+--     Ess.Probe.allByName(sName) (Pg.GetAllGuidsByName) both resolve a plain string to guids -- verified
+--     against an object named live via Object.SetName. So name -> guid is supported; guid -> name is not.
+--
+--   Object.GetModelName(uGuid) returns USERDATA for the same reason -- an interned model handle, no string
+--     form. ".modelName() -> string" would be a lie.
+--
 --   Object.GetVelocity(uGuid) returns SCALAR speed, not a vector, despite the name. Ess.Object.speed already
 --     covers that ground via GetVelocitySquared + sqrt; the native would save the sqrt if that ever matters.

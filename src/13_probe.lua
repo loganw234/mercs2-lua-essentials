@@ -5,6 +5,9 @@
 --   Ess.Probe.nearest(x, y, z, radius, kind, filter, includeSelf) -> uGuid, nDist | nil  the single closest
 --   Ess.Probe.allByName(sName) -> { uGuid, ... }   EVERY object matching a template/object name (Ess.Guid
 --                                                  returns only one; this is the multi-instance form)
+--   Ess.Probe.inArea(x, y, z, radius, sClass) -> { uGuid, ... }      WORLD OBJECTS in radius; omit sClass
+--                                                  for everything. EXCLUDES characters -- use .nearby()
+--   Ess.Probe.awakeInArea(x, y, z, radius, sClass) -> { uGuid, ... } same, physics-awake only
 --   Ess.Probe.getFaction(uGuid) -> sAbbrev | nil
 --   Ess.Probe.describeSafe(uGuid) -> sDescription
 
@@ -140,4 +143,77 @@ function Ess.Probe.describeSafe(uGuid)
     if okh and hp then hpStr = "hp=" .. tostring(hp) end
     local fac = Ess.Probe.getFaction(uGuid) or "fac?"
     return name .. " " .. pos .. " " .. hpStr .. " " .. fac
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- Ess.Probe.inArea(x, y, z, radius, sClass) -> { uGuid, ... }
+--
+-- WORLD OBJECTS in a radius -- buildings, vehicles, props, emplacements. Complements .nearby(): that one
+-- collapses the 11 Pg.FastCollect* calls, each of which returns exactly ONE broad category, so it can never
+-- answer "what is around me". This can: with no class it returns EVERYTHING (244 objects at r=300 on a
+-- populated street, against the handful .nearby() gives for any single kind).
+--
+-- ⚠ CHARACTERS ARE NOT INCLUDED. Live-measured on a busy road: 244 objects back from here, physics types
+-- sampling as building/car, while Pg.FastCollectHumans over the SAME radius found 22 people. NPCs are
+-- simply not in this result set, so `inArea(x,y,z,r,"Human")` returns nothing -- not because the string is
+-- wrong, but because there is nothing of that kind to match. Use Ess.Probe.nearby(..., "human") for people.
+-- This is the single easiest way to misread this function, hence the shouting.
+--
+-- sClass is optional and CASE-INSENSITIVE. Confirmed working: "Vehicle", "Car", "Building",
+-- "Emplacedweapon". The vocabulary appears to be the engine's own physics-type names (Object.GetPhysicsType
+-- returns lowercase "building"/"car") plus some broader class names -- note "Car" and "Vehicle" returned
+-- DIFFERENT counts (3 vs 2) in the same query, so they are overlapping sets rather than one nesting inside
+-- the other. Mission scripts also pass specific object names ("Listening Post", "BirdBox"). Treat any class
+-- string as unverified until you have counted results with it.
+--
+-- ⚠ An empty string is NOT "match everything" -- it matches NOTHING (0 results where omitting the argument
+-- gives 244). Omit the argument for "all"; never pass "".
+--
+-- ⚠⚠ HARD LIMIT WHEN CALLED OVER THE lua-bridge REPL -- and it is INTERMITTENT, which makes it worse.
+-- A large result set overflows the bridge executor's hand-built Lua frame: it installs a frame at L->top
+-- and never grows the stack, so it only has LUA_MINSTACK (20 slots) of headroom, and a native that
+-- allocates a big table runs off the end. Measured on a populated street:
+--     radius 3 -> 0 results  ok        radius 40 -> 35 results  ok
+--     radius 10 -> 4 results ok        radius 100+ -> [runtime], stack residue printed as "results"
+-- The threshold sits somewhere around 200-240 results, and because the world is live (traffic moving in and
+-- out of the radius) the SAME call can succeed and then fail a minute later -- observed returning 238, then
+-- erroring on an identical call. Wrapping it in a Lua closure does not reliably help.
+--
+-- So: keep the radius small enough that results stay well under ~100 when calling from the REPL, or expect
+-- flakiness. Called from a script running inside the game's own Lua (OnLoad/OnKey), the normal engine call
+-- frame applies and this limit does not.
+--
+-- This is a lua-bridge defect, not an engine one -- the executor should reserve stack space before invoking
+-- the chunk. Tracked for a bridge fix; do not work around it by capping radius here, which would silently
+-- give callers less than they asked for.
+--
+-- Always returns a table, empty rather than nil, so it is safe to ipairs() unguarded.
+function Ess.Probe.inArea(x, y, z, radius, sClass)
+    if not x or not y or not z then return {} end
+    local ok, t
+    if sClass and sClass ~= "" then
+        ok, t = Ess.Safe.quiet(Pg.GetObjectsInArea, x, y, z, radius or 50, sClass)
+    else
+        -- Deliberately a DIFFERENT call, not sClass=nil: passing "" returns nothing, and the 4-arg form is
+        -- the only way to ask for everything.
+        ok, t = Ess.Safe.quiet(Pg.GetObjectsInArea, x, y, z, radius or 50)
+    end
+    if ok and type(t) == "table" then return t end
+    return {}
+end
+
+-- Ess.Probe.awakeInArea(x, y, z, radius, sClass) -> { uGuid, ... }
+-- Same query restricted to objects whose physics are currently AWAKE (see Ess.Object.awake). Cheaper to act
+-- on, and the right filter for "what is actually moving near me" -- a hibernated or sleeping object is in
+-- .inArea but is not simulating.
+function Ess.Probe.awakeInArea(x, y, z, radius, sClass)
+    if not x or not y or not z then return {} end
+    local ok, t
+    if sClass and sClass ~= "" then
+        ok, t = Ess.Safe.quiet(Pg.GetAwakeObjects, x, y, z, radius or 50, sClass)
+    else
+        ok, t = Ess.Safe.quiet(Pg.GetAwakeObjects, x, y, z, radius or 50)
+    end
+    if ok and type(t) == "table" then return t end
+    return {}
 end

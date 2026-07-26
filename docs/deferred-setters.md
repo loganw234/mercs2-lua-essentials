@@ -220,6 +220,54 @@ a wrong state string is likely to do something drastic rather than nothing.
 
 ---
 
+## 3d. Pg — 34/80 wrapped
+
+Two area queries wrapped this pass as `Ess.Probe.inArea` / `.awakeInArea`. What they cost to characterise is
+worth recording, because four plausible readings of the filter argument were all wrong.
+
+### `Pg.GetObjectsInArea(x, y, z, radius [, sClass])` — settled
+- The **4-argument form returns everything** in radius. There is no "all" string: `""` matches NOTHING
+  (0 results where omitting the argument gave 244). `Ess.Probe.inArea` normalises `""` to the 4-arg form.
+- `sClass` is **case-insensitive**. Confirmed: `Vehicle`, `Car`, `Building`, `Emplacedweapon`.
+- **It excludes characters entirely.** `"Human"`/`"Character"` return 0 on a street with people walking past;
+  `Pg.FastCollectHumans` over the same radius found 22. Not a wrong string — NPCs are not in the set.
+- `Car` (3) and `Vehicle` (2) returned **different, overlapping** counts in one query, so they are not nested.
+- Ruled out by direct test, each having looked plausible: the object's instance name (set via
+  `Object.SetName`, confirmed applied), the spawn template name (`"Veyron"`), a label (`Ess.Object.addLabel`,
+  `hasLabel` confirmed true), and the `Object.GetName` handle.
+- Corpus also passes specific object names (`"Listening Post"`, `"RumJug"`, `"BirdBox"`), so the vocabulary
+  is broader than the class list — treat any untested class string as unverified until you count results.
+
+### `Pg.FindPointFromCamera(a, b, c, uOwner)` — characterised, NOT wrapped
+94 call sites, the most-used uncovered getter in the namespace, and genuinely wanted: it is a **view-relative**
+point finder, which is exactly the gap `01_math.lua` documents (body yaw ≠ look direction, so
+`Ess.Object.spawnAhead` can only work off the body). Returns real world coords.
+
+Not wrapped because the argument meanings are only half-known. Measured distance from the player fits
+`sqrt(a² + b²)` — (300,200)→346, (50,200)→204, (300,20)→297 — so `a` and `b` are two orthogonal offsets, but
+which is forward vs up is unconfirmed, and the third argument (`-1` in every corpus call) is unknown. Guessing
+would hand callers a subtly wrong spawn point. Needs a visual-confirmation pass.
+
+### Other confirmed getters, not yet wrapped
+`GetAllLandingZones(n)` → 30 zones. `LoadIsRetry()` → bool (a getter despite the verb-ish name).
+`AssetExists(sName, sType)`. `GetBoundaryRadius()`/`GetWarningRadius()` → 10/10.
+`GetLoadingStaticLayers()` returns **nil**, not false — another nil-for-false case.
+
+### Mutators (deferred)
+| Native | Sites | Sample | Notes |
+|---|--:|---|---|
+| `Pg.UnloadAsset` | 54 | `Pg.UnloadAsset("Mercs2Globals", "sounddb")` | asset streaming — mis-use likely unloads live content |
+| `Pg.SpawnFromCamera` | 19 | `Pg.SpawnFromCamera(tmpl, 20)` | pairs with FindPointFromCamera above |
+| `Pg.ResetSingletonDone` | 7 | | |
+| `Pg.EnableIntersection` | 4 | `Pg.EnableIntersection(false, StringToGuid("..."))` | note the `Sys.StringToGuid` idiom — now `Ess.Unname` |
+| `Pg.LoadingStaticLayers` / `UnloadingStaticLayers` | 4 / 8 | `(false)` | setters; the `Get*` forms are the readers |
+| `Pg.LoadGame` | 3 | `Pg.LoadGame("InitialSaveData")` | |
+| `Pg.SetBoundaryRadius` | 2 | `Pg.SetBoundaryRadius(38.5)` | |
+| `Pg.StartHeliWaveSpawner` / `Stop...` | 2 / 2 | takes a **table** config | a whole spawner subsystem; do as a unit |
+| `Pg.UnloadLayer` / `LoadLayer` / `ReloadLayer` | 3 / 2 / 2 | returns success bool | |
+
+---
+
 ## 4. Dark — no call sites anywhere, arity unknown
 
 Only reachable by live probing. `Player` and `Object` both have **zero** no-op stubs per the verified EXE
