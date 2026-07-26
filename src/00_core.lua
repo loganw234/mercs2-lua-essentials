@@ -218,6 +218,22 @@ end
 -- Ess.Safe.quiet with the label supplied up front. Use it for a CLOSURE (`Ess.Safe.named("Contract.tick",
 -- function() ... end)`) -- a closure is a fresh function object every call, so it can never be in the
 -- reverse-name map and would otherwise tally as an indistinguishable "closure".
+--
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════════════
+-- WHICH WRAPPER TO USE -- the rule, because getting it wrong is invisible until you turn Ess.DEBUG on
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════════════
+--   Ess.Safe.quiet(SomeNative, a, b)          a function REFERENCE. Attributed by the reverse-name map.
+--   Ess.Safe.named("Ess.X.y", function() end)  a CLOSURE. Needs the label or it tallies as "closure".
+--   Ess.Safe.call(...)                         when a failure is genuinely abnormal and always worth a log.
+--   pcall(userCallback, ...)                   a BARE pcall, and correct here: a mod author's error is not
+--                                              an Ess failure, and recording it would make Ess.Safe.stats()
+--                                              blame the framework for a bug in the mod.
+--
+-- The closure case matters more than it looks. Any native called with COLON syntax -- the whole Hud.*/Pda.*
+-- surface, `Hud.MessageBox:AddMessage{...}` -- cannot be passed as a reference at all, so it MUST be
+-- wrapped in a closure, so it must use .named. An audit on 2026-07-26 found 37 such call sites that had
+-- reached for .quiet: every failure was being recorded, but all of them landed in one undifferentiated
+-- "closure" bucket, which is nearly as undiagnosable as not recording them.
 function Ess.Safe.named(sLabel, fn, ...)
     local ok, a, b, c, d, e, f = pcall(fn, ...)
     if not ok then

@@ -51,9 +51,12 @@ Ess.Pda = Ess.Pda or {}
 --   tOpts.sColor   bare hex, no "#" and no "0x" -- e.g. "3399FF". Defaults to the game's own event blue.
 --                  Ess.Color is deliberately NOT used here: it produces numbers, and this wants the string.
 function Ess.Pda.log(sMessage, tOpts)
-    if type(sMessage) ~= "string" or sMessage == "" then return false end
+    if type(sMessage) ~= "string" or sMessage == "" then
+        Ess.Safe.reject("Ess.Pda.log", "sMessage must be a non-empty string")
+        return false
+    end
     local o = type(tOpts) == "table" and tOpts or {}
-    Ess.Safe.quiet(function()
+    Ess.Safe.named("Ess.Pda.log", function()
         Pda.Database:AddLogEntry({ sType = o.sType or "event", sName = o.sName or "",
                                    sMessage = sMessage, sColor = o.sColor or "3399FF" })
     end)
@@ -72,8 +75,11 @@ end
 -- testing agreed: an added help entry was nowhere in the PDA. There is no argument that fixes this, so
 -- there is no wrapper for it.
 function Ess.Pda.dossier(sTitle, sText, sIcon)
-    if type(sTitle) ~= "string" or sTitle == "" then return false end
-    Ess.Safe.quiet(function()
+    if type(sTitle) ~= "string" or sTitle == "" then
+        Ess.Safe.reject("Ess.Pda.dossier", "sTitle must be a non-empty string")
+        return false
+    end
+    Ess.Safe.named("Ess.Pda.dossier", function()
         Pda.Database:AddDossierEntry({ sTitle = sTitle, sText = tostring(sText or ""), sIcon = sIcon })
     end)
     return true
@@ -82,16 +88,22 @@ end
 -- ---- Statistics ---------------------------------------------------------------------------------------
 -- A category must exist before rows can be added to it. Both are additive and there is no remove.
 function Ess.Pda.statCategory(sCategory, sIcon)
-    if type(sCategory) ~= "string" or sCategory == "" then return false end
-    Ess.Safe.quiet(function()
+    if type(sCategory) ~= "string" or sCategory == "" then
+        Ess.Safe.reject("Ess.Pda.statCategory", "sCategory must be a non-empty string")
+        return false
+    end
+    Ess.Safe.named("Ess.Pda.statCategory", function()
         Pda.Database:AddStatisticCategory({ sCategory = sCategory, sIcon = sIcon })
     end)
     return true
 end
 
 function Ess.Pda.stat(sCategory, sDesc, sData)
-    if type(sCategory) ~= "string" or sCategory == "" then return false end
-    Ess.Safe.quiet(function()
+    if type(sCategory) ~= "string" or sCategory == "" then
+        Ess.Safe.reject("Ess.Pda.stat", "sCategory must be a non-empty string")
+        return false
+    end
+    Ess.Safe.named("Ess.Pda.stat", function()
         Pda.Database:AddStatisticEntry({ sCategory = sCategory, sDesc = tostring(sDesc or ""),
                                          sData = tostring(sData or "") })
     end)
@@ -163,11 +175,14 @@ Ess.Pda.ICONS = {
 -- Blips are NOT tracked for teardown here -- use Ess.Track:pda(sName) if you want automatic cleanup, which
 -- is what it already exists for.
 function Ess.Pda.blip(sName, tOpts)
-    if type(sName) ~= "string" or sName == "" then return false end
+    if type(sName) ~= "string" or sName == "" then
+        Ess.Safe.reject("Ess.Pda.blip", "sName must be a non-empty string")
+        return false
+    end
     local o = type(tOpts) == "table" and tOpts or {}
     local tex = o.sTexture
     if tex == nil then tex = "icon_yellow_mc" elseif tex == false then tex = nil end
-    Ess.Safe.quiet(function()
+    Ess.Safe.named("Ess.Pda.blip", function()
         Pda.Map:AddBlip({
             sName = sName,
             nX = tonumber(o.nX), nY = tonumber(o.nY),
@@ -182,8 +197,11 @@ function Ess.Pda.blip(sName, tOpts)
 end
 
 function Ess.Pda.removeBlip(sName)
-    if type(sName) ~= "string" or sName == "" then return false end
-    Ess.Safe.quiet(function() Pda.Map:RemoveBlip({ sName = sName }) end)
+    if type(sName) ~= "string" or sName == "" then
+        Ess.Safe.reject("Ess.Pda.removeBlip", "sName must be a non-empty string")
+        return false
+    end
+    Ess.Safe.named("Ess.Pda.removeBlip", function() Pda.Map:RemoveBlip({ sName = sName }) end)
     return true
 end
 
@@ -192,22 +210,25 @@ end
 -- hardcodes Player.GetLocalPlayer(). Returns nil when nothing is selected (measured).
 function Ess.Pda.selectedMission()
     local v
-    Ess.Safe.quiet(function() v = Pda.Map:GetSelectedMission() end)
+    Ess.Safe.named("Ess.Pda.selectedMission", function() v = Pda.Map:GetSelectedMission() end)
     return v
 end
 
 -- ---- The PDA itself -----------------------------------------------------------------------------------
 -- Ess.Pda.suppress(bOn) -- hide the PDA entirely. The game uses this for briefings and cutscenes.
 function Ess.Pda.suppress(bOn)
-    Ess.Safe.quiet(function() Pda:SetSuppressed({ bSuppress = bOn and true or false }) end)
+    Ess.Safe.named("Ess.Pda.suppress", function() Pda:SetSuppressed({ bSuppress = bOn and true or false }) end)
     return true
 end
 
 -- Ess.Pda.attitude(sFaction, nAttitude [,sTexture]) -- set a faction's displayed attitude on the database
 -- screen. Display only; the real relation lives in Ess.Relations.
 function Ess.Pda.attitude(sFaction, nAttitude, sTexture)
-    if type(sFaction) ~= "string" or sFaction == "" then return false end
-    Ess.Safe.quiet(function()
+    if type(sFaction) ~= "string" or sFaction == "" then
+        Ess.Safe.reject("Ess.Pda.attitude", "sFaction must be a non-empty string")
+        return false
+    end
+    Ess.Safe.named("Ess.Pda.attitude", function()
         Pda.Database:SetFactionAttitude({ sName = sFaction, nAttitude = tonumber(nAttitude),
                                           sTexture = sTexture })
     end)

@@ -79,13 +79,18 @@ end
 local bannerReady = false
 local function ensureBannerTexture()
     if bannerReady then return end
-    local ok = pcall(function() MrxGuiHudMessage._tEventTextures.custom = "ess_custom_banner_noexist" end)
+    local ok = Ess.Safe.named("Ess.Hud.banner(register texture)", function()
+        MrxGuiHudMessage._tEventTextures.custom = "ess_custom_banner_noexist"
+    end)
     bannerReady = ok
 end
 function Ess.Hud.banner(sMsg)
-    if type(sMsg) ~= "string" or sMsg == "" then return end
+    if type(sMsg) ~= "string" or sMsg == "" then
+        Ess.Safe.reject("Ess.Hud.banner", "sMsg must be a non-empty string")
+        return
+    end
     ensureBannerTexture()
-    pcall(function() Hud.EventFanfare:Commence({ sType = "custom", vText = sMsg }) end)
+    Ess.Safe.named("Ess.Hud.banner", function() Hud.EventFanfare:Commence({ sType = "custom", vText = sMsg }) end)
 end
 
 -- Ess.Hud.objective(sText [,nSlot]) -- set the persistent objective-tray line (Hud.ObjectiveTray, slot 1 by
@@ -96,8 +101,8 @@ end
 -- other than a running Contract's.
 function Ess.Hud.objective(sText, nSlot)
     local slot = tonumber(nSlot) or 1
-    if sText == nil then pcall(function() Hud.ObjectiveTray:ClearSlot({ nSlot = slot }) end)
-    else pcall(function() Hud.ObjectiveTray:SetSlotToText({ nSlot = slot, sText = tostring(sText) }) end) end
+    if sText == nil then Ess.Safe.named("Ess.Hud.objective", function() Hud.ObjectiveTray:ClearSlot({ nSlot = slot }) end)
+    else Ess.Safe.named("Ess.Hud.objective", function() Hud.ObjectiveTray:SetSlotToText({ nSlot = slot, sText = tostring(sText) }) end) end
 end
 
 -- Ess.Hud.radio(sText, nHold) -- a transient "radio chatter" subtitle (objective-tray slot 3) that clears
@@ -109,9 +114,9 @@ function Ess.Hud.radio(sText, nHold)
     if type(sText) ~= "string" or sText == "" then return end
     Ess.Hud._radioGen = Ess.Hud._radioGen + 1
     local myGen = Ess.Hud._radioGen
-    pcall(function() Hud.ObjectiveTray:SetSlotToText({ nSlot = 3, sText = sText }) end)
+    Ess.Safe.named("Ess.Hud.radio", function() Hud.ObjectiveTray:SetSlotToText({ nSlot = 3, sText = sText }) end)
     Ess.Safe.quiet(Event.Create, Event.TimerRelative, { tonumber(nHold) or 5 }, function()
-        if Ess.Hud._radioGen == myGen then pcall(function() Hud.ObjectiveTray:ClearSlot({ nSlot = 3 }) end) end
+        if Ess.Hud._radioGen == myGen then Ess.Safe.named("Ess.Hud.radio", function() Hud.ObjectiveTray:ClearSlot({ nSlot = 3 }) end) end
     end)
 end
 
@@ -151,9 +156,12 @@ Ess.Hud.RADAR_ICONS = {
 --
 -- nDuration is in seconds (default 3) and is multiplied by 30 internally, so the movie is frame-timed.
 function Ess.Hud.title(sText, nDuration, tOpts)
-    if type(sText) ~= "string" or sText == "" then return false end
+    if type(sText) ~= "string" or sText == "" then
+        Ess.Safe.reject("Ess.Hud.title", "sText must be a non-empty string")
+        return false
+    end
     local o = type(tOpts) == "table" and tOpts or {}
-    Ess.Safe.quiet(function()
+    Ess.Safe.named("Ess.Hud.title", function()
         Hud.ClassyText:ShowText({
             sText = sText,
             nY = tonumber(o.nY) or 240,
@@ -169,8 +177,11 @@ end
 -- Ess.Hud.location(sText [,nDuration]) -- the region-name banner the game shows when you cross into a named
 -- area. Purely cosmetic and takes arbitrary text, so it doubles as a chapter/act card. nDuration in seconds.
 function Ess.Hud.location(sText, nDuration)
-    if type(sText) ~= "string" or sText == "" then return false end
-    Ess.Safe.quiet(function()
+    if type(sText) ~= "string" or sText == "" then
+        Ess.Safe.reject("Ess.Hud.location", "sText must be a non-empty string")
+        return false
+    end
+    Ess.Safe.named("Ess.Hud.location", function()
         Hud.MapLabel:Show({ sLocation = sText, nDuration = tonumber(nDuration) or 10 })
     end)
     return true
@@ -188,10 +199,13 @@ end
 --   tOpts.bAppends      default true
 --   tOpts.fCallback / tOpts.tCallbackData -- a real Lua callback, invoked by the widget
 function Ess.Hud.message(sText, tOpts)
-    if type(sText) ~= "string" or sText == "" then return nil end
+    if type(sText) ~= "string" or sText == "" then
+        Ess.Safe.reject("Ess.Hud.message", "sText must be a non-empty string")
+        return nil
+    end
     local o = type(tOpts) == "table" and tOpts or {}
     local ids
-    Ess.Safe.quiet(function()
+    Ess.Safe.named("Ess.Hud.message", function()
         ids = Hud.MessageBox:AddMessage({
             sMessage = sText,
             nDuration = tonumber(o.nDuration) or 2,
@@ -216,9 +230,12 @@ end
 -- busy stack, which is exactly what the game itself uses it for; it is not a general "change that text".
 -- To replace a visible line, remove it and add a new one.
 function Ess.Hud.updateMessage(handle, sText)
-    if type(handle) ~= "table" or type(sText) ~= "string" then return false end
+    if type(handle) ~= "table" or type(sText) ~= "string" then
+        Ess.Safe.reject("Ess.Hud.updateMessage", "handle must be a table")
+        return false
+    end
     local ok
-    Ess.Safe.quiet(function()
+    Ess.Safe.named("Ess.Hud.updateMessage", function()
         ok = Hud.MessageBox:ModifyPendingMessage({ tMessageIds = handle, sMessage = sText })
     end)
     return ok == true
@@ -226,14 +243,17 @@ end
 
 -- Ess.Hud.removeMessage(handle) -- same pending-only constraint as updateMessage.
 function Ess.Hud.removeMessage(handle)
-    if type(handle) ~= "table" then return false end
-    Ess.Safe.quiet(function() Hud.MessageBox:RemovePendingMessage({ tMessageIds = handle }) end)
+    if type(handle) ~= "table" then
+        Ess.Safe.reject("Ess.Hud.removeMessage", "handle must be a table")
+        return false
+    end
+    Ess.Safe.named("Ess.Hud.removeMessage", function() Hud.MessageBox:RemovePendingMessage({ tMessageIds = handle }) end)
     return true
 end
 
 -- Ess.Hud.clearMessages() -- wipe the message box, visible AND queued. This one has no pending caveat.
 function Ess.Hud.clearMessages()
-    Ess.Safe.quiet(function() Hud.MessageBox:Clear({}) end)
+    Ess.Safe.named("Ess.Hud.clearMessages", function() Hud.MessageBox:Clear({}) end)
     return true
 end
 
@@ -251,7 +271,7 @@ end
 -- an EMPTY target list (silent no-op) and a table player reads an undeclared global and errors inside
 -- pairs(nil). Only the omitted-vPlayer path works, and nothing in the corpus ever called them.
 function Ess.Hud.tutorial(sText)
-    Ess.Safe.quiet(function()
+    Ess.Safe.named("Ess.Hud.tutorial", function()
         Hud.Tutorial:SetText({ sText = (type(sText) == "string" and sText ~= "") and sText or nil })
     end)
     return true
@@ -260,8 +280,11 @@ end
 -- Ess.Hud.image(sTexture [,nSlot] [,nW] [,nH]) -- put an IMAGE in an objective-tray slot instead of text.
 -- Same slot numbering as Ess.Hud.objective (1 = current objective line, 3 = the radio line).
 function Ess.Hud.image(sTexture, nSlot, nW, nH)
-    if type(sTexture) ~= "string" or sTexture == "" then return false end
-    Ess.Safe.quiet(function()
+    if type(sTexture) ~= "string" or sTexture == "" then
+        Ess.Safe.reject("Ess.Hud.image", "sTexture must be a non-empty string")
+        return false
+    end
+    Ess.Safe.named("Ess.Hud.image", function()
         Hud.ObjectiveTray:SetSlotToImage({ nSlot = tonumber(nSlot) or 1, sTexture = sTexture,
                                            nWidth = tonumber(nW), nHeight = tonumber(nH) })
     end)
@@ -279,9 +302,12 @@ end
 -- animation. fuel()'s nMax is an undocumented extra the corpus never used: it appends "/max" to the readout.
 function Ess.Hud.cash(nValue, tOpts)
     local v = tonumber(nValue)
-    if not v then return false end
+    if not v then
+        Ess.Safe.reject("Ess.Hud.cash", "nValue must be a number, got " .. type(nValue))
+        return false
+    end
     local o = type(tOpts) == "table" and tOpts or {}
-    Ess.Safe.quiet(function()
+    Ess.Safe.named("Ess.Hud.cash", function()
         Hud.ResourceCounter:SetCash({ nValue = v, sReason = o.sReason, nIncrement = tonumber(o.nIncrement) })
     end)
     return true
@@ -289,8 +315,11 @@ end
 
 function Ess.Hud.fuel(nValue, nMax)
     local v = tonumber(nValue)
-    if not v then return false end
-    Ess.Safe.quiet(function()
+    if not v then
+        Ess.Safe.reject("Ess.Hud.fuel", "nValue must be a number, got " .. type(nValue))
+        return false
+    end
+    Ess.Safe.named("Ess.Hud.fuel", function()
         Hud.ResourceCounter:SetFuel({ nValue = v, nMax = tonumber(nMax) })
     end)
     return true
@@ -299,7 +328,7 @@ end
 -- Ess.Hud.resources(bShow [,nDuration]) -- show (for nDuration seconds, default 3) or hide the cash+fuel
 -- readouts. Hiding is indefinite.
 function Ess.Hud.resources(bShow, nDuration)
-    Ess.Safe.quiet(function()
+    Ess.Safe.named("Ess.Hud.resources", function()
         if bShow == false then Hud.ResourceCounter:Hide({})
         else Hud.ResourceCounter:Show({ nDuration = tonumber(nDuration) or 3 }) end
     end)
@@ -309,7 +338,7 @@ end
 -- Ess.Hud.suppressResources(bCash, bFuel) -- the game's own "hide these during a cutscene" switch, separate
 -- from show/hide and independently settable per counter.
 function Ess.Hud.suppressResources(bCash, bFuel)
-    Ess.Safe.quiet(function()
+    Ess.Safe.named("Ess.Hud.suppressResources", function()
         Hud.ResourceCounter:SetSuppressed({ bSuppressCash = bCash and true or false,
                                             bSuppressFuel = bFuel and true or false })
     end)

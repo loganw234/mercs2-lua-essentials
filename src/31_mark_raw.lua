@@ -33,14 +33,14 @@ end
 function Ess.Raw.Mark.radar(uGuid, tex, rgb)
     local sName = guidName(uGuid)
     local r, g, b = rgbOf(rgb)
-    local ok = pcall(function()
+    local ok = Ess.Safe.named("Ess.Raw.Mark.radar", function()
         Hud.Radar:AddObjective({ sName = sName, uGuid = uGuid, sTexture = tex or "objective_action",
             nR = r, nG = g, nB = b, nWidth = 10.666667, nHeight = 10.666667, nSortOrder = 5 })
     end)
     return ok and sName or nil
 end
 function Ess.Raw.Mark.removeRadar(sName)
-    if sName then pcall(function() Hud.Radar:RemoveObjective({ sName = sName }) end) end
+    if sName then Ess.Safe.named("Ess.Raw.Mark.removeRadar", function() Hud.Radar:RemoveObjective({ sName = sName }) end) end
 end
 
 -- Ess.Raw.Mark.pda(uGuid, tex, sLabel) -> sName|nil -- PDA map blip, also keyed by name.
@@ -53,14 +53,14 @@ end
 -- and Ess.Mark passes opts.label through so a caller can do better.
 function Ess.Raw.Mark.pda(uGuid, tex, sLabel)
     local sName = guidName(uGuid)
-    local ok = pcall(function()
+    local ok = Ess.Safe.named("Ess.Raw.Mark.pda", function()
         Pda.Map:AddBlip({ sName = sName, uGuid = uGuid, sTexture = tex or "icon_yellow_mc",
                           sLabel = sLabel or sName, nSortOrder = 2 })
     end)
     return ok and sName or nil
 end
 function Ess.Raw.Mark.removePda(sName)
-    if sName then pcall(function() Pda.Map:RemoveBlip({ sName = sName }) end) end
+    if sName then Ess.Safe.named("Ess.Raw.Mark.removePda", function() Pda.Map:RemoveBlip({ sName = sName }) end) end
 end
 
 -- ---- radar: the rest of Hud.Radar -----------------------------------------------------------------------
@@ -72,9 +72,12 @@ end
 -- ever passes the guid, so this whole capability was unreachable: marking a place rather than a thing.
 -- Note the engine's own odd default of nY = 2 when omitted (mrxguibase.lua:1485), not 0.
 function Ess.Raw.Mark.radarAt(sName, x, y, z, tex, rgb)
-    if type(sName) ~= "string" or sName == "" then return nil end
+    if type(sName) ~= "string" or sName == "" then
+        Ess.Safe.reject("Ess.Raw.Mark.radarAt", "sName must be a non-empty string")
+        return nil
+    end
     local r, g, b = rgbOf(rgb)
-    local ok = pcall(function()
+    local ok = Ess.Safe.named("Ess.Raw.Mark.radarAt", function()
         Hud.Radar:AddObjective({ sName = sName, nX = x, nY = y, nZ = z,
             sTexture = tex or "objective_action", nR = r, nG = g, nB = b,
             nWidth = 10.666667, nHeight = 10.666667, nSortOrder = 5 })
@@ -87,9 +90,12 @@ end
 -- (applied by the wrapper, reproduced here so the shape is visible): duration 2, min 2x2, max 6x6, speed 8.
 -- tOpts.bOneWay grows once instead of oscillating.
 function Ess.Raw.Mark.pulseRadar(sName, tOpts)
-    if type(sName) ~= "string" then return false end
+    if type(sName) ~= "string" then
+        Ess.Safe.reject("Ess.Raw.Mark.pulseRadar", "sName must be a string")
+        return false
+    end
     local o = type(tOpts) == "table" and tOpts or {}
-    return pcall(function()
+    return Ess.Safe.named("Ess.Raw.Mark.pulseRadar", function()
         Hud.Radar:AnimateObjectiveSize({ sName = sName, nDuration = tonumber(o.nDuration),
             nMinWidth = tonumber(o.nMin), nMinHeight = tonumber(o.nMin),
             nMaxWidth = tonumber(o.nMax), nMaxHeight = tonumber(o.nMax),
@@ -101,9 +107,12 @@ end
 -- Ess.Raw.Mark.blinkRadar(sName, tOpts) -- fade an existing radar objective in and out. Engine defaults:
 -- duration 1, alpha 0..1, speed 0.5.
 function Ess.Raw.Mark.blinkRadar(sName, tOpts)
-    if type(sName) ~= "string" then return false end
+    if type(sName) ~= "string" then
+        Ess.Safe.reject("Ess.Raw.Mark.blinkRadar", "sName must be a string")
+        return false
+    end
     local o = type(tOpts) == "table" and tOpts or {}
-    return pcall(function()
+    return Ess.Safe.named("Ess.Raw.Mark.blinkRadar", function()
         Hud.Radar:AnimateObjectiveAlpha({ sName = sName, nDuration = tonumber(o.nDuration),
             nMinAlpha = tonumber(o.nMinAlpha), nMaxAlpha = tonumber(o.nMaxAlpha),
             nSpeed = tonumber(o.nSpeed), bOneWay = o.bOneWay and true or nil })
@@ -115,10 +124,13 @@ end
 -- pulse). Engine defaults: 4 total blips, 1 visible, width 2..8, delay 1, alpha 0..1, grow speed 5.
 -- tOpts.sTexture defaults to the game's own "temp_radar_pulse". nDuration 0 means indefinite at that site.
 function Ess.Raw.Mark.sonarRadar(sName, tOpts)
-    if type(sName) ~= "string" then return false end
+    if type(sName) ~= "string" then
+        Ess.Safe.reject("Ess.Raw.Mark.sonarRadar", "sName must be a string")
+        return false
+    end
     local o = type(tOpts) == "table" and tOpts or {}
     local r, g, b = rgbOf(o.rgb)
-    return pcall(function()
+    return Ess.Safe.named("Ess.Raw.Mark.sonarRadar", function()
         Hud.Radar:AnimateObjectiveSonar({ sName = sName, nDuration = tonumber(o.nDuration) or 0,
             sTexture = o.sTexture or "temp_radar_pulse",
             nTotalBlips = tonumber(o.nTotalBlips), nVisibleBlips = tonumber(o.nVisibleBlips),
@@ -134,8 +146,11 @@ end
 -- decided below the script layer, inside _GuiInternal.MinimapUnanimateObjective, so nothing readable says
 -- whether "size"/"alpha"/"sonar" are accepted. Use "all" unless you have tested otherwise.
 function Ess.Raw.Mark.stopRadarAnimation(sName, sType)
-    if type(sName) ~= "string" then return false end
-    return pcall(function()
+    if type(sName) ~= "string" then
+        Ess.Safe.reject("Ess.Raw.Mark.stopRadarAnimation", "sName must be a string")
+        return false
+    end
+    return Ess.Safe.named("Ess.Raw.Mark.stopRadarAnimation", function()
         Hud.Radar:UnanimateObjective({ sName = sName, sType = sType or "all" })
     end)
 end
@@ -146,13 +161,13 @@ end
 -- both use black at alpha 160, and bInvert shades OUTSIDE the region instead of inside.
 function Ess.Raw.Mark.radarRegion(uGuid, rgb, nAlpha, bInvert)
     local r, g, b = (rgb and rgb[1]) or 0, (rgb and rgb[2]) or 0, (rgb and rgb[3]) or 0
-    return pcall(function()
+    return Ess.Safe.named("Ess.Raw.Mark.radarRegion", function()
         Hud.Radar:AddLineRegion({ uGuid = uGuid, nRed = r, nGreen = g, nBlue = b,
                                   nAlpha = tonumber(nAlpha) or 160, bInvert = bInvert and true or false })
     end)
 end
 function Ess.Raw.Mark.removeRadarRegion(uGuid)
-    return pcall(function() Hud.Radar:RemoveLineRegion({ uGuid = uGuid }) end)
+    return Ess.Safe.named("Ess.Raw.Mark.removeRadarRegion", function() Hud.Radar:RemoveLineRegion({ uGuid = uGuid }) end)
 end
 
 -- Ess.Raw.Mark.world(uGuid, tex, rgb, size, dist) -> handle|nil -- the floating in-world icon. Returns a

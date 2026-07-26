@@ -66,7 +66,7 @@ function Ess.Gps.set(x, z, tOpts)
     local g = (o.rgb and o.rgb[2]) or 255
     local b = (o.rgb and o.rgb[3]) or 255
     local size = tonumber(o.nSize) or 10.666667
-    local ok = pcall(function()
+    local ok = Ess.Safe.named("Ess.Gps.set", function()
         Hud.Radar:AddObjective({ sName = GPS_NAME, nX = nx, nY = 0, nZ = nz,
             nR = r, nG = g, nB = b, nWidth = size, nHeight = size,
             sTexture = o.sTexture or GPS_TEXTURE, bSticky = true, nSortOrder = 4 })
@@ -78,10 +78,10 @@ end
 -- Ess.Gps.clear() -- clear both halves: the engine's own GPS state and the minimap marker. Safe to call with
 -- no beacon set.
 function Ess.Gps.clear()
-    Ess.Safe.quiet(function()
+    Ess.Safe.named("Ess.Gps.clear", function()
         if Player.ClearGPS then Player.ClearGPS(Player.GetLocalPlayer()) end
     end)
-    pcall(function() Hud.Radar:RemoveObjective({ sName = GPS_NAME }) end)
+    Ess.Safe.named("Ess.Gps.clear", function() Hud.Radar:RemoveObjective({ sName = GPS_NAME }) end)
     Ess.Gps._x, Ess.Gps._z, Ess.Gps._known = nil, nil, true
     return true
 end
@@ -132,7 +132,7 @@ function Ess.Gps.get()
         if Ess.Gps._x and Ess.Gps._z then return Ess.Gps._x, Ess.Gps._z end
         return nil
     end
-    local ok, pda = Ess.Safe.quiet(function() return MrxGuiBase.GetWidgetByName("PDA") end)
+    local ok, pda = Ess.Safe.named("Ess.Gps.get", function() return MrxGuiBase.GetWidgetByName("PDA") end)
     if ok and type(pda) == "table" and type(pda.CustomData) == "table" then
         local mx, mz = pda.CustomData.nMarkerX, pda.CustomData.nMarkerZ
         if mx and mz then return mx, mz end

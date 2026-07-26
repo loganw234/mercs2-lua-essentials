@@ -105,16 +105,16 @@ end
 -- Safe to call when nothing is open, which is the point: it is the escape hatch.
 function Ess.Shop.close()
     local p = localPlayer()
-    if p then pcall(function() Hud.Shop:Close({ uPlayer = p }) end) end
+    if p then Ess.Safe.named("Ess.Shop.close", function() Hud.Shop:Close({ uPlayer = p }) end) end
     Ess.Shop._open = false
 
     -- Balance the shell state the shop sets and never clears.
-    Ess.Safe.quiet(function()
+    Ess.Safe.named("Ess.Shop.close", function()
         if LTILibName and LTILibName.ChangeShellState then LTILibName.ChangeShellState(false) end
     end)
 
     if p then
-        Ess.Safe.quiet(function()
+        Ess.Safe.named("Ess.Shop.close", function()
             local q = MrxGuiBase.ControlFocusQueue and MrxGuiBase.ControlFocusQueue[p]
             local mode = MrxGuiBase.ControlModeManager and MrxGuiBase.ControlModeManager[p]
             -- Only when nothing holds focus is a set flag provably stale.
@@ -124,7 +124,7 @@ function Ess.Shop.close()
                 MrxGuiBase.ControlModeManager[p] = nil
             end
         end)
-        Ess.Safe.quiet(function() MrxGuiManager.ToggleHud(p, true) end)
+        Ess.Safe.named("Ess.Shop.close", function() MrxGuiManager.ToggleHud(p, true) end)
     end
     return true
 end
@@ -167,7 +167,7 @@ function Ess.Shop.open(tItems, tOpts)
     if Ess.Shop._open then Ess.Shop.close() end
 
     local created = false
-    pcall(function() created = Hud.Shop:Create({ uPlayer = p }) end)
+    Ess.Safe.named("Ess.Shop.open", function() created = Hud.Shop:Create({ uPlayer = p }) end)
     if not created then
         Ess.Safe.reject("Ess.Shop.open", "Hud.Shop:Create returned false -- a shop may already exist")
         return false
@@ -178,7 +178,7 @@ function Ess.Shop.open(tItems, tOpts)
         if type(it) == "table" and type(it.sName) == "string" and type(it.sDesc) == "string"
            and type(it.sTexture) == "string" and tonumber(it.nCost) then
             local added = false
-            pcall(function()
+            Ess.Safe.named("Ess.Shop.open", function()
                 added = Hud.Shop:AddItemFull({
                     uPlayer = p,
                     sName = it.sName, sDescription = it.sDesc, sTexture = it.sTexture,
@@ -207,18 +207,18 @@ function Ess.Shop.open(tItems, tOpts)
 
     -- No tCallbackData on purpose: it would be unpacked AHEAD of sId and nQuantity and shift the signature.
     if type(o.onBuy) == "function" then
-        pcall(function()
+        Ess.Safe.named("Ess.Shop.open", function()
             Hud.Shop:SetCallback({ uPlayer = p, fCallback = function(sId, nQty) pcall(o.onBuy, sId, nQty) end })
         end)
     end
-    pcall(function()
+    Ess.Safe.named("Ess.Shop.open", function()
         Hud.Shop:SetCloseCallback({ uPlayer = p, fCallback = function()
             Ess.Shop._open = false
             if type(o.onClose) == "function" then pcall(o.onClose) end
         end })
     end)
 
-    local ok = pcall(function() Hud.Shop:Commence({ uPlayer = p }) end)
+    local ok = Ess.Safe.named("Ess.Shop.open", function() Hud.Shop:Commence({ uPlayer = p }) end)
     if not ok then
         Ess.Shop.close()
         Ess.Safe.reject("Ess.Shop.open", "Commence failed")

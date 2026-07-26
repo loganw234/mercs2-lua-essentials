@@ -66,7 +66,9 @@ Ess.Easy.World._atmo = Ess.Easy.World._atmo or nil   -- current custom apply fn 
 Ess.Easy.World._atmoTag = nil                        -- last-seen active-setting string (zone-change detector)
 
 local function rawApply(fn, dur)
-    pcall(function()
+    -- Named, not a bare pcall: this runs on the keeper's tick, so a failure here repeats silently forever.
+    -- A closure cannot be reverse-named, so without the label every one of those would tally as "closure".
+    Ess.Safe.named("Ess.Easy.World(atmosphere apply)", function()
         Graphics.Atmosphere.Begin()
         fn()
         Graphics.Atmosphere.End(dur or 0.5)

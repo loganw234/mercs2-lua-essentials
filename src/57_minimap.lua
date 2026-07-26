@@ -50,9 +50,22 @@ Ess.Minimap = Ess.Minimap or {}
 -- Ess.Minimap.widget() -> MinimapWidget|nil -- the widget itself, for anything not wrapped here. Not cached:
 -- the widget is rebuilt across level loads, so a stale handle would silently stop working.
 function Ess.Minimap.widget()
-    local ok, w = Ess.Safe.quiet(function() return MrxGuiBase.GetWidgetByName("Minimap") end)
+    local ok, w = Ess.Safe.named("Ess.Minimap.widget", function() return MrxGuiBase.GetWidgetByName("Minimap") end)
     if ok and type(w) == "table" then return w end
     return nil
+end
+
+-- Fetch the widget and, if it is missing, say so on the DEBUG channel with the CALLER's name. Every public
+-- function here needs the same widget and fails the same way, and "nothing happened" is the least useful
+-- thing a minimap call can tell you -- the widget being absent (wrong level state, or called before the HUD
+-- is built) is by far the most likely reason.
+local function widgetFor(sLabel)
+    local w = Ess.Minimap.widget()
+    if not w then
+        Ess.Safe.reject(sLabel, "the Minimap widget is not available -- wrong level state, or the HUD has "
+                                .. "not been built yet")
+    end
+    return w
 end
 
 -- Ess.Minimap.range(n) -- ONE-SHOT. Applies immediately, survives until the next minimap data update, then
@@ -60,9 +73,13 @@ end
 -- should persist. The game's own range runs 150 (standing) to 400 (fast).
 function Ess.Minimap.range(n)
     local v = tonumber(n)
-    local w = v and Ess.Minimap.widget()
+    if not v then
+        Ess.Safe.reject("Ess.Minimap.range", "range must be a number, got " .. type(n))
+        return false
+    end
+    local w = widgetFor("Ess.Minimap.range")
     if not w then return false end
-    Ess.Safe.quiet(function() w:SetRange(v) end)
+    Ess.Safe.named("Ess.Minimap.range", function() w:SetRange(v) end)
     return true
 end
 
@@ -78,7 +95,9 @@ local function installHandler(fn)
         if type(h) ~= "function" then return nil end
         Ess.Minimap._origHandler = h
     end
-    local ok = Ess.Safe.quiet(function() w:SetEventHandler("GuiMinimapUpdate", fn) end)
+    local ok = Ess.Safe.named("Ess.Minimap.installHandler", function()
+        w:SetEventHandler("GuiMinimapUpdate", fn)
+    end)
     if not ok then return nil end
     return w
 end
@@ -86,15 +105,25 @@ end
 -- Ess.Minimap.lockRange(n) -- set the range and KEEP it against the auto-zoom.
 function Ess.Minimap.lockRange(n)
     local v = tonumber(n)
-    if not v then return false end
+    if not v then
+        Ess.Safe.reject("Ess.Minimap.lockRange", "range must be a number, got " .. type(n))
+        return false
+    end
     Ess.Minimap._lockedRange = v
     local w = installHandler(function(oMinimap, ...)
-        Ess.Safe.quiet(Ess.Minimap._origHandler, oMinimap, ...)
+        -- Named because _origHandler is the GAME's function, not one of ours: it is not in the reverse-name
+        -- map, so it would otherwise tally as an anonymous "closure" and hide which override was running.
+        Ess.Safe.named("Ess.Minimap(stock handler)", Ess.Minimap._origHandler, oMinimap, ...)
         local r = Ess.Minimap._lockedRange
-        if r and oMinimap then Ess.Safe.quiet(function() oMinimap:SetRange(r) end) end
+        if r and oMinimap then Ess.Safe.named("Ess.Minimap.lockRange", function() oMinimap:SetRange(r) end) end
     end)
-    if not w then Ess.Minimap._lockedRange = nil; return false end
-    Ess.Safe.quiet(function() w:SetRange(v) end)
+    if not w then
+        Ess.Minimap._lockedRange = nil
+        Ess.Safe.reject("Ess.Minimap.lockRange", "could not install the update handler -- no Minimap widget, "
+                                                 .. "or it has no GuiMinimapUpdate handler to wrap")
+        return false
+    end
+    Ess.Safe.named("Ess.Minimap.lockRange", function() w:SetRange(v) end)
     return true
 end
 
@@ -104,7 +133,7 @@ function Ess.Minimap.unlockRange()
     local orig = Ess.Minimap._origHandler
     if not orig then return true end
     local w = Ess.Minimap.widget()
-    if w then Ess.Safe.quiet(function() w:SetEventHandler("GuiMinimapUpdate", orig) end) end
+    if w then Ess.Safe.named("Ess.Minimap.unlockRange", function() w:SetEventHandler("GuiMinimapUpdate", orig) end) end
     Ess.Minimap._origHandler = nil
     return true
 end
@@ -118,13 +147,19 @@ function Ess.Minimap.autoZoom(tOpts)
     local maxSpd = tonumber(o.nMaxSpeed) or 50
     local minRng = tonumber(o.nMinRange) or 150
     local maxRng = tonumber(o.nMaxRange) or 400
-    if maxSpd <= minSpd then return false end
+    if maxSpd <= minSpd then
+        Ess.Safe.reject("Ess.Minimap.autoZoom", "nMaxSpeed (" .. maxSpd .. ") must exceed nMinSpeed ("
+                                                .. minSpd .. ") -- the curve divides by their difference")
+        return false
+    end
     Ess.Minimap._lockedRange = nil
     return installHandler(function(oMinimap, ...)
-        Ess.Safe.quiet(Ess.Minimap._origHandler, oMinimap, ...)
+        -- Named because _origHandler is the GAME's function, not one of ours: it is not in the reverse-name
+        -- map, so it would otherwise tally as an anonymous "closure" and hide which override was running.
+        Ess.Safe.named("Ess.Minimap(stock handler)", Ess.Minimap._origHandler, oMinimap, ...)
         if not oMinimap then return end
         local v
-        Ess.Safe.quiet(function()
+        Ess.Safe.named("Ess.Minimap.autoZoom", function()
             local uChar = Player.GetControlledObject(oMinimap:GetOwner())
             if uChar then v = Object.GetVelocity(uChar) end
         end)
@@ -135,7 +170,7 @@ function Ess.Minimap.autoZoom(tOpts)
         if v < minSpd then r = minRng
         elseif v > maxSpd then r = maxRng
         else r = minRng + (v - minSpd) * (maxRng - minRng) / (maxSpd - minSpd) end
-        Ess.Safe.quiet(function() oMinimap:SetRange(r) end)
+        Ess.Safe.named("Ess.Minimap.autoZoom", function() oMinimap:SetRange(r) end)
     end) ~= nil
 end
 
@@ -146,18 +181,22 @@ end
 -- with no known use. Fine for a momentary flourish.
 function Ess.Minimap.rotation(n)
     local v = tonumber(n)
-    local w = v and Ess.Minimap.widget()
+    if not v then
+        Ess.Safe.reject("Ess.Minimap.rotation", "rotation must be a number, got " .. type(n))
+        return false
+    end
+    local w = widgetFor("Ess.Minimap.rotation")
     if not w then return false end
-    Ess.Safe.quiet(function() w:SetRotation(v) end)
+    Ess.Safe.named("Ess.Minimap.rotation", function() w:SetRotation(v) end)
     return true
 end
 
 -- Ess.Minimap.show(bOn) -- hide or show the whole minimap. This is what the game's own E3-demo HUD mode does
 -- (MinimapHandleE3HudModeEvent), so it is a supported state and not a hack.
 function Ess.Minimap.show(bOn)
-    local w = Ess.Minimap.widget()
+    local w = widgetFor("Ess.Minimap.show")
     if not w then return false end
-    Ess.Safe.quiet(function() w:SetVisible(bOn ~= false) end)
+    Ess.Safe.named("Ess.Minimap.show", function() w:SetVisible(bOn ~= false) end)
     return true
 end
 
@@ -165,9 +204,12 @@ end
 -- widget by `if _GuiInternal.SetMinimapBorder then`, so on a build without that native it is a silent no-op
 -- rather than an error -- which also means a `true` from here does NOT prove anything changed.
 function Ess.Minimap.border(sTexture, nWidth, nHeight)
-    if type(sTexture) ~= "string" or sTexture == "" then return false end
-    local w = Ess.Minimap.widget()
+    if type(sTexture) ~= "string" or sTexture == "" then
+        Ess.Safe.reject("Ess.Minimap.border", "sTexture must be a non-empty string")
+        return false
+    end
+    local w = widgetFor("Ess.Minimap.border")
     if not w then return false end
-    Ess.Safe.quiet(function() w:SetBorder(sTexture, tonumber(nWidth), tonumber(nHeight)) end)
+    Ess.Safe.named("Ess.Minimap.border", function() w:SetBorder(sTexture, tonumber(nWidth), tonumber(nHeight)) end)
     return true
 end
