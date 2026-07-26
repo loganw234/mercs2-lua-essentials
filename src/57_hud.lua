@@ -361,8 +361,9 @@ end
 --   Ess.Hud.Faction.timer(sFaction, nSeconds [,fn]) countdown; fn() on expiry
 --   Ess.Hud.Faction.pursuit(sFaction, nSeconds [,fn])
 --   Ess.Hud.Faction.inZone(sFaction, bInside [,bInit])
---   Ess.Hud.Faction.hide(sFaction) / .show([nDuration])
---   Ess.Hud.Faction.levels(tThresholds, tNames [,sPursuitName] [,bShow])
+--   Ess.Hud.Faction.hide(sFaction)
+--   Ess.Hud.Faction.levels(tThresholds, tNames [,sPursuitName] [,bShow])   ⚠ GLOBAL AND DESTRUCTIVE
+--   Ess.Hud.Faction.restoreLevels()       undo .levels(), back to the game's own vocabulary
 --
 -- ── WHAT TO KNOW BEFORE USING IT ───────────────────────────────────────────────────────────────────────
 --
@@ -370,9 +371,25 @@ end
 -- by the gap between thresholds, so feeding it a relation value straight from Ess.Relations will not do --
 -- the game converts first (ConvertRelationToMeterValue).
 --
--- THRESHOLDS ARE GLOBAL, NOT PER-FACTION. .levels() writes module-level state shared by every gauge on
--- screen. Defaults are {0, 25, 50, 75} with four localisation-token names. Changing them for one meter
--- changes them for all.
+-- ⚠⚠ .levels() IS DESTRUCTIVE AND GLOBAL. READ THIS BEFORE CALLING IT. ⚠⚠
+--
+-- It does not configure "your" meter. SetLevels writes the module-level _tLevels and _tLevelNames in
+-- mrxguihudfactiongauge.lua, and EVERY gauge reads those -- including the game's own. Set custom level
+-- names and the REAL faction meters start using them: a live test set {ESS CALM, ESS EDGY, ESS ANGRY,
+-- ESS FURIOUS} and Universal Petroleum's own meter subsequently rendered "ESS FURIOUS" as its mood. The
+-- player's faction standing display is simply wrong from then on, for every faction, until the level
+-- reloads.
+--
+-- There is also no getter, so the previous vocabulary cannot be captured and put back generically -- the
+-- only recovery is knowing the stock values, which is why STOCK_THRESHOLDS/STOCK_NAMES/STOCK_PURSUIT are
+-- recorded below and Ess.Hud.Faction.restoreLevels() exists.
+--
+-- So: do not call .levels() to label a meter of your own. Use it only when you deliberately intend to
+-- restyle the game's entire faction vocabulary, and restore it when you are done. For a mod that just wants
+-- a countdown or a gauge, .timer/.set/.pursuit need none of this.
+--
+-- (The thresholds themselves are less dangerous than the names -- a value still lands in some band -- but
+-- they are equally global, so a custom scale silently rescales the real meters too.)
 --
 -- SETTING A VALUE ABOVE ZERO CANCELS AN ACTIVE PURSUIT (SetValue calls StopPursuit when
 -- bPursuitActive and nValue > _knMin). So do not drive a meter's value while its pursuit is running unless
@@ -386,13 +403,33 @@ end
 -- THE TIMER CALLBACK TAKES NO ARGUMENTS AND FIRES ONCE. _TimerCallback unpacks only the callback data --
 -- which this passes none of, as everywhere else in Ess -- and clears the stored callback before calling it.
 --
--- NOT WRAPPED: RemoveMeter and RemoveAllMeters. Both are EMPTY FUNCTIONS in mrxguiinterface.lua. Callable,
--- return nil, do nothing. Use .hide() instead, which is real.
+-- METERS EXPIRE ON THEIR OWN, ABOUT FIVE SECONDS AFTER THEIR LAST UPDATE, AND CANNOT BE PINNED OPEN.
+-- mrxguihudfactionbuffer.lua gives each occupied slot a life that counts down every frame; a timer sets it
+-- to 5 + the timer's duration and a pursuit to 2 + its duration. At zero the gauge slides out and frees its
+-- slot, unless a pursuit is still running, which extends it. Treat a meter as a flash of feedback, not a
+-- panel you own -- and see the note further down about why refreshing it does not help.
+--
+-- NOT WRAPPED, all three EMPTY FUNCTIONS -- callable, return nil, do nothing:
+--   * RemoveMeter and RemoveAllMeters (mrxguiinterface.lua). Use .hide(), which is real.
+--   * ShowAll, behind Hud.FactionDisplay:Show (mrxguihudfactionbuffer.lua:198 -- the whole body is
+--     `function ShowAll(oWidget, nDuration) end`). An Ess.Hud.Faction.show existed here briefly and was
+--     withdrawn on measurement: it reported success and the meters still vanished, because there was never
+--     any code behind it.
 Ess.Hud.Faction = Ess.Hud.Faction or {}
 
 -- The stock thresholds and value range, so a caller can reason about levels without reading the widget.
 Ess.Hud.Faction.RANGE = { nMin = 0, nMax = 100 }
-Ess.Hud.Faction.DEFAULT_THRESHOLDS = { 0, 25, 50, 75 }
+
+-- The stock level vocabulary, copied verbatim from mrxguihudfactiongauge.lua's Init(). Recorded because
+-- .levels() overwrites it globally and the engine offers no getter, so these strings are the ONLY way back
+-- to the game's own faction moods short of a level reload. They are localisation TOKENS rather than
+-- English -- that is why the real meters render proper faction names from them, and why substituting
+-- readable text is exactly what breaks them.
+Ess.Hud.Faction.STOCK_THRESHOLDS = { 0, 25, 50, 75 }
+Ess.Hud.Faction.STOCK_NAMES = { "[0x671b379b]", "[0x7c4225bc]", "[0xdb614732]", "[0x8c4d842e]" }
+Ess.Hud.Faction.STOCK_PURSUIT = "[0x1cab5133]"
+-- Kept as an alias; STOCK_THRESHOLDS is the clearer name now that restoring is the point.
+Ess.Hud.Faction.DEFAULT_THRESHOLDS = Ess.Hud.Faction.STOCK_THRESHOLDS
 
 local function factionGuard(sLabel, sFaction)
     if type(sFaction) ~= "string" or sFaction == "" then
@@ -445,9 +482,14 @@ function Ess.Hud.Faction.timer(sFaction, nSeconds, fn)
     return true
 end
 
--- Ess.Hud.Faction.pursuit(sFaction, nSeconds [,fn]) -- the red "you are being hunted" gauge, draining over
--- nSeconds. fn() on completion. Pass nSeconds <= 0 for an indefinite pursuit with no callback, which is
--- what the game does for a pursuit that ends on an event rather than a clock.
+-- Ess.Hud.Faction.pursuit(sFaction, nSeconds [,fn]) -- the red "you are being hunted" gauge. fn() on
+-- completion. Pass nSeconds <= 0 for an indefinite pursuit with no callback, which is what the game does
+-- for a pursuit that ends on an event rather than a clock.
+--
+-- IT FILLS, IT DOES NOT DRAIN -- confirmed on screen, and the source agrees: StartPursuitGauge first snaps
+-- the bar to empty (`AnimateToPoint(nGaugeFrontEmptyPoint, 0, true)`) and then _AnimateToEnd animates it
+-- out to the full gauge length over nSeconds. So it reads as a threat closing in rather than a timer
+-- running out, which is the opposite of what "pursuit duration" suggests.
 function Ess.Hud.Faction.pursuit(sFaction, nSeconds, fn)
     if not factionGuard("Ess.Hud.Faction.pursuit", sFaction) then return false end
     local t = tonumber(nSeconds) or -1
@@ -479,13 +521,19 @@ function Ess.Hud.Faction.hide(sFaction)
     return true
 end
 
--- Ess.Hud.Faction.show([nDuration]) -- reveal ALL meters for nDuration seconds (the native takes no faction).
-function Ess.Hud.Faction.show(nDuration)
-    Ess.Safe.named("Ess.Hud.Faction.show", function()
-        Hud.FactionDisplay:Show({ nDuration = tonumber(nDuration) })
-    end)
-    return true
-end
+-- NO KEEP FUNCTION HERE, AND THAT IS A FINDING RATHER THAN AN OMISSION.
+--
+-- A meter cannot be held on screen. The obvious approach -- re-set its value on a timer just under the
+-- ~5-second slot life, the way Ess.Easy.World holds an atmosphere against the region system -- was built
+-- and MEASURED, and does not work: a keeper refreshing every 3 seconds (verified firing, 4 refreshes in 12
+-- seconds against a running tick loop) still let the meter expire on schedule. So whatever actually renews
+-- a slot is not reachable through SetValue, despite the buffer's SetValue path appearing to set
+-- tSlotLife = math.max(5, remaining).
+--
+-- Combined with Hud.FactionDisplay:Show being an empty function, that means THE FACTION METERS ARE
+-- INHERENTLY TRANSIENT: they exist to flash up in response to something and then leave. Design around that
+-- rather than against it -- .timer and .pursuit both hold the meter for their own duration (5 + nTime and
+-- 2 + nTime respectively), which is the supported way to keep one up for a known period.
 
 -- Ess.Hud.Faction.levels(tThresholds, tNames [,sPursuitName] [,bShow]) -- redefine the level bands shared by
 -- every gauge. tThresholds ascending numbers STARTING AT 0, tNames the same length.
@@ -498,6 +546,23 @@ end
 -- against a nPrevLevel initialised to -1 and never updated inside the loop, so it can only ever fire for a
 -- value below -1. Descending or duplicate thresholds sail through and produce a gauge whose level maths
 -- divides by a negative or zero range. This wrapper does the ordering check the engine intended.
+-- Ess.Hud.Faction.restoreLevels() -- put the game's own level vocabulary back after .levels() has replaced
+-- it. Always available and always correct, because the stock values are constants rather than something
+-- captured at runtime (there is no getter to capture from).
+--
+-- Note the meters do not repaint until something updates them, so a gauge already showing a custom mood
+-- keeps that text until its next set/timer/pursuit. Call .set() on anything visible to force it through.
+function Ess.Hud.Faction.restoreLevels()
+    Ess.Safe.named("Ess.Hud.Faction.restoreLevels", function()
+        Hud.FactionDisplay:ConfigureThresholds({
+            tLevelThresholds = Ess.Hud.Faction.STOCK_THRESHOLDS,
+            tLevelNames = Ess.Hud.Faction.STOCK_NAMES,
+            sPursuitName = Ess.Hud.Faction.STOCK_PURSUIT,
+        })
+    end)
+    return true
+end
+
 function Ess.Hud.Faction.levels(tThresholds, tNames, sPursuitName, bShow)
     local L = "Ess.Hud.Faction.levels"
     if type(tThresholds) ~= "table" or type(tNames) ~= "table" then
