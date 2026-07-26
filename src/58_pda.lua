@@ -8,6 +8,16 @@
 --   Ess.Pda.stat(sCategory, sDesc, sData)   add a row to a statistics category
 --   Ess.Pda.blip(sName, tOpts) / Ess.Pda.removeBlip(sName)
 --   Ess.Pda.selectedMission()               -> the mission id the player has selected, or nil
+--   Ess.Pda.mission(sName, tOpts)           register a real, trackable PDA mission
+--   Ess.Pda.missionExists(sName)            the only existence test there is (see its note)
+--   Ess.Pda.removeMission(sName)            removes it AND its blips
+--   Ess.Pda.selectMission(sName)            set the tracked mission (nil clears)
+--   Ess.Pda.trackable(sName, bOn)
+--   Ess.Pda.onMissionTrack(fn)              fn(sMission) on track, fn(nil) on untrack
+--   Ess.Pda.allowMissionChange(bOn)
+--   Ess.Pda.fakePlayerLocation(x, y, z)     draw the player marker elsewhere (no args clears)
+--   Ess.Pda.region(uGuid, tOpts) / Ess.Pda.removeRegion(uGuid)
+--   Ess.Pda.beaconTutorial(bOn)
 --   Ess.Pda.suppress(bOn)                   hide/show the PDA
 --   Ess.Pda.attitude(sFaction, nAttitude [,sTexture])
 --
@@ -111,17 +121,25 @@ function Ess.Pda.stat(sCategory, sDesc, sData)
 end
 
 -- ---- The map ------------------------------------------------------------------------------------------
--- Ess.Pda.ICONS -- the PDA map's icon vocabulary. This is a CLOSED SET, not free-form: the co-op broadcast
--- path resolves the name through MrxUtil.MarkerGetIndexByName_Pda, which is a linear search of a fixed
--- table (mrxutil.lua tObjPdaMarker) that logs a complaint and returns index 0 for anything it does not
--- recognise. Ess.Mark hardcodes one of these and the rest were effectively undiscoverable.
+-- Ess.Pda.ICONS -- the PDA map's icon vocabulary. The names come from a fixed table (mrxutil.lua's
+-- tObjPdaMarker) that MrxUtil.MarkerGetIndexByName_Pda linear-searches, complaining and returning index 0
+-- for anything it does not recognise. That lookup gates the CO-OP BROADCAST, which sends an index rather
+-- than a string; local rendering passes the string straight to the movie, so an unlisted name can still
+-- draw locally and simply fail to replicate.
 --
--- 32 names here from 34 engine entries: tObjPdaMarker lists "icon_yellow_mc" TWICE (first and last) and
--- ends with an empty string. Deduplicated, because the index those resolve to only matters to the co-op
--- broadcast and both copies name the same icon. The _1/_2/_3 suffixes are objective tiers -- tier 3 is the
--- "tertiary" set the PDA can filter out wholesale.
+-- ⚠ "icon_yellow_mc" IS DELIBERATELY ABSENT, even though it is in the engine's table -- twice, in fact.
+-- IT DRAWS NOTHING. Verified with four otherwise-identical blips side by side: icon_action_1_mc and
+-- icon_deliverable_1_mc rendered, while icon_yellow_mc and a blip with no texture at all were both blank.
+-- It is a registered name that resolves to no art.
+--
+-- That is worth more than one entry in a list, because icon_yellow_mc is THE ENGINE'S OWN FINAL FALLBACK
+-- (`tBlip.sTexture or tMissionData.sDefaultBlipTexture or "icon_yellow_mc"`) and was AddMapMission's
+-- default for sDefaultBlipTexture. So any blip that falls all the way through the chain is invisible by
+-- construction -- which is also the real reason Ess.Mark's PDA blips have never shown up, a symptom
+-- previously blamed on their missing label.
+--
+-- The _1/_2/_3 suffixes are objective tiers; tier 3 is the "tertiary" set the PDA can filter out wholesale.
 Ess.Pda.ICONS = {
-    "icon_yellow_mc",
     "icon_action_1_mc", "icon_action_2_mc", "icon_action_3_mc",
     "icon_outpost_1_mc", "icon_outpost_2_mc", "icon_outpost_3_mc",
     "icon_defend_1_mc", "icon_defend_2_mc", "icon_defend_3_mc",
@@ -155,22 +173,34 @@ Ess.Pda.ICONS = {
 -- that says so -- the flip happens inside the Flash movie.
 --
 -- ── THE TWO DEFAULTS BELOW EXIST BECAUSE OF MEASURED FAILURES ──────────────────────────────────────────
--- sTexture defaults to "icon_yellow_mc" and sLabel defaults to sName, because omitting either fails in a
+-- sTexture defaults to "icon_action_1_mc" and sLabel defaults to sName, because omitting either fails in a
 -- way that looks like the call did not work at all:
 --
---   * NO TEXTURE = AN INVISIBLE BLIP. It is placed and hoverable, but nothing is drawn until the cursor
---     is over it. Confirmed live: two untextured blips were invisible, and four textured ones drawn from
---     the list above were all visible immediately.
+--   * A BLIP WITH NO DRAWABLE ICON IS INVISIBLE -- placed and hoverable, but nothing rendered until the
+--     cursor is over it. Note this is NOT simply "no texture": the engine's fallback chain ends at
+--     icon_yellow_mc, which itself draws nothing (see Ess.Pda.ICONS), so falling through is exactly as
+--     invisible as passing nothing. Hence a default that actually renders.
 --   * NO LABEL = THE BLIP DISPLAYS ITS TEXTURE NAME. The render path builds a positional array whose 6th
 --     slot is `tBlip.sLabel or tMissionData.sDefaultBlipLabel`; with no label and no owning mission that
 --     slot is nil, and what the movie shows instead is the texture. Confirmed live -- an unlabelled blip
---     read "icon_verify_1_mc" on screen. This is also why an Ess.Mark blip (which passes no sLabel) shows
---     up as "icon_yellow_mc".
+--     read "icon_verify_1_mc" on screen.
 --
 -- Pass sTexture = false to genuinely opt out of the icon.
 --
+-- ⚠ THOSE DEFAULTS ARE SUPPRESSED WHEN THE BLIP BELONGS TO A MISSION, and that matters. The render path is
+-- `tBlip.sTexture or tMissionData.sDefaultBlipTexture or "icon_yellow_mc"` and the label works the same way,
+-- so a default supplied HERE wins over the mission's and the blip can never inherit. Defaulting
+-- unconditionally therefore made sMission's whole reason for existing unreachable -- caught on screen, where
+-- mission blips showed the generic yellow dot instead of their mission's icon. With sMission set, both
+-- fields are left nil so the mission supplies them; the engine's own final fallback still guarantees an
+-- icon, so the invisible-blip trap stays closed either way.
+--
 -- Other fields: uGuid (attach to an object instead of coordinates), sMission, nMeter, bSticky, bTodoList,
 -- sFaction (the wrapper defaults it to "PMC"), nSortOrder (defaults to 5).
+--
+-- Two things a mission blip gets for free, both from the same association: it turns STICKY while its
+-- mission is the tracked one (which is what makes it stand out on the map), and it becomes selectable as a
+-- tracking target when Ess.Pda.allowMissionChange is on.
 --
 -- Blips are NOT tracked for teardown here -- use Ess.Track:pda(sName) if you want automatic cleanup, which
 -- is what it already exists for.
@@ -180,13 +210,19 @@ function Ess.Pda.blip(sName, tOpts)
         return false
     end
     local o = type(tOpts) == "table" and tOpts or {}
+    -- A blip owned by a mission inherits that mission's icon and label, so defaulting either here would
+    -- silently win over it. See the note above.
+    local owned = type(o.sMission) == "string" and o.sMission ~= ""
     local tex = o.sTexture
-    if tex == nil then tex = "icon_yellow_mc" elseif tex == false then tex = nil end
+    if tex == false then tex = nil
+    elseif tex == nil and not owned then tex = "icon_action_1_mc" end
+    local label = o.sLabel
+    if label == nil and not owned then label = sName end
     Ess.Safe.named("Ess.Pda.blip", function()
         Pda.Map:AddBlip({
             sName = sName,
             nX = tonumber(o.nX), nY = tonumber(o.nY),
-            sLabel = o.sLabel or sName, sDesc = o.sDesc,
+            sLabel = label, sDesc = o.sDesc,
             uGuid = o.uGuid, sTexture = tex,
             sMission = o.sMission, nMeter = tonumber(o.nMeter),
             bSticky = o.bSticky, bTodoList = o.bTodoList,
@@ -212,6 +248,223 @@ function Ess.Pda.selectedMission()
     local v
     Ess.Safe.named("Ess.Pda.selectedMission", function() v = Pda.Map:GetSelectedMission() end)
     return v
+end
+
+-- ---- Missions -----------------------------------------------------------------------------------------
+-- Ess.Pda.FACTIONS -- the seven codes the PDA recognises. sFaction is looked up in _tFactionNameLookup to
+-- get a display name, and anything not in this list resolves to nil and shows no faction. Uppercase.
+Ess.Pda.FACTIONS = { "PMC", "AN", "CH", "GR", "OC", "PR", "VZ" }
+
+-- Ess.Pda.mission(sName, tOpts) -> bool -- register a mission, or update one that already exists.
+--
+-- This is the piece that turns a loose blip into something the PDA treats as a real objective. A blip whose
+-- sMission names a registered TRACKABLE mission is rendered as a mission blip, inherits that mission's
+-- default icon and label, and can be selected as the player's tracked objective. Ess.Contract is the
+-- obvious consumer.
+--
+--   tOpts.sLabel      the mission's name in the PDA list        REQUIRED for a new mission
+--   tOpts.sDesc       its description                           REQUIRED for a new mission
+--   tOpts.sFaction    one of Ess.Pda.FACTIONS                   REQUIRED for a new mission
+--   tOpts.sIcon       default blip texture for its blips (see Ess.Pda.ICONS)
+--   tOpts.sBlipLabel  default blip label for its blips
+--   tOpts.bTrackable  default TRUE for a new mission
+--   tOpts.bSuppress   hide it; forces bTrackable false and blanks the faction
+--   tOpts.nSortOrder  position in the list
+--
+-- ── THREE THINGS THE NATIVE DOES THAT YOU WOULD NOT GUESS ──────────────────────────────────────────────
+--
+-- 1. A NEW MISSION IS REJECTED OUTRIGHT unless sLabel, sDesc AND sFaction are all strings -- AddMapMission
+--    returns false and does nothing. (Only for a NEW one: updating an existing mission may omit any of
+--    them, and each omitted field keeps its old value.) This wrapper checks them up front and rejects with
+--    a reason, rather than letting you find out from a `false`.
+--
+-- 2. sBlipLabel DEFAULTS TO THE STRING "DESIGNER ERROR". Not a placeholder this file invented -- that is
+--    literally what mrxguipda.lua puts there, and it renders on the map. Pandemic clearly used it to make
+--    a forgotten label impossible to miss in QA. Left as the engine's default rather than silently
+--    substituted, because seeing it means you forgot sBlipLabel, and that is worth knowing.
+--
+-- 3. UPDATES DELIBERATELY GO THROUGH AddMission, NEVER UpdateMission. Pda.Map:UpdateMission is BROKEN by a
+--    parameter shift across the wrapper/widget boundary: the wrapper passes tArgs.bTrackable as its 8th
+--    positional argument, and UpdateMapMission's 8th parameter is nSortOrder. So asking UpdateMission for
+--    bTrackable = true actually sets the SORT ORDER to true, and the trackable flag is untouched. (It is
+--    also missing a bTrackable parameter of its own, so it forwards an undeclared global.) AddMapMission's
+--    update branch has none of that and handles re-adding an existing name correctly, so this function
+--    always uses it. Use Ess.Pda.trackable to change tracking.
+function Ess.Pda.mission(sName, tOpts)
+    if type(sName) ~= "string" or sName == "" then
+        Ess.Safe.reject("Ess.Pda.mission", "sName must be a non-empty string")
+        return false
+    end
+    local o = type(tOpts) == "table" and tOpts or {}
+    -- Mirror the native's own new-mission gate so the failure is explained rather than silent. Existing
+    -- missions are exempt, matching AddMapMission's update branch -- but we cannot see its mission table
+    -- from here, so the check is "you supplied them, or you are relying on an existing entry".
+    if not o.bSuppress and (o.sLabel or o.sDesc or o.sFaction) then
+        if type(o.sLabel) ~= "string" or type(o.sDesc) ~= "string" or type(o.sFaction) ~= "string" then
+            Ess.Safe.reject("Ess.Pda.mission", "a new mission needs sLabel, sDesc AND sFaction as strings "
+                            .. "-- the native rejects the whole call otherwise")
+            return false
+        end
+    end
+    -- Returns whether the CALL was made, not whether the mission was created -- because the native cannot
+    -- tell you. AddMapMission does return a meaningful boolean, but Pda.Map:AddMission throws it away: the
+    -- wrapper loops the matching widgets and ignores each result, so it always returns nil. Measured, after
+    -- an earlier version of this function reported `false` for three missions that had all been created
+    -- correctly. Use Ess.Pda.missionExists when you actually need to know.
+    Ess.Safe.named("Ess.Pda.mission", function()
+        Pda.Map:AddMission({
+            sName = sName, sLabel = o.sLabel, sDesc = o.sDesc, sFaction = o.sFaction,
+            sDefaultBlipTexture = o.sIcon, sDefaultBlipLabel = o.sBlipLabel,
+            bSuppress = o.bSuppress and true or nil,
+            bTrackable = o.bTrackable,
+            nSortOrder = tonumber(o.nSortOrder),
+        })
+    end)
+    return true
+end
+
+-- Ess.Pda.missionExists(sName) -> bool -- the only way to ask whether a mission is registered.
+--
+-- There is no getter for the mission table, and every Pda.Map wrapper discards its widget's return value,
+-- so nothing reports success directly. This exploits the one native that is CONDITIONAL on existence:
+-- SetSelectedMission stores the name only if it is a registered mission, and stores nil otherwise. So
+-- selecting a name and reading it back is a genuine existence test -- verified live against three real
+-- missions, one never-registered name, and one the guard above had rejected.
+--
+-- It restores the previous selection afterwards, so it is non-destructive. It is NOT free, though: each
+-- selection change emits a Debug.Printf and, on a server, a network event. Do not poll it.
+function Ess.Pda.missionExists(sName)
+    if type(sName) ~= "string" or sName == "" then
+        Ess.Safe.reject("Ess.Pda.missionExists", "sName must be a non-empty string")
+        return false
+    end
+    local prev = Ess.Pda.selectedMission()
+    Ess.Pda.selectMission(sName)
+    local got = Ess.Pda.selectedMission()
+    Ess.Pda.selectMission(prev)
+    return got == sName
+end
+
+-- Ess.Pda.removeMission(sName) -- remove it AND every blip attached to it. The cascade is the native's own
+-- behaviour (RemoveMapMission sweeps tMapBlips for blips whose sMission matches), and it also clears the
+-- selection if this was the tracked mission -- so no separate teardown is needed for a mission's blips.
+function Ess.Pda.removeMission(sName)
+    if type(sName) ~= "string" or sName == "" then
+        Ess.Safe.reject("Ess.Pda.removeMission", "sName must be a non-empty string")
+        return false
+    end
+    Ess.Safe.named("Ess.Pda.removeMission", function() Pda.Map:RemoveMission({ sName = sName }) end)
+    return true
+end
+
+-- Ess.Pda.selectMission(sName) -- set the player's tracked mission; pass nil to clear. A name that is not a
+-- registered mission clears the selection rather than erroring, which is the native's behaviour.
+function Ess.Pda.selectMission(sName)
+    Ess.Safe.named("Ess.Pda.selectMission", function()
+        Pda.Map:SetSelectedMission({ sName = sName, bForceOnClient = true })
+    end)
+    return true
+end
+
+-- Ess.Pda.trackable(sName, bOn) -- the working way to change a mission's trackable flag (see note 3 above).
+-- A suppressed mission is forced untrackable by the native regardless of what you pass.
+function Ess.Pda.trackable(sName, bOn)
+    if type(sName) ~= "string" or sName == "" then
+        Ess.Safe.reject("Ess.Pda.trackable", "sName must be a non-empty string")
+        return false
+    end
+    Ess.Safe.named("Ess.Pda.trackable", function()
+        Pda.Map:SetMissionTrackable({ sName = sName, bTrackable = bOn and true or false })
+    end)
+    return true
+end
+
+-- Ess.Pda.onMissionTrack(fn) -- fn(sMission) when the player TRACKS a mission in the PDA, and fn(nil) when
+-- they UNTRACK one. One callback for both, and the argument is how you tell them apart.
+--
+-- That asymmetry is in the game, not invented here: _HandleTrackEvent appends the mission name to the
+-- callback data before unpacking it, and _HandleUntrackEvent unpacks the callback data alone. So with no
+-- callback data -- which is what this passes, for the same reason as everywhere else in Ess -- track calls
+-- fn with one argument and untrack calls it with none.
+--
+-- Unlike Ess.On.* this does NOT return a stop(): the native stores a single callback per PDA, so registering
+-- is inherently last-one-wins. Pass nil to unregister.
+function Ess.Pda.onMissionTrack(fn)
+    if fn ~= nil and type(fn) ~= "function" then
+        Ess.Safe.reject("Ess.Pda.onMissionTrack", "fn must be a function or nil")
+        return false
+    end
+    Ess.Safe.named("Ess.Pda.onMissionTrack", function()
+        Pda.Map:SetMissionTrackCallback({
+            fCallback = fn and function(sMission) pcall(fn, sMission) end or nil,
+        })
+    end)
+    return true
+end
+
+-- Ess.Pda.allowMissionChange(bOn) -- whether the player may change which mission is tracked. Note the
+-- native ignores a `true` on a network client and always disallows there.
+function Ess.Pda.allowMissionChange(bOn)
+    Ess.Safe.named("Ess.Pda.allowMissionChange", function()
+        Pda.Map:SetMissionChangeAllowed({ bAllow = bOn and true or false })
+    end)
+    return true
+end
+
+-- ---- Map presentation ---------------------------------------------------------------------------------
+-- Ess.Pda.fakePlayerLocation(x, y, z) -- draw the player marker somewhere other than where they are; pass
+-- no arguments to clear it. The game uses this in the PMC interior, where the real position is meaningless
+-- on a world map. All three coordinates must be numbers or the native ignores the call.
+function Ess.Pda.fakePlayerLocation(x, y, z)
+    local nx, ny, nz = tonumber(x), tonumber(y), tonumber(z)
+    if x ~= nil and not (nx and ny and nz) then
+        Ess.Safe.reject("Ess.Pda.fakePlayerLocation", "needs all three of x, y, z as numbers, or none to clear")
+        return false
+    end
+    Ess.Safe.named("Ess.Pda.fakePlayerLocation", function()
+        Pda.Map:SetFakePlayerLocation({ nX = nx, nY = ny, nZ = nz })
+    end)
+    return true
+end
+
+-- Ess.Pda.region(uGuid, tOpts) / Ess.Pda.removeRegion(uGuid) -- shade a line region on the PDA map, the
+-- counterpart to Ess.Raw.Mark.radarRegion on the minimap.
+--
+-- Colour handling is the native's, and it is unusual: each channel is clamped to 0..255, the defaults are
+-- 64/64/160 at alpha 128 (a muted blue, not black like the radar's), and the ALPHA IS CONVERTED TO A
+-- PERCENTAGE internally (a/255*100) while r/g/b become a "0xRRGGBB" string for the Flash movie. So pass
+-- alpha in 0..255 like the other channels and let it do the conversion.
+function Ess.Pda.region(uGuid, tOpts)
+    if uGuid == nil then
+        Ess.Safe.reject("Ess.Pda.region", "needs a line-region guid")
+        return false
+    end
+    local o = type(tOpts) == "table" and tOpts or {}
+    local rgb = o.rgb
+    Ess.Safe.named("Ess.Pda.region", function()
+        Pda.Map:AddLineRegion({ uGuid = uGuid,
+            nRed = rgb and rgb[1], nGreen = rgb and rgb[2], nBlue = rgb and rgb[3],
+            nAlpha = tonumber(o.nAlpha), bInvert = o.bInvert and true or false })
+    end)
+    return true
+end
+
+function Ess.Pda.removeRegion(uGuid)
+    if uGuid == nil then
+        Ess.Safe.reject("Ess.Pda.removeRegion", "needs a line-region guid")
+        return false
+    end
+    Ess.Safe.named("Ess.Pda.removeRegion", function() Pda.Map:RemoveLineRegion({ uGuid = uGuid }) end)
+    return true
+end
+
+-- Ess.Pda.beaconTutorial(bOn) -- the PDA's beacon-tutorial mode, which makes the map prompt the player to
+-- place a GPS beacon (see Ess.Gps). Used by the game's own GPS tutorial contract.
+function Ess.Pda.beaconTutorial(bOn)
+    Ess.Safe.named("Ess.Pda.beaconTutorial", function()
+        Pda.Map:SetBeaconTutorialMode({ bEnable = bOn and true or false })
+    end)
+    return true
 end
 
 -- ---- The PDA itself -----------------------------------------------------------------------------------

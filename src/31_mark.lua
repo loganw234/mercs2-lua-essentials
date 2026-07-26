@@ -46,9 +46,12 @@ local OBJ_ICONS = {
     verify      = { rdr = "objective_verify",      wld = "HUD_objective_verify",      pda = "icon_verify_1_mc" },
     deliverable = { rdr = "objective_deliverable", wld = "HUD_objective_deliverable", pda = "icon_deliverable_1_mc" },
     outpost     = { rdr = "objective_outpost",     wld = "HUD_objective_outpost",     pda = "icon_outpost_1_mc" },
-    -- The generic yellow marker. MiniMap_Icon_Symbol_Yellow is in BOTH the world and radar tables, so this
-    -- one really does line up across all three despite the naming being least consistent of the lot.
-    generic     = { rdr = "MiniMap_Icon_Symbol_Yellow", wld = "MiniMap_Icon_Symbol_Yellow", pda = "icon_yellow_mc" },
+    -- The generic marker. MiniMap_Icon_Symbol_Yellow is in BOTH the world and radar tables, so those two
+    -- line up despite the naming being the least consistent of the lot. The PDA leg deliberately does NOT
+    -- use icon_yellow_mc, its apparent counterpart: that name is registered but DRAWS NOTHING (verified
+    -- against three other icons side by side), so pairing it here would make `generic` the one kind that
+    -- silently vanishes on the map. icon_action_1_mc is the generic objective icon that renders.
+    generic     = { rdr = "MiniMap_Icon_Symbol_Yellow", wld = "MiniMap_Icon_Symbol_Yellow", pda = "icon_action_1_mc" },
 }
 -- `destination` predates this table and is used by Ess.Mark.zone's default and by existing consumers, so it
 -- stays as an alias rather than a rename -- same table identity, so it picks up `pda` for free.

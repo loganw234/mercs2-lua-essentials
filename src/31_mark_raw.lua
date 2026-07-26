@@ -45,16 +45,21 @@ end
 
 -- Ess.Raw.Mark.pda(uGuid, tex, sLabel) -> sName|nil -- PDA map blip, also keyed by name.
 --
--- sLabel is not cosmetic padding: a blip with NO label displays its TEXTURE NAME on the map. The PDA's
--- render path builds a positional array whose label slot is `tBlip.sLabel or tMissionData.sDefaultBlipLabel`
--- (mrxguipda.lua:600), and with no label and no owning mission that slot goes nil and the movie shows the
--- texture instead. Confirmed live 2026-07-26 -- this is exactly why every Ess.Mark blip has always read
--- "icon_yellow_mc" on the map. Defaulting to the guid string is not pretty, but it is at least identifying,
--- and Ess.Mark passes opts.label through so a caller can do better.
+-- TWO defaults here, and both fix a way this function used to fail silently:
+--
+--   * sLabel. A blip with NO label displays its TEXTURE NAME. The render path's label slot is
+--     `tBlip.sLabel or tMissionData.sDefaultBlipLabel` (mrxguipda.lua:600); with no label and no owning
+--     mission that goes nil and the movie shows the texture instead. Confirmed live. Defaulting to the guid
+--     string is not pretty but it identifies the thing, and Ess.Mark passes opts.label through.
+--   * tex. The old default was "icon_yellow_mc", which DRAWS NOTHING -- verified against three other icons
+--     side by side. So every PDA blip Ess.Mark has ever placed was invisible, and the "icon_yellow_mc" text
+--     people saw was the LABEL fallback naming an icon that was never rendering in the first place. Both
+--     halves of that symptom are fixed here; "icon_action_1_mc" is the generic objective icon that does
+--     render. See Ess.Pda.ICONS for the full list and the rest of the finding.
 function Ess.Raw.Mark.pda(uGuid, tex, sLabel)
     local sName = guidName(uGuid)
     local ok = Ess.Safe.named("Ess.Raw.Mark.pda", function()
-        Pda.Map:AddBlip({ sName = sName, uGuid = uGuid, sTexture = tex or "icon_yellow_mc",
+        Pda.Map:AddBlip({ sName = sName, uGuid = uGuid, sTexture = tex or "icon_action_1_mc",
                           sLabel = sLabel or sName, nSortOrder = 2 })
     end)
     return ok and sName or nil
