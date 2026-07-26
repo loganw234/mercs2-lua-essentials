@@ -241,6 +241,32 @@ def parse_dump(raw):
     return {k: sorted(v) for k, v in ns.items()}, aliases
 
 
+def corpus_assigned_globals():
+    """`name -> corpus file` for every global a resident script PUBLISHES with `_G.Name = ...`.
+
+    The `_MODULES` check below classifies a namespace as game script when its own lowercased name is a
+    module filename. That misses the case where a module publishes a table under a DIFFERENT global than
+    its filename -- and the biggest UI surface in the game does exactly that: `mrxguiinterface.lua` opens
+    with `_G.Hud = HudInterface` / `_G.Pda = PdaInterface`, so all 106 `Hud.*`/`Pda.*` functions were filed
+    as opaque C++ natives when in fact every one of them is readable Lua that thin-wraps a Flash widget
+    (`_GetWidgetsForPlayers(...)` then `oWidget:AddMessage(...)`). `mrxguimanager.lua` publishes the widget
+    classes themselves (`Minimap`, `MessageBox`, `ObjectiveTray`, `SubtitleBuffer`, `MapLabel`) the same way.
+
+    This is derived evidence, not a hardcoded list: the assignment is in the corpus and is unambiguous
+    (`_G.X = ...` is a script deliberately exporting X). The distinction it fixes is the practical one the
+    module docstring is built around -- a native is a black box you probe, a script-backed function has
+    source you can just read.
+    """
+    if not CORPUS.exists():
+        return {}
+    pat = re.compile(r"^\s*_G\.([A-Za-z_]\w*)\s*=", re.M)
+    found = {}
+    for p in sorted(CORPUS.rglob("*.lua")):
+        for m in pat.finditer(p.read_text(encoding="utf-8", errors="replace")):
+            found.setdefault(m.group(1), str(p.relative_to(CORPUS)).replace("\\", "/"))
+    return found
+
+
 def ess_called_names():
     """Every `Namespace.Fn` that Ess's own source references -- the coverage signal.
 
@@ -251,9 +277,16 @@ def ess_called_names():
     calls" and labelling the answer "coverage".
 
     Comments are stripped first, so a function named only in a doc header doesn't count as called.
+
+    The separator is a `[.:]` class, not a literal dot, and that matters more than it looks. The `Hud`/`Pda`
+    cluster is METHOD-CALLED -- `Hud.Radar:AddObjective({sName=...})` -- so a dot-only regex matched the
+    namespace part (`Hud.Radar`) and then stopped, and every one of those 106 functions reported
+    as uncovered. Ess in fact already drives eight of them (Radar objectives, the objective tray, map blips,
+    the event fanfare, the support menu). Same failure mode as the paren-required version described above:
+    measuring one calling convention and labelling the answer "coverage".
     """
     called = set()
-    ref = re.compile(r"\b([A-Z][A-Za-z0-9]*(?:\.[A-Z][A-Za-z0-9]*)?)\.([A-Za-z_]\w*)\b")
+    ref = re.compile(r"\b([A-Z][A-Za-z0-9]*(?:\.[A-Z][A-Za-z0-9]*)?)[.:]([A-Za-z_]\w*)\b")
     for p in SRC.glob("*.lua"):
         text = p.read_text(encoding="utf-8", errors="replace")
         code = "\n".join(re.sub(r"--.*$", "", line) for line in text.splitlines())
@@ -277,6 +310,7 @@ def build(dump, aliases, game_dir):
         for p in CORPUS.rglob("*.lua"):
             corpus_stems.setdefault(p.stem.lower(), str(p.relative_to(CORPUS)).replace("\\", "/"))
     called = ess_called_names()
+    assigned = corpus_assigned_globals()
 
     out = {}
     # What the bridge contributed to this capture, recorded so natives.json carries its own provenance
@@ -320,6 +354,11 @@ def build(dump, aliases, game_dir):
             kind = "internal"
         elif root.lower() in modules:
             kind, stem = "game_script", root.lower()
+        elif root in assigned:
+            # Published by a resident script under a global that is NOT its filename -- see
+            # corpus_assigned_globals(). Source recorded directly, since `stem` lookup keys off the
+            # namespace name and would not find it.
+            kind = "game_script"
         else:
             kind = "engine"
         entry = {
@@ -332,6 +371,8 @@ def build(dump, aliases, game_dir):
         }
         if stem and stem in corpus_stems:
             entry["source"] = corpus_stems[stem]
+        elif root in assigned and kind == "game_script":
+            entry["source"] = assigned[root]
         if root == "_MODULES":
             entry["note"] = ("loaded but not import()ed in the sampled game state, so it has no top-level "
                              "global -- reach it as %s, or import() it first" % key)
