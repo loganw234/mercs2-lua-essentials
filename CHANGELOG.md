@@ -9,6 +9,72 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+## [0.5.0]
+
+**The engine-native sweep, a UI kit that draws itself, and the visual editor finally fed from the source.**
+720 public functions, up from 434 — and every one of them now has a node definition, where before 509 of
+them were invisible to the node editor entirely.
+
+Most of this came out of live probing against a running game rather than reading the decompiled scripts, and
+the traps below are recorded because none of them are guessable from a function name.
+
+### Added
+
+- **`Ess.Pda`** — the mission log, dossier, statistics and map layer. `mission()`/`missionExists()` register
+  a real trackable PDA mission; a blip naming one becomes a mission blip and inherits its icon and label.
+- **`Ess.Hud`** grew `title` (the stylised animated overlay), `location`, `message` (negative duration =
+  permanent), `tutorial`, `image`, and the cash/fuel readouts — display-only, they move the number on screen
+  and not the money.
+- **`Ess.Hud.Faction`** — the faction meters, the pursuit gauge, and `timer()`, the only on-screen countdown
+  the game exposes, with real HUD chrome and a callback on expiry.
+- **`Ess.Minimap`** — the minimap *widget*, which no `Hud.*` function reaches. `lockRange` owns the update
+  handler so a zoom sticks; the game otherwise recomputes it from player speed every update.
+- **`Ess.Gps`**, **`Ess.Shop`** (the game's real full-screen purchase UI, filled with your own items),
+  **`Ess.Sys`**, **`Ess.Atmosphere`**, **`Ess.UI.Theme`**.
+- **`Ess.On.script(name, fn)`** — react to the ~28 named events the shipped game posts (`"PDA Open"`,
+  `"SupportUsed"`, the Satellite events…). Ess previously had no way to hear any of them.
+- **`Ess.Sound`** gained cue validation (`duration`/`isCue`/`isLooping` — a mistyped cue is otherwise
+  completely silent) and the category mixer.
+- **`tools/checksyntax.py`** — compiles every `src/` file plus the built dist offline. `checkpure.py` covers
+  11 pure files; a syntax error in the other 73 was previously invisible until a live load.
+- **`samples/recipes/theme_the_ui.lua`** — restyling the kit, and a smoke recipe.
+
+### Changed
+
+- **The UI kit draws at runtime from theme data.** One movie replaces eight; the 8-line panel, 3-toast and
+  5-chat-line caps are gone because rows are built on demand. `Ess.UI.Theme` is ~36 plain values with seven
+  presets. Async load is handled through `SetSwfFile`'s completion callback instead of eight blind repaints.
+- **`Ess.Mark`'s three layers agree.** The world, radar and PDA surfaces do not share an icon namespace, and
+  the kind table only ever named two of the three — so a "destroy" objective drew a destroy icon in the world
+  and on the radar, and an anonymous dot on the map. `Ess.Mark.KINDS` now names all three for every kind.
+- **`natives.json` is honest about what is native.** `Hud.*` and `Pda.*` are not engine natives — they are
+  resident Lua published under a different global, so 143 functions filed as black boxes have readable
+  source. Engine surface 1108 → 965.
+- The release zip carries `api/ess-nodes.generated.js` so a browser editor can load the node set from a
+  `file://` page.
+
+### Fixed
+
+- **`icon_yellow_mc` draws nothing.** It is a registered icon name with no art, it was the engine's own
+  last-resort fallback, and it was Ess's default in three places — which is why `Ess.Mark`'s PDA blips were
+  never visible. Earlier diagnosis blamed the missing label; that was only half of it.
+- **`Ess.Object.angularImpulse` defaulted to world space** while `.impulse` defaults to local, under a
+  comment promising "same argument shape". Aligned.
+- **`Ess.Human.setState` now validates the posture.** The native reports nothing for a valid state *and* for
+  garbage, so a wrapper guard is the only place a typo can ever be caught.
+- **`Ess.UI.setScale` no longer builds the whole UI** as a side effect of setting a number.
+- **The widget rect counted the UI scale twice**, so a 520-unit panel covered 61% of the screen instead of
+  27%.
+- Several silent-failure paths now report on the `Ess.DEBUG` channel instead of returning a bare `false`.
+
+### Notes
+
+- **Not wrapped, because they are dead:** `Pda.Database.AddHelpEntry` (writes a table nothing reads),
+  `Hud.FactionDisplay.RemoveMeter`/`RemoveAllMeters` and `ShowAll` (empty bodies), and `Hud.Tutorial`'s two
+  `ShowTutorial*` functions (broken for any explicit player).
+- **`Ess.Hud.Faction.levels` is globally destructive** — it replaces the game's own faction mood names for
+  every faction until the level reloads. `restoreLevels()` undoes it.
+
 ## [0.4.2]
 
 **Tooling only — the framework itself is unchanged.** `1_Ess.lua` is byte-identical to 0.4.1's apart from the
