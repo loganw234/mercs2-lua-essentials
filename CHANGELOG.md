@@ -9,6 +9,26 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+## [0.5.1]
+
+**Data only — `1_Ess.lua` is unchanged apart from the version string.** If you only install the framework
+there is nothing here for you. It exists because `api/natives.json` gained a field that downstream tooling
+needs.
+
+### Fixed
+
+- **`published_global` on `natives.json` namespaces.** 0.5.0 correctly reclassified `Hud.*`, `Pda.*`,
+  `Cheat`, `MapLabel`, `MessageBox`, `Minimap`, `ObjectiveTray` and `SubtitleBuffer` as `game_script` —
+  they are resident Lua with readable source, not C++ natives. But `game_script` conflates two things.
+  Most resident scripts are reached by `import()`ing the module that owns them; these are assigned straight
+  into `_G` (`_G.Hud = HudInterface` in `mrxguiinterface.lua`), so they exist from load with nothing to
+  import, and `import("Hud")` is meaningless because no module has that name.
+
+  Consumers had no way to tell the two apart. The web IDE maps `game_script` to "modules" and its linter
+  tells you to import one, so after 0.5.0 it began advising `import("Cheat")` for a global that has always
+  simply been there. The classification was right; the data model was too coarse to express it. 38
+  namespaces now carry the flag, and the `kinds` block documents what it means.
+
 ## [0.5.0]
 
 **The engine-native sweep, a UI kit that draws itself, and the visual editor finally fed from the source.**

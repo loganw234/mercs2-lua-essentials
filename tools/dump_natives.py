@@ -373,6 +373,18 @@ def build(dump, aliases, game_dir):
             entry["source"] = corpus_stems[stem]
         elif root in assigned and kind == "game_script":
             entry["source"] = assigned[root]
+            # PUBLISHED GLOBAL, not an import()-able module -- and consumers need to be able to tell.
+            #
+            # `game_script` alone conflates two different things. Most resident scripts are reached through
+            # the module system: `import("MrxUtil")` and then MrxUtil.*. These are not. mrxguiinterface.lua
+            # assigns `_G.Hud = HudInterface` outright, so Hud exists from load with nothing to import, and
+            # `import("Hud")` is meaningless -- there is no module by that name.
+            #
+            # Downstream had no way to know that. The web IDE maps game_script to "modules" and its linter
+            # tells you to import one, so after these namespaces were first classified it started advising
+            # `import("Cheat")` for a global that has always simply been there. The classification was right
+            # and the data model was too coarse to express it.
+            entry["published_global"] = True
         if root == "_MODULES":
             entry["note"] = ("loaded but not import()ed in the sampled game state, so it has no top-level "
                              "global -- reach it as %s, or import() it first" % key)
@@ -429,9 +441,16 @@ def build(dump, aliases, game_dir):
         },
         "kinds": {
             "engine": "a C++ native. No source exists anywhere -- probe it, or check the wiki.",
-            "game_script": "a resident Lua module's global function, namespaced by import(). "
-                           "`source` is its file in the decompiled corpus -- you can just read it.",
+            "game_script": "resident Lua. `source` is its file in the decompiled corpus -- you can just "
+                           "read it. Reached by import()ing the module that owns it, UNLESS the namespace "
+                           "carries published_global (see below), in which case there is nothing to import.",
         },
+        "published_global": "Set on a game_script namespace that a resident script assigns straight into "
+                            "_G (`_G.Hud = HudInterface` in mrxguiinterface.lua) rather than exposing "
+                            "through the module system. It exists from load with no import() required, and "
+                            "import()ing its name is meaningless because no module is called that. Consumers "
+                            "that treat game_script as 'a module you must import' must exclude these -- the "
+                            "web IDE's linter advised import(\"Cheat\") before this flag existed.",
         "counts": counts,
         "namespaces": out,
     }

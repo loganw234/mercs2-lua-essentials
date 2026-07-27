@@ -206,14 +206,15 @@
  },
  "kinds": {
   "engine": "a C++ native. No source exists anywhere -- probe it, or check the wiki.",
-  "game_script": "a resident Lua module's global function, namespaced by import(). `source` is its file in the decompiled corpus -- you can just read it."
+  "game_script": "resident Lua. `source` is its file in the decompiled corpus -- you can just read it. Reached by import()ing the module that owns it, UNLESS the namespace carries published_global (see below), in which case there is nothing to import."
  },
+ "published_global": "Set on a game_script namespace that a resident script assigns straight into _G (`_G.Hud = HudInterface` in mrxguiinterface.lua) rather than exposing through the module system. It exists from load with no import() required, and import()ing its name is meaningless because no module is called that. Consumers that treat game_script as 'a module you must import' must exclude these -- the web IDE's linter advised import(\"Cheat\") before this flag existed.",
  "counts": {
   "engine": 41,
-  "game_script": 237,
+  "game_script": 221,
   "internal": 4,
   "engine_fns": 965,
-  "game_script_fns": 3200,
+  "game_script_fns": 3143,
   "internal_fns": 122
  },
  "namespaces": {
@@ -381,7 +382,8 @@
     "DisplayOptions"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxcheatbootstrap.lua"
+   "source": "resident/mrxcheatbootstrap.lua",
+   "published_global": true
   },
   "Debug": {
    "kind": "engine",
@@ -443,7 +445,9 @@
     "SetShadowBaseDistance",
     "ShowTinyGeometryObject"
    ],
-   "called_by_ess": []
+   "called_by_ess": [
+    "GetScreenRatio"
+   ]
   },
   "Graphics.AA": {
    "kind": "engine",
@@ -650,7 +654,8 @@
     "Show"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.CardFanfare": {
    "kind": "game_script",
@@ -659,7 +664,8 @@
     "Commence"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.Cinematic": {
    "kind": "game_script",
@@ -671,7 +677,8 @@
     "Show"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.CinematicPlaceholder": {
    "kind": "game_script",
@@ -681,7 +688,8 @@
     "Show"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.ClassyText": {
    "kind": "game_script",
@@ -692,7 +700,8 @@
    "called_by_ess": [
     "ShowText"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.ContactFanfare": {
    "kind": "game_script",
@@ -701,7 +710,8 @@
     "Commence"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.EventFanfare": {
    "kind": "game_script",
@@ -712,7 +722,8 @@
    "called_by_ess": [
     "Commence"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.FactionDisplay": {
    "kind": "game_script",
@@ -729,8 +740,17 @@
     "StartPursuit",
     "StartTimer"
    ],
-   "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "called_by_ess": [
+    "AddMeter",
+    "ConfigureThresholds",
+    "HideMeter",
+    "SetInsideFactionZone",
+    "SetValue",
+    "StartPursuit",
+    "StartTimer"
+   ],
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.Fanfare": {
    "kind": "game_script",
@@ -741,7 +761,8 @@
     "Create"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.FanfareQueue": {
    "kind": "game_script",
@@ -753,7 +774,8 @@
     "Pause"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.JobFanfare": {
    "kind": "game_script",
@@ -763,7 +785,8 @@
     "Failed"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.MapLabel": {
    "kind": "game_script",
@@ -774,7 +797,8 @@
    "called_by_ess": [
     "Show"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.MessageBox": {
    "kind": "game_script",
@@ -791,7 +815,8 @@
     "ModifyPendingMessage",
     "RemovePendingMessage"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.ObjectiveTray": {
    "kind": "game_script",
@@ -807,7 +832,8 @@
     "SetSlotToImage",
     "SetSlotToText"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.Radar": {
    "kind": "game_script",
@@ -833,7 +859,8 @@
     "RemoveObjective",
     "UnanimateObjective"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.ResourceCounter": {
    "kind": "game_script",
@@ -852,7 +879,8 @@
     "SetSuppressed",
     "Show"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.Satellite": {
    "kind": "game_script",
@@ -861,7 +889,8 @@
     "SetTutorialText"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.Shop": {
    "kind": "game_script",
@@ -883,7 +912,8 @@
     "SetCallback",
     "SetCloseCallback"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.SubtitleBuffer": {
    "kind": "game_script",
@@ -895,7 +925,8 @@
     "RemovePendingMessage"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.SupportFanfare": {
    "kind": "game_script",
@@ -906,7 +937,8 @@
     "Create"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.SupportMenu": {
    "kind": "game_script",
@@ -919,7 +951,8 @@
    "called_by_ess": [
     "AddItem"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.TextFanfare": {
    "kind": "game_script",
@@ -928,7 +961,8 @@
     "Commence"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Hud.Tutorial": {
    "kind": "game_script",
@@ -941,7 +975,8 @@
    "called_by_ess": [
     "SetText"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Human": {
    "kind": "engine",
@@ -1115,7 +1150,8 @@
     "Show"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguimanager.lua"
+   "source": "resident/mrxguimanager.lua",
+   "published_global": true
   },
   "MapLabel.EventHandlers": {
    "kind": "game_script",
@@ -1125,7 +1161,8 @@
     "TrespassStateChange"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguimanager.lua"
+   "source": "resident/mrxguimanager.lua",
+   "published_global": true
   },
   "Marker": {
    "kind": "engine",
@@ -1166,7 +1203,8 @@
     "SetLocation"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguimanager.lua"
+   "source": "resident/mrxguimanager.lua",
+   "published_global": true
   },
   "MessageBox.EventHandlers": {
    "kind": "game_script",
@@ -1177,7 +1215,8 @@
     "TextBufferAddMessage"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguimanager.lua"
+   "source": "resident/mrxguimanager.lua",
+   "published_global": true
   },
   "Minimap.EventHandlers": {
    "kind": "game_script",
@@ -1193,7 +1232,8 @@
     "SetTargetMarker"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguimanager.lua"
+   "source": "resident/mrxguimanager.lua",
+   "published_global": true
   },
   "Movie": {
    "kind": "engine",
@@ -1982,15 +2022,6 @@
    "called_by_ess": [
     "HandleInstantiationEventForTextBuffer"
    ],
-   "source": "resident/mrxguitextbuffer.lua"
-  },
-  "MrxGuiTextBuffer.NewTextMessage": {
-   "kind": "game_script",
-   "count": 1,
-   "functions": [
-    "CallCallback"
-   ],
-   "called_by_ess": [],
    "source": "resident/mrxguitextbuffer.lua"
   },
   "MrxHqManager": {
@@ -3639,7 +3670,8 @@
     "SetSlotToWidget"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguimanager.lua"
+   "source": "resident/mrxguimanager.lua",
+   "published_global": true
   },
   "ObjectiveTray.EventHandlers": {
    "kind": "game_script",
@@ -3648,7 +3680,8 @@
     "GuiInitialization"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguimanager.lua"
+   "source": "resident/mrxguimanager.lua",
+   "published_global": true
   },
   "Pda": {
    "kind": "game_script",
@@ -3659,7 +3692,8 @@
    "called_by_ess": [
     "SetSuppressed"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Pda.Database": {
    "kind": "game_script",
@@ -3679,7 +3713,8 @@
     "AddStatisticEntry",
     "SetFactionAttitude"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Pda.Map": {
    "kind": "game_script",
@@ -3715,7 +3750,8 @@
     "SetMissionTrackable",
     "SetSelectedMission"
    ],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Pda.SubtitleBuffer": {
    "kind": "game_script",
@@ -3727,7 +3763,8 @@
     "RemovePendingMessage"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Pda.Support": {
    "kind": "game_script",
@@ -3741,7 +3778,8 @@
     "UpdateItem"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguiinterface.lua"
+   "source": "resident/mrxguiinterface.lua",
+   "published_global": true
   },
   "Pg": {
    "kind": "engine",
@@ -4110,11 +4148,25 @@
     "_SummonEd"
    ],
    "called_by_ess": [
+    "ClearFadeCategories",
+    "ClearPitchCategories",
     "CueAmbience",
     "CueSound",
+    "FadeCategoryDown",
+    "FadeCategoryUp",
+    "GetAudioDir",
+    "GetCategoryPitch",
+    "GetCategoryVolume",
+    "GetMaxDuration",
+    "IsActionLevelLockedMusic",
+    "IsDynamicMusic",
+    "IsFactionLockedMusic",
+    "SetCategoryPitch",
+    "SetCategoryVolume",
     "SetMasterVolume",
     "StopAmbience",
-    "StopSound"
+    "StopSound",
+    "_GetLibVersion"
    ]
   },
   "String": {
@@ -4138,7 +4190,8 @@
     "SetLocation"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguimanager.lua"
+   "source": "resident/mrxguimanager.lua",
+   "published_global": true
   },
   "SubtitleBuffer.EventHandlers": {
    "kind": "game_script",
@@ -4148,7 +4201,8 @@
     "GuiUpdate"
    ],
    "called_by_ess": [],
-   "source": "resident/mrxguimanager.lua"
+   "source": "resident/mrxguimanager.lua",
+   "published_global": true
   },
   "Sys": {
    "kind": "engine",
@@ -4550,33 +4604,6 @@
    "source": "resident/antiair.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.antiair, or import() it first"
   },
-  "_MODULES.autogunship": {
-   "kind": "game_script",
-   "count": 4,
-   "functions": [
-    "LaunchMissile",
-    "OnActivate",
-    "Salvo",
-    "Start"
-   ],
-   "called_by_ess": [],
-   "source": "resident/autogunship.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.autogunship, or import() it first"
-  },
-  "_MODULES.bench": {
-   "kind": "game_script",
-   "count": 5,
-   "functions": [
-    "MakeUpright",
-    "QueryActiveUse",
-    "QueryRepair",
-    "SuperUse",
-    "Use"
-   ],
-   "called_by_ess": [],
-   "source": "resident/bench.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.bench, or import() it first"
-  },
   "_MODULES.blippable": {
    "kind": "game_script",
    "count": 8,
@@ -4593,19 +4620,6 @@
    "called_by_ess": [],
    "source": "resident/blippable.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.blippable, or import() it first"
-  },
-  "_MODULES.collectable": {
-   "kind": "game_script",
-   "count": 4,
-   "functions": [
-    "Create",
-    "Delete",
-    "OnActivate",
-    "OnContextAction"
-   ],
-   "called_by_ess": [],
-   "source": "resident/collectable.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.collectable, or import() it first"
   },
   "_MODULES.dangerousbuilding": {
    "kind": "game_script",
@@ -4687,17 +4701,6 @@
    "source": "resident/gamebootstrap.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.gamebootstrap, or import() it first"
   },
-  "_MODULES.helicopter": {
-   "kind": "game_script",
-   "count": 2,
-   "functions": [
-    "OnActivate",
-    "Start"
-   ],
-   "called_by_ess": [],
-   "source": "resident/helicopter.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.helicopter, or import() it first"
-  },
   "_MODULES.hero": {
    "kind": "game_script",
    "count": 27,
@@ -4733,19 +4736,6 @@
    "called_by_ess": [],
    "source": "resident/hero.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.hero, or import() it first"
-  },
-  "_MODULES.hijack_ah1z": {
-   "kind": "game_script",
-   "count": 5,
-   "functions": [
-    "Deinit",
-    "Init",
-    "Initialize",
-    "OnFailureEvents",
-    "StartHijack"
-   ],
-   "called_by_ess": [],
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.hijack_ah1z, or import() it first"
   },
   "_MODULES.homingmissile": {
    "kind": "game_script",
@@ -4785,27 +4775,6 @@
    "called_by_ess": [],
    "source": "resident/levelbootstrap.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.levelbootstrap, or import() it first"
-  },
-  "_MODULES.materialanimation_treeplaza02": {
-   "kind": "game_script",
-   "count": 2,
-   "functions": [
-    "OnStateChange",
-    "_PlayMaterialAnims"
-   ],
-   "called_by_ess": [],
-   "source": "resident/materialanimation_treeplaza02.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.materialanimation_treeplaza02, or import() it first"
-  },
-  "_MODULES.monument": {
-   "kind": "game_script",
-   "count": 1,
-   "functions": [
-    "Use"
-   ],
-   "called_by_ess": [],
-   "source": "resident/monument.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.monument, or import() it first"
   },
   "_MODULES.mrxactionhijack": {
    "kind": "game_script",
@@ -6837,52 +6806,6 @@
    "source": "vz/oiljob011.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.oiljob011, or import() it first"
   },
-  "_MODULES.oilrig": {
-   "kind": "game_script",
-   "count": 13,
-   "functions": [
-    "Deinit",
-    "Init",
-    "OnDeactivate",
-    "OnStateChange",
-    "_CleanupOilrigEvents",
-    "_DestroyBuildingA",
-    "_DestroyBuildingB",
-    "_DestroyBuildingC",
-    "_DestroyBuildingD",
-    "_DestroyLinkedGuid",
-    "_DestroyOilrigSequence",
-    "_FinishDestruction",
-    "_ProcessNextEvent"
-   ],
-   "called_by_ess": [],
-   "source": "resident/oilrig.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.oilrig, or import() it first"
-  },
-  "_MODULES.orientedblippable": {
-   "kind": "game_script",
-   "count": 4,
-   "functions": [
-    "ClearBlipped",
-    "OnActivate",
-    "SetBlipped",
-    "TimerCallback"
-   ],
-   "called_by_ess": [],
-   "source": "resident/orientedblippable.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.orientedblippable, or import() it first"
-  },
-  "_MODULES.pmcgate": {
-   "kind": "game_script",
-   "count": 2,
-   "functions": [
-    "OnActivate",
-    "OpenGate"
-   ],
-   "called_by_ess": [],
-   "source": "resident/pmcgate.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.pmcgate, or import() it first"
-  },
   "_MODULES.pmcjob001": {
    "kind": "game_script",
    "count": 2,
@@ -6893,19 +6816,6 @@
    "called_by_ess": [],
    "source": "vz/pmcjob001.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.pmcjob001, or import() it first"
-  },
-  "_MODULES.repairpad": {
-   "kind": "game_script",
-   "count": 4,
-   "functions": [
-    "OnActivate",
-    "OnDeactivate",
-    "OnDeath",
-    "SetupActivationEvents"
-   ],
-   "called_by_ess": [],
-   "source": "resident/repairpad.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.repairpad, or import() it first"
   },
   "_MODULES.soldier": {
    "kind": "game_script",
@@ -6935,52 +6845,6 @@
    "called_by_ess": [],
    "source": "vz/stagingact1.lua",
    "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.stagingact1, or import() it first"
-  },
-  "_MODULES.supportairplane": {
-   "kind": "game_script",
-   "count": 1,
-   "functions": [
-    "OnActivate"
-   ],
-   "called_by_ess": [],
-   "source": "resident/supportairplane.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.supportairplane, or import() it first"
-  },
-  "_MODULES.treetrunk": {
-   "kind": "game_script",
-   "count": 2,
-   "functions": [
-    "OnStateChange",
-    "_PlayMaterialAnims"
-   ],
-   "called_by_ess": [],
-   "source": "resident/treetrunk.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.treetrunk, or import() it first"
-  },
-  "_MODULES.treetrunkpalm": {
-   "kind": "game_script",
-   "count": 2,
-   "functions": [
-    "OnStateChange",
-    "_PlayMaterialAnims"
-   ],
-   "called_by_ess": [],
-   "source": "resident/treetrunkpalm.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.treetrunkpalm, or import() it first"
-  },
-  "_MODULES.vehicleblippable": {
-   "kind": "game_script",
-   "count": 5,
-   "functions": [
-    "Create",
-    "Delete",
-    "OnActivate",
-    "SetBlipped",
-    "Start"
-   ],
-   "called_by_ess": [],
-   "source": "resident/vehicleblippable.lua",
-   "note": "loaded but not import()ed in the sampled game state, so it has no top-level global -- reach it as _MODULES.vehicleblippable, or import() it first"
   },
   "_MODULES.vz": {
    "kind": "game_script",
