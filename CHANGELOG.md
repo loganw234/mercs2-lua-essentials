@@ -9,6 +9,35 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+## [0.5.2]
+
+**Install this if you are on 0.5.1 — the UI kit could not draw at all in that release.**
+
+### Fixed
+
+- **`ess_ui.gfx` was missing from the shipped `vz-patch.wad`.** `Ess.UI` renders every widget through one
+  runtime Scaleform movie, and that movie was not in the wad 0.5.1 installed. Menus, panels, toasts, the
+  board, chat, `Ess.UI.Theme` and `Ess.UI.setScale` therefore did nothing at all on a clean install — and
+  did so **silently**, because the widget host constructs successfully whether or not the asset exists,
+  so nothing errored and nothing reached the log.
+
+  The wad had been committed once, before the UI kit was rewritten to use a runtime movie, and was never
+  regenerated; `build/package.py` only checked that the file existed, which a stale wad passes. It did not
+  reproduce in development because the dev install had the movie injected by hand.
+
+  The 11 pre-rewrite per-widget movies were present the whole time and are unchanged. `ess_ui` is added
+  alongside them, so the wad now carries 12 assets.
+
+### Added
+
+- **`build/package.py` now reads the wad's asset table instead of trusting it.** `check_wad()` parses the
+  FFCS ASET and fails the build if any movie named in `Ess.UI.FILES` is missing, so this cannot ship again.
+  The names come from `Ess.UI.FILES` itself, so adding a movie to the kit extends the gate automatically.
+  Verified against the 0.5.1 wad: the gate rejects it.
+- **`docs/UI_WAD.md`** — how the UI wad works and how to inject a movie. Documents the trap behind this
+  bug: assets are registered under their **bare stem** (`ess_ui`) but loaded with the extension
+  (`ess_ui.gfx`), so injecting under the full filename registers a name the engine never looks up.
+
 ## [0.5.1]
 
 **Data only — `1_Ess.lua` is unchanged apart from the version string.** If you only install the framework

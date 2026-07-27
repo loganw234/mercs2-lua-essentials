@@ -26,6 +26,7 @@ Output: dist/Ess-<version>.zip
 """
 import pathlib
 import re
+import struct
 import subprocess
 import sys
 import zipfile
@@ -43,6 +44,76 @@ def version():
     txt = (SRC / "00_core.lua").read_text(encoding="utf-8")
     m = re.search(r'Ess\.VERSION\s*=\s*"([^"]+)"', txt)
     return m.group(1) if m else "0.0.0"
+
+
+# ---------------------------------------------------------------------------------------------
+# The wad gate.
+#
+# v0.5.1 SHIPPED WITHOUT ess_ui.gfx. The wad was committed once, months before the UI kit was
+# rewritten to render through a single runtime movie, and nothing here looked INSIDE it -- the
+# check below used to be `wad.exists()`, which a stale wad passes perfectly. Every menu, panel,
+# toast and board in that release silently failed to draw, and it did not reproduce locally
+# because the dev install had the movie injected by hand.
+#
+# So: parse the wad's asset table and prove every movie Ess.UI actually loads is really in there.
+# The names come from Ess.UI.FILES itself rather than a list maintained here, so adding a movie to
+# the kit extends this gate automatically instead of quietly opting out of it.
+
+FNV1A_OFFSET_BASIS = 0x811C9DC5
+FNV1A_PRIME = 0x01000193
+
+
+def pandemic_hash_m2(text):
+    """The engine's asset-name hash: FNV-1a, case-folded via |0x20, then salted with 0x2A."""
+    if not text:
+        return 0
+    h = FNV1A_OFFSET_BASIS
+    for b in text.encode("ascii"):
+        h = ((h ^ ((b | 0x20) & 0xFF)) * FNV1A_PRIME) & 0xFFFFFFFF
+    h ^= 0x2A
+    return (h * FNV1A_PRIME) & 0xFFFFFFFF
+
+
+def wad_asset_hashes(path):
+    """Every asset hash in an FFCS wad's ASET table. Chunk table is 5 x (tag, value, meta) at 0x0C;
+    for ASET, value is the table offset and meta the entry count. Entries are 16 bytes, hash first."""
+    raw = path.read_bytes()
+    if raw[:4] != b"FFCS":
+        raise ValueError("%s: not an FFCS wad (magic %r)" % (path, raw[:4]))
+    for i in range(5):
+        off = 0x0C + i * 12
+        if raw[off:off + 4] == b"ASET":
+            value, meta = struct.unpack_from("<II", raw, off + 4)
+            return set(struct.unpack_from("<I", raw, value + n * 16)[0] for n in range(meta))
+    raise ValueError("%s: no ASET chunk" % path)
+
+
+def required_movies():
+    """Movie names Ess.UI loads, read out of Ess.UI.FILES. The engine hashes the name WITHOUT the
+    .gfx extension (every asset in the wad is registered under its bare stem), so strip it."""
+    txt = (SRC / "42_ui_engine.lua").read_text(encoding="utf-8")
+    m = re.search(r"Ess\.UI\.FILES\s*=\s*Ess\.UI\.FILES\s*or\s*\{(.*?)\}", txt, re.S)
+    if not m:
+        raise ValueError("42_ui_engine.lua: could not find the Ess.UI.FILES table")
+    return sorted(set(re.findall(r'"([^"]+)\.gfx"', m.group(1))))
+
+
+def check_wad(wad):
+    """Fails the build if the wad is missing a movie Ess.UI needs. Returns True on success."""
+    want = required_movies()
+    have = wad_asset_hashes(wad)
+    missing = [n for n in want if pandemic_hash_m2(n) not in have]
+    if missing:
+        print("[package] FATAL: %s is missing %d of the %d movies Ess.UI loads:"
+              % (wad, len(missing), len(want)))
+        for n in missing:
+            print("            %-12s (0x%08X) not in the wad's ASET" % (n, pandemic_hash_m2(n)))
+        print("[package] inject them before releasing -- see docs/UI_WAD.md. Shipping this zip would")
+        print("[package] give every user a UI that silently never draws.")
+        return False
+    print("[package] wad OK: all %d Ess.UI movies present in %d ASET entries (%s)"
+          % (len(want), len(have), ", ".join(want)))
+    return True
 
 
 def install_notes(ver):
@@ -89,6 +160,8 @@ def main():
         if not required.exists():
             print("[package] required file missing: %s" % required)
             return 1
+    if not check_wad(wad):
+        return 1
 
     ver = version()
     out = DIST / ("Ess-%s.zip" % ver)
