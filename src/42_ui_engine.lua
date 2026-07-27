@@ -81,7 +81,11 @@ Ess.UI.STAGE_H = 480
 --
 -- Scaling DOWN enlarges the usable canvas: at 75% the same widget rect holds 853/0.75 =
 -- 1137 units across, so there is MORE room to lay out in, not less.
--- 45 is the default: the density the kit was judged to read best at on a 1440p display.
+-- 75 is the default, judged on a 1440p display against a real menu list rather than a demo grid.
+-- It was 45 while widgetRect() was double-counting the scale (see below); with the geometry
+-- corrected, 45 and then 55 both read too small once the SMALL TEXT was the thing being judged.
+-- Menus are mostly body text at sizeBody, so that is the case to tune against -- chrome and
+-- headers look fine at densities where rows are already hard to read.
 --
 -- What SCALE actually does depends on how a widget is positioned, which is worth
 -- understanding before changing it:
@@ -93,7 +97,7 @@ Ess.UI.STAGE_H = 480
 --     finer relative to the same-sized boxes, rather than making anything smaller.
 --
 -- Override before first use, or call Ess.UI.setScale() any time.
-Ess.UI.SCALE = Ess.UI.SCALE or 45
+Ess.UI.SCALE = Ess.UI.SCALE or 75
 Ess.UI.CANVAS_W = Ess.UI.CANVAS_W or math.floor(Ess.UI.STAGE_W * 100 / Ess.UI.SCALE)
 Ess.UI.CANVAS_H = Ess.UI.CANVAS_H or math.floor(Ess.UI.STAGE_H * 100 / Ess.UI.SCALE)
 

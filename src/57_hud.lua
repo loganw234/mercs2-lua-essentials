@@ -428,8 +428,6 @@ Ess.Hud.Faction.RANGE = { nMin = 0, nMax = 100 }
 Ess.Hud.Faction.STOCK_THRESHOLDS = { 0, 25, 50, 75 }
 Ess.Hud.Faction.STOCK_NAMES = { "[0x671b379b]", "[0x7c4225bc]", "[0xdb614732]", "[0x8c4d842e]" }
 Ess.Hud.Faction.STOCK_PURSUIT = "[0x1cab5133]"
--- Kept as an alias; STOCK_THRESHOLDS is the clearer name now that restoring is the point.
-Ess.Hud.Faction.DEFAULT_THRESHOLDS = Ess.Hud.Faction.STOCK_THRESHOLDS
 
 local function factionGuard(sLabel, sFaction)
     if type(sFaction) ~= "string" or sFaction == "" then

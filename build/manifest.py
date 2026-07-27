@@ -75,6 +75,13 @@ CALLABLE_RE = re.compile(
 # Real, working, documented public API that no other pattern here catches, because there is no `function`
 # keyword anywhere on the line. Found by --check flagging both of them as documented-but-undefined on its
 # very first run -- the gate's first catch was a hole in this parser rather than a bug in the framework.
+#
+# FUNCTION aliases only. A DATA alias -- `Ess.X.DEFAULTS = Ess.X.STOCK_VALUES`, pointing at a table constant
+# rather than a function -- matches this pattern too, and then fails resolution below with "aliases ...,
+# which is not defined", because constants are not in `functions`. That is a confusing message for a line
+# that is perfectly good Lua, so if you hit it: the alias is not wrong, this parser just does not model
+# data. Give the constant its own literal instead of aliasing, or teach the resolver about non-callables.
+# (Ess.Hud.Faction.DEFAULT_THRESHOLDS was exactly this and was simply dropped as redundant.)
 REF_ALIAS_RE = re.compile(r"^\s*(Ess(?:\.[A-Za-z_]\w*)+)\s*=\s*(Ess(?:\.[A-Za-z_]\w*)+)\s*$", re.M)
 
 # A header-comment API line. Captures: call path, args, optional `-> returns`, trailing description.

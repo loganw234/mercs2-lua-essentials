@@ -40,7 +40,7 @@ local DEFAULTS = {
     -- Ess.UI.Theme.get("danger"), so a mod's own colours track the active theme.
     warn = 0xFFC448, danger = 0xE05252,
     -- metrics, in CANVAS units -- Ess.UI.CANVAS_W x CANVAS_H, which is the movie's 853x480 stage
-    -- divided by Ess.UI.SCALE (1895x1066 at the default 45). NOT pixels, and not the 640x480 the
+    -- divided by Ess.UI.SCALE (1137x640 at the default 75). NOT pixels, and not the 640x480 the
     -- engine's own widget space uses.
     radius = 4, rowHeight = 18, titleHeight = 26, padding = 8,
     scrollbarWidth = 4, crumbHeight = 14, hintHeight = 14,
