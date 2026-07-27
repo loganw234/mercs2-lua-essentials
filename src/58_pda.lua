@@ -440,10 +440,15 @@ function Ess.Pda.region(uGuid, tOpts)
         return false
     end
     local o = type(tOpts) == "table" and tOpts or {}
+    -- tonumber on the channels too, not just the alpha. The native clamps with a helper that returns nil for
+    -- a non-number, and each channel then falls back to its own default -- so a stringy "64" from a UI field
+    -- silently became the default colour instead of the one asked for, while nAlpha (converted) worked.
     local rgb = o.rgb
+    local r = rgb and tonumber(rgb[1]) or nil
+    local g = rgb and tonumber(rgb[2]) or nil
+    local b = rgb and tonumber(rgb[3]) or nil
     Ess.Safe.named("Ess.Pda.region", function()
-        Pda.Map:AddLineRegion({ uGuid = uGuid,
-            nRed = rgb and rgb[1], nGreen = rgb and rgb[2], nBlue = rgb and rgb[3],
+        Pda.Map:AddLineRegion({ uGuid = uGuid, nRed = r, nGreen = g, nBlue = b,
             nAlpha = tonumber(o.nAlpha), bInvert = o.bInvert and true or false })
     end)
     return true

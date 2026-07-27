@@ -5,7 +5,7 @@
 --   Ess.Gps.set(x, z [,tOpts])   place the beacon marker at a world X/Z
 --   Ess.Gps.clear()              remove it, engine-side and marker-side
 --   Ess.Gps.get()                -> x, z  (nil if no beacon)
---   Ess.Gps.distance([i])        -> metres from player i to the beacon, or nil
+--   Ess.Gps.distance([i])        -> world units from player i to the beacon, or nil
 --   Ess.Gps.onSet(fn)            fn(x, z) when the PLAYER sets a beacon      -- returns stop()
 --   Ess.Gps.onClear(fn)          fn() when the player clears one             -- returns stop()
 --

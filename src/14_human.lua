@@ -175,9 +175,24 @@ end
 -- ⚠ NO FEEDBACK WHATSOEVER. The native returns nil for a valid state AND for a garbage one -- verified by
 -- passing "NotAReal","State", which is indistinguishable from success. So this wrapper's `true` means the
 -- call did not throw, NOT that the state was applied. Misspell a posture and it fails silently forever.
--- Stick to the four strings above unless you have a corpus call site for another.
+--
+-- Which is why the posture is CHECKED AGAINST A WHITELIST here. Ess normally passes strings through and
+-- lets the engine judge them -- but this engine call cannot judge, so a guard in the wrapper is the only
+-- point in the whole chain where a typo can ever be caught. POSTURES is exported so a caller can offer the
+-- four rather than retype them; the ANIMATION name is still passed through, since clip names are open-ended
+-- and there is no list to check against.
+Ess.Human.POSTURES = { "Upright", "InVehicle", "Subdued", "Cower" }
+local POSTURE_OK = {}
+for _, s in ipairs(Ess.Human.POSTURES) do POSTURE_OK[s] = true end
+
 function Ess.Human.setState(uChar, sPosture, sAnim)
     if not uChar or type(sPosture) ~= "string" then return false end
+    if not POSTURE_OK[sPosture] then
+        Ess.Safe.reject("Ess.Human.setState", "'" .. sPosture .. "' is not a known posture -- expected "
+                        .. table.concat(Ess.Human.POSTURES, ", ")
+                        .. " (the native reports nothing either way, so this guard is the only signal)")
+        return false
+    end
     local ok = Ess.Safe.quiet(Human.SetState, uChar, sPosture, sAnim or "Idle")
     return ok and true or false
 end

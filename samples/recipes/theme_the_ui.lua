@@ -90,9 +90,15 @@ local danger = T.get("danger")
 --
 --    Note it also re-derives Ess.UI.CANVAS_W/H, since scaling down enlarges the usable canvas.
 -- ---------------------------------------------------------------------------------------------------
-local scaleBefore, canvasBefore = Ess.UI.SCALE, Ess.UI.CANVAS_W
-Ess.UI.setScale(70)
-local canvasAtSeventy = Ess.UI.CANVAS_W             -- smaller canvas: less room, bigger chrome
+-- Compare two scales against EACH OTHER rather than against the ambient default. An earlier version fixed
+-- one end of the comparison at 70 and assumed that was below the default -- true when the default was 55,
+-- false the moment it became 75, and the recipe started failing for a reason that had nothing to do with
+-- what it was testing. A test should not care what the default happens to be.
+local scaleBefore = Ess.UI.SCALE
+Ess.UI.setScale(50)
+local canvasAtFifty = Ess.UI.CANVAS_W               -- low scale: big canvas, fine chrome
+Ess.UI.setScale(100)
+local canvasAtHundred = Ess.UI.CANVAS_W             -- high scale: small canvas, big chrome
 Ess.UI.setScale(scaleBefore)                        -- put it back
 
 -- ---------------------------------------------------------------------------------------------------
@@ -110,10 +116,10 @@ local ok = (#names >= 7)
     and (accentAfterOwn == 0x2ED573)
     and survivedTypo
     and (danger == T.DEFAULTS.danger)
-    and (canvasAtSeventy < canvasBefore)            -- a bigger scale means a smaller canvas
-    and (Ess.UI.SCALE == scaleBefore)
+    and (canvasAtHundred < canvasAtFifty)           -- a bigger scale means a smaller canvas
+    and (Ess.UI.SCALE == scaleBefore)               -- and we put the scale back
     and (accentAfterReset == T.DEFAULTS.accent)
 
-Ess.Log(string.format("[recipe] theme_the_ui: %d presets, cyan defines %d keys, canvas %d -> %d at scale 70",
-    #names, cyanKeys, canvasBefore, canvasAtSeventy))
+Ess.Log(string.format("[recipe] theme_the_ui: %d presets, cyan defines %d keys, canvas %d at scale 50 -> %d at 100",
+    #names, cyanKeys, canvasAtFifty, canvasAtHundred))
 Ess.Log("[SMOKE] theme_the_ui: " .. (ok and "PASS" or "FAIL"))

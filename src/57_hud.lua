@@ -152,7 +152,8 @@ Ess.Hud.RADAR_ICONS = {
 -- wide; sJustification only decides how the text sits INSIDE that fixed box.
 --
 --   tOpts.nY            0..450, default 240 (middle). Small numbers are near the top.
---   tOpts.sJustify      "left" (default) | "center" | "right"
+--   tOpts.sJustify      "center" (this wrapper's default) | "left" | "right". Note the ENGINE's own default
+--                       is "left"; centred is almost always what a title wants, so this overrides it.
 --   tOpts.sVertAnchor   "center" (default) | "bottom" | anything else = top; decides what nY measures TO
 --   tOpts.bExpand       boolean, passed through to the Flash movie
 --
@@ -232,8 +233,15 @@ end
 -- busy stack, which is exactly what the game itself uses it for; it is not a general "change that text".
 -- To replace a visible line, remove it and add a new one.
 function Ess.Hud.updateMessage(handle, sText)
-    if type(handle) ~= "table" or type(sText) ~= "string" then
-        Ess.Safe.reject("Ess.Hud.updateMessage", "handle must be a table")
+    -- Separate guards: one combined check reported "handle must be a table" for BOTH failures, so passing a
+    -- good handle with a bad text blamed the wrong argument -- the opposite of what the reject channel is for.
+    if type(handle) ~= "table" then
+        Ess.Safe.reject("Ess.Hud.updateMessage", "handle must be the table returned by Ess.Hud.message, got "
+                        .. type(handle))
+        return false
+    end
+    if type(sText) ~= "string" then
+        Ess.Safe.reject("Ess.Hud.updateMessage", "sText must be a string, got " .. type(sText))
         return false
     end
     local ok
@@ -533,17 +541,6 @@ end
 -- rather than against it -- .timer and .pursuit both hold the meter for their own duration (5 + nTime and
 -- 2 + nTime respectively), which is the supported way to keep one up for a known period.
 
--- Ess.Hud.Faction.levels(tThresholds, tNames [,sPursuitName] [,bShow]) -- redefine the level bands shared by
--- every gauge. tThresholds ascending numbers STARTING AT 0, tNames the same length.
---
--- The native validates hard and returns false on any of: a non-number threshold, a non-string name, a first
--- threshold that is not 0, or mismatched lengths. Those four are checked here first so the failure comes
--- with a reason rather than a bare false.
---
--- It LOOKS like it validates ascending order too, and it does not: that check compares every threshold
--- against a nPrevLevel initialised to -1 and never updated inside the loop, so it can only ever fire for a
--- value below -1. Descending or duplicate thresholds sail through and produce a gauge whose level maths
--- divides by a negative or zero range. This wrapper does the ordering check the engine intended.
 -- Ess.Hud.Faction.restoreLevels() -- put the game's own level vocabulary back after .levels() has replaced
 -- it. Always available and always correct, because the stock values are constants rather than something
 -- captured at runtime (there is no getter to capture from).
@@ -561,6 +558,20 @@ function Ess.Hud.Faction.restoreLevels()
     return true
 end
 
+-- Ess.Hud.Faction.levels(tThresholds, tNames [,sPursuitName] [,bShow]) -- redefine the level bands shared by
+-- every gauge. tThresholds ascending numbers STARTING AT 0, tNames the same length.
+--
+-- The native validates hard and returns false on any of: a non-number threshold, a non-string name, a first
+-- threshold that is not 0, or mismatched lengths. Those four are checked here first so the failure comes
+-- with a reason rather than a bare false.
+--
+-- It LOOKS like it validates ascending order too, and it does not: that check compares every threshold
+-- against a nPrevLevel initialised to -1 and never updated inside the loop, so it can only ever fire for a
+-- value below -1. Descending or duplicate thresholds sail through and produce a gauge whose level maths
+-- divides by a negative or zero range. This wrapper does the ordering check the engine intended.
+--
+-- bShow is forwarded to the native as bDisplayResult. What it actually renders is not documented anywhere,
+-- including in the widget source -- treat it as an experiment rather than a supported option.
 function Ess.Hud.Faction.levels(tThresholds, tNames, sPursuitName, bShow)
     local L = "Ess.Hud.Faction.levels"
     if type(tThresholds) ~= "table" or type(tNames) ~= "table" then

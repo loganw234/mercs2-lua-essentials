@@ -147,7 +147,12 @@ function Ess.Sound.setCategoryVolume(sCategory, nLevel)
 end
 
 function Ess.Sound.categoryPitch(sCategory)
-    if type(sCategory) ~= "string" or sCategory == "" then return nil end
+    if type(sCategory) ~= "string" or sCategory == "" then
+        -- Its four mixer siblings all reject here; this one returned a bare nil, so a typo'd category was
+        -- invisible even with Ess.DEBUG on -- exactly the silence the reject channel exists to break.
+        Ess.Safe.reject("Ess.Sound.categoryPitch", "sCategory must be one of Ess.Sound.CATEGORIES")
+        return nil
+    end
     local ok, v = Ess.Safe.quiet(Sound.GetCategoryPitch, sCategory)
     if ok and type(v) == "number" then return v end
     return nil

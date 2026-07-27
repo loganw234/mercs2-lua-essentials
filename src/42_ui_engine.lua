@@ -103,6 +103,11 @@ Ess.UI.CANVAS_H = Ess.UI.CANVAS_H or math.floor(Ess.UI.STAGE_H * 100 / Ess.UI.SC
 
 -- Set the global scale and re-derive the canvas. Takes effect immediately; safe to call
 -- repeatedly while tuning.
+-- Does NOT build the UI. _rtcall runs rtEnsure, which constructs and shows the fullscreen runtime widget
+-- and loads ess_ui.gfx -- so calling this unconditionally meant a bare `Ess.UI.setScale(80)` in an OnLoad
+-- script spun the whole kit up before any widget was wanted, purely to set a number. The scale is stored
+-- either way and rtBecomeReady pushes it as part of its ready handshake, so telling a movie that does not
+-- exist yet is pointless as well as expensive.
 function Ess.UI.setScale(pct)
     pct = tonumber(pct) or 100
     if pct < 25 then pct = 25 end
@@ -110,7 +115,8 @@ function Ess.UI.setScale(pct)
     Ess.UI.SCALE = pct
     Ess.UI.CANVAS_W = math.floor(Ess.UI.STAGE_W * 100 / pct)
     Ess.UI.CANVAS_H = math.floor(Ess.UI.STAGE_H * 100 / pct)
-    Ess.UI._rtcall("SetScale", { pct })
+    -- Only reach for the movie if one already exists; a fresh one picks the scale up on load.
+    if Ess.UI._rtReady() then Ess.UI._rtcall("SetScale", { pct }) end
     return pct, Ess.UI.CANVAS_W, Ess.UI.CANVAS_H
 end
 
@@ -414,15 +420,26 @@ end
 
 -- Ask the movie where its canvas edges actually are, then hand the raw report to `cb`.
 -- Answers asynchronously through the pre-registered essuiScreen handler.
+-- The poll is BOUNDED. It used to return true unconditionally until rt.screen appeared, so a movie that
+-- never answered left the loop running forever -- and because Ess.Loop.start REPLACES a loop of the same id
+-- (see _ensureTick's note), two overlapping calls silently dropped the first caller's callback with no way
+-- to tell. Same failure rtEnsure already guards against with RT_LOAD_TIMEOUT, so it uses the same ceiling
+-- and reports rather than hanging quietly.
 function Ess.UI._rtScreen(cb)
     local rt = rtEnsure()
     if not rt then return false end
     rt.screen = nil
     Ess.UI._rtcall("ScreenInfo", {})
     if cb then
-        -- one short poll: the reply comes back on the movie's next frame
+        local waited = 0
         Ess.Loop.start("Ess.UI.screenProbe", 0.1, function()
             if rt.screen then pcall(cb, rt.screen); return false end
+            waited = waited + 0.1
+            if waited >= RT_LOAD_TIMEOUT then
+                Ess.Safe.reject("Ess.UI._rtScreen", "the movie did not report its screen info within "
+                                .. RT_LOAD_TIMEOUT .. "s -- callback dropped")
+                return false
+            end
             return true
         end)
     end

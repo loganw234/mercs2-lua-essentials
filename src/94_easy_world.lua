@@ -169,11 +169,24 @@ end
 --     not be spammed).
 --
 -- WHY THIS IS A KEEPER AND NOT ChangeLineRegionSetting: reconfiguring the region itself is the obviously
--- nicer mechanism, and it does work -- but Graphics.Atmosphere.GetLineRegion() reports FORTY line regions in
--- the vz level and only SIX of them have names (the rgn_atmo_* set). The other 34 cannot be resolved by
--- Pg.GetGuidByName, so they cannot be addressed at all. Setting all six named regions to "night" was tried
--- live: the current region changed immediately, and crossing into one of the unnamed 34 reverted it. A
--- 6-of-40 solution is not a map-wide one, so the keeper stays.
+-- nicer mechanism, and it does work -- on the region you are standing in.
+--
+-- ⚠ CORRECTION. This note used to say only SIX of the forty regions have names and "the other 34 cannot be
+-- resolved by Pg.GetGuidByName, so they cannot be addressed at all". THAT WAS WRONG, and it was wrong in a
+-- way worth recording: the names were never missing, they are simply not in the SCRIPT CORPUS. They live in
+-- the level data, and once extracted they resolve -- 20 of them were checked live against Pg.GetGuidByName
+-- and every one succeeded, with a deliberately bogus name as the control. The full set is now
+-- Ess.Atmosphere.REGIONS.
+--
+-- So "6 of 40" was never the real obstacle. The keeper stays for the reasons that DID survive testing:
+--   * ChangeLineRegionSetting takes AUTHORED PRESET NAMES, not values you control. "night" on these regions
+--     reads as late evening rather than true night.
+--   * Batching several in one chunk caused a measured THIRTEEN-SECOND engine stall, with the bridge watchdog
+--     firing on a real hang. Pacing them is mandatory, which makes a 41-region sweep slow and risky.
+--   * The transitions it produces were observed live as abrupt and harsh at region boundaries, and there is
+--     nothing to configure in the gaps BETWEEN regions.
+-- A keeper that re-applies one value is cheaper and smoother than driving 41 regions. But if you want to
+-- try the region route, the addressing problem that used to block it does not exist.
 --
 -- Also worth knowing if you go that route anyway: the setting names are authored presets, not values you
 -- control. "night" on these regions reads as late evening rather than true night, and blends in far more

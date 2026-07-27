@@ -152,8 +152,12 @@ function Ess.Minimap.autoZoom(tOpts)
                                                 .. minSpd .. ") -- the curve divides by their difference")
         return false
     end
-    Ess.Minimap._lockedRange = nil
-    return installHandler(function(oMinimap, ...)
+    -- Install FIRST, and only drop an active lock once the install is known to have worked. Clearing
+    -- _lockedRange up front left the worst of both worlds when the install then failed: the lockRange
+    -- wrapper was still on the widget but now had no range to force, so you got neither the old lock nor
+    -- the new curve. lockRange already rolls its own state back on failure; this is the same care.
+    local prevLock = Ess.Minimap._lockedRange
+    local w = installHandler(function(oMinimap, ...)
         -- Named because _origHandler is the GAME's function, not one of ours: it is not in the reverse-name
         -- map, so it would otherwise tally as an anonymous "closure" and hide which override was running.
         Ess.Safe.named("Ess.Minimap(stock handler)", Ess.Minimap._origHandler, oMinimap, ...)
@@ -171,7 +175,20 @@ function Ess.Minimap.autoZoom(tOpts)
         elseif v > maxSpd then r = maxRng
         else r = minRng + (v - minSpd) * (maxRng - minRng) / (maxSpd - minSpd) end
         Ess.Safe.named("Ess.Minimap.autoZoom", function() oMinimap:SetRange(r) end)
-    end) ~= nil
+    end)
+    if not w then
+        -- Say why. Every other function here explains itself on the DEBUG channel, and this one failing on
+        -- the SAME condition as lockRange while staying silent was the odd one out -- in a file whose own
+        -- header argues that "nothing happened" is the least useful thing a minimap call can report.
+        Ess.Safe.reject("Ess.Minimap.autoZoom", "could not install the update handler -- no Minimap widget, "
+                                                .. "or it has no GuiMinimapUpdate handler to wrap")
+        return false
+    end
+    Ess.Minimap._lockedRange = nil      -- the install stuck, so retiring any lock is now correct
+    if prevLock then
+        Ess.Log("Ess.Minimap.autoZoom: replaced an active lockRange(" .. tostring(prevLock) .. ")")
+    end
+    return true
 end
 
 -- Ess.Minimap.rotation(n) -- rotate the minimap. ONE-SHOT: the game drives rotation from camera heading

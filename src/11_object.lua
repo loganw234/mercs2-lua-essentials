@@ -540,8 +540,14 @@ end
 -- Same argument shape as .impulse (a vector plus a local/world flag); y is the yaw axis, so
 -- angularImpulse(u, 0, 500, 0, true) is a flat spin. Mass-scaled like any impulse, so a heavier object
 -- needs a proportionally larger value -- and see .setMass above if you are tuning both at once.
+--
+-- bLocal DEFAULTS TO TRUE, matching .impulse. It previously used the `bLocal and true or false` idiom,
+-- which silently defaulted to FALSE (world space) while the line above promised "same argument shape as
+-- .impulse" -- so the two functions disagreed on the one flag they share. Aligned rather than documented
+-- as a quirk, because a claim of sameness that is false is worse than either default.
 function Ess.Object.angularImpulse(uGuid, x, y, z, bLocal)
     if not uGuid then return false end
+    if bLocal == nil then bLocal = true end
     local ok, r = Ess.Safe.quiet(Object.ApplyAngularImpulse, uGuid,
                                  x or 0, y or 0, z or 0, bLocal and true or false)
     return (ok and r ~= false) and true or false

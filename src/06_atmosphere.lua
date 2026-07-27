@@ -92,10 +92,29 @@ Ess.Atmosphere.COLOR_KEYS = {
                     "uiAmbientCube3", "uiAmbientCube4", "uiAmbientCube5" },
 }
 
--- All six resolve to real guids in the vz level (verified live).
+-- THE FULL REGION LIST, not the six the script corpus happens to name.
+--
+-- The names are not in the scripts at all -- they are in the LEVEL data (layers_static), which is why an
+-- earlier pass concluded there were only six and that the rest "cannot be addressed". They can: 20 of these
+-- were checked against Pg.GetGuidByName live and every one resolved, including the ones a corpus-only view
+-- never sees (Merida, Shanty, Islands, OilRig, Amazon, the Industrial family, "GR Cave", "PMC Outpost").
+-- A deliberately bogus name in the same batch was the only failure, so the check was real.
+--
+-- Lookup is CASE-INSENSITIVE, so rgn_atmo_caracas and rgn_atmo_Caracas are one region -- the extracted data
+-- holds both spellings. Names with spaces are correct as written.
 Ess.Atmosphere.REGIONS = {
-    "rgn_atmo_caracas", "rgn_atmo_Maracaibo", "rgn_atmo_Angelfalls",
-    "rgn_atmo_interior", "rgn_atmo_PMCinterior", "rgn_atmo_carmonaislandrain",
+    "rgn_atmo_ALHQ", "rgn_atmo_Alta-Gracia", "rgn_atmo_Amazon", "rgn_atmo_Amazon_North",
+    "rgn_atmo_Angelfalls", "rgn_atmo_CHOutpost", "rgn_atmo_Cumana", "rgn_atmo_Cumana_South",
+    "rgn_atmo_Estate", "rgn_atmo_Fort", "rgn_atmo_GR Cave", "rgn_atmo_GR Outpost",
+    "rgn_atmo_GRHQ", "rgn_atmo_GRstripmine", "rgn_atmo_Guanare",
+    "rgn_atmo_Industrial", "rgn_atmo_Industrial_E", "rgn_atmo_Industrial_Guanare",
+    "rgn_atmo_Industrial_NW", "rgn_atmo_Industrial_SW",
+    "rgn_atmo_Islands", "rgn_atmo_MarVillage", "rgn_atmo_Maracaibo", "rgn_atmo_Merida",
+    "rgn_atmo_Meridastadium", "rgn_atmo_OCDepotbase", "rgn_atmo_OilRig",
+    "rgn_atmo_PMC Outpost", "rgn_atmo_PMCinterior", "rgn_atmo_PR Outpost",
+    "rgn_atmo_Shanty", "rgn_atmo_Shanty_Caracas", "rgn_atmo_VZ_Airport", "rgn_atmo_VZ_Fortifiedbase",
+    "rgn_atmo_caracas", "rgn_atmo_carmonaisland", "rgn_atmo_carmonaislandrain",
+    "rgn_atmo_carmonaislandtop", "rgn_atmo_interior", "rgn_atmo_margarita", "rgn_atmo_marsh",
 }
 
 -- Ess.Atmosphere.get(sKey) -> n | nil -- read one float. Opens and closes the transaction, without which
@@ -191,9 +210,9 @@ function Ess.Atmosphere.setting()
     return nil
 end
 
--- Ess.Atmosphere.region(sName) -> uGuid | nil -- resolve an rgn_atmo_* region name to its guid. All six in
--- REGIONS resolve in the vz level. Provided for the ChangeLineRegionSetting work described in the header;
--- there is nothing else to do with the guid yet.
+-- Ess.Atmosphere.region(sName) -> uGuid | nil -- resolve an rgn_atmo_* region name to its guid. Every name
+-- in REGIONS resolves in the vz level (sampled live, see that table). Provided for the
+-- ChangeLineRegionSetting work described in the header; there is nothing else to do with the guid yet.
 function Ess.Atmosphere.region(sName)
     if type(sName) ~= "string" then return nil end
     return Ess.Guid(sName)

@@ -16,8 +16,10 @@
 -- up. apply() exists so a theme can be changed while the UI is live (handy from the
 -- console).
 --
--- RESERVED NAMES: `apply`, `reset` and `preset` are functions on this table, so they can't
--- be used as theme keys. Everything else is a value.
+-- RESERVED NAMES: `apply`, `reset`, `preset`, `get` and `_push` are functions on this table
+-- and `DEFAULTS`/`PRESETS` are sub-tables, so none of those seven can be used as theme keys.
+-- Harmless today -- none appears in DEFAULTS, so none is ever pushed to the movie -- but
+-- T.get("preset") hands back a function rather than a value, which is worth knowing.
 --
 -- A key set to nil falls back to its default rather than drawing nothing, so a typo
 -- degrades to "stock look" instead of an invisible panel.
