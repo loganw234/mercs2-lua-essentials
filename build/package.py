@@ -59,7 +59,8 @@ def install_notes(ver):
         "  mercs2-lua-ide.html        a browser Lua editor -- double-click it, hit Connect, write Ess in your live game\n"
         "  api/ess.json               every public Ess function, machine-readable (for tooling, not reading)\n"
         "  api/natives.json           the whole raw engine surface, engine-native vs game-script, same idea\n"
-        "  api/nodes.json             node definitions for the visual editor, generated from the two above\n\n"
+        "  api/nodes.json             node definitions for the visual editor, generated from the two above\n"
+        "  api/ess-nodes.generated.js the same node definitions as a loadable script, for a browser editor\n\n"
         "INSTALL\n"
         "  1. Extract this zip INTO your Mercenaries 2 folder (the one with Mercenaries2.exe). The data/\n"
         "     and scripts/ folders merge into the game's existing ones; nothing here touches a save.\n"
@@ -128,8 +129,13 @@ def main():
         # the hand-authored api/nodes.overlay.json. Shipped as DATA rather than as the generated .js, because
         # the editor should own how it renders a node -- this file only says what each node IS. (The .js
         # consumer is built alongside it in dist/ for anyone who wants it working with no integration at all.)
+        # ess-nodes.generated.js ships alongside nodes.json because a browser-based consumer cannot USE the
+        # json from a file:// page -- fetch is blocked there, while a <script> tag is not. The generated
+        # file embeds the same definitions, so a double-click editor gets the node set with a script tag and
+        # no server. mercs2-ess-visual vendors exactly this member.
         for src_path, name in ((DIST / "ess.json", "ess.json"), (API / "natives.json", "natives.json"),
-                               (DIST / "nodes.json", "nodes.json")):
+                               (DIST / "nodes.json", "nodes.json"),
+                               (DIST / "ess-nodes.generated.js", "ess-nodes.generated.js")):
             if src_path.exists():
                 z.write(src_path, "api/" + name); files += 1
             else:
