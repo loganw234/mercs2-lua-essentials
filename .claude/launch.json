@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ess-visual",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8742", "--directory", "C:\\Users\\logan\\source\\repos\\mercs2-ess-visual"],
+      "port": 8742
+    }
+  ]
+}
