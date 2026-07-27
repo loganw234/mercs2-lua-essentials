@@ -47,6 +47,13 @@ jobs:
       - name: Generated node behaviour
         run: node tools/test_nodes.js
 
+      # The lua-bridge WebSocket result path, modelled end to end with no game: our wrapper -> a real tab in a
+      # Lua string -> the bridge's JSON escaping -> JSON.parse -> the parsed result. The client drops
+      # unparseable frames inside a catch, so a break here is SILENT (results just look like timeouts) --
+      # which is precisely why it gets a test rather than a manual check.
+      - name: Bridge WebSocket result handling
+        run: node tools/test_bridge_client.js
+
       - name: Offline behavioral tests (pure namespaces + intent bundles)
         run: |
           python3 -m pip install --quiet lupa

@@ -1,10 +1,42 @@
-# Adding WebSocket support to the lua-bridge
+# WebSocket support in the lua-bridge
 
-What the bridge (`mercs2-lua-mods/mods/lua-bridge/lua_bridge.c`) needs so a **browser can connect directly** —
-no Python/PowerShell relay. Raw TCP stays exactly as-is; WebSocket is an alternate transport on the same
-listener. Reference client: [`ess-bridge.js`](ess-bridge.js).
+> **STATUS: IMPLEMENTED.** This started as a proposal for what the bridge *needed*; the bridge has since
+> shipped it, essentially as specified below. The authoritative source is now
+> `Merc2-Mods-Exp/mods/lua-bridge-DEV/lua_bridge_DEV.c` — see its `WebSocket transport` section, plus
+> `ws_broadcast_typed_line`, `js_escape_into` and `LuaLoaderWsSend`. Read this document for the *why*; read
+> that file for the truth. The four message types, the hidden `Loader.WsSend` channel and the Lua-side tag
+> trick all landed unchanged, so what follows is still an accurate description — but the imperative voice
+> ("the bridge needs…") is historical.
+>
+> **Verified against the implementation 2026-07-25**, by reading the C rather than by running it. Confirmed
+> facts worth knowing, all of which the reference client depends on:
+> - `js_escape_into` **does** escape a literal tab as `\t`. This matters more than it looks: a raw tab byte
+>   inside a JSON string is *invalid JSON*, and `ess-bridge.js` parses frames inside a `try/catch` that
+>   **silently drops** anything unparseable — so if that escaping ever regressed, every result would vanish
+>   and `run()` would just look like it timed out. `tools/test_bridge_client.js` guards exactly that.
+> - `Loader.WsSend` and `Loader.Printf` join **multiple** string arguments with a **TAB**
+>   (`m2_lua_join_strings` in the SDK). The reference client passes **one** concatenated argument, so the
+>   wire format stays ours rather than depending on that separator.
+> - ⚠ **OPEN BUG — a returned byte ≥ `0x80` kills the WebSocket connection.** Confirmed live 2026-07-25,
+>   byte by byte: ASCII and `0x7F` are fine; `0x80` and `0xE9` ("é" in CP1252) both drop the socket
+>   (`onerror` → `onclose`); the *same* character sent as valid UTF-8 (`0xC3 0xA9`) arrives correctly as `é`.
+>   RFC 6455 requires a text frame to be valid UTF-8 and the receiver **must** fail the connection otherwise,
+>   but `js_escape_into` passes every byte ≥ `0x20` through unchanged. Since the engine's text path is
+>   single-byte **CP1252**, any localized name or typographic character in a returned string will do this.
+>   **Fix:** in `js_escape_into`, emit `0x80`–`0xFF` as `\u00XX` (it already does exactly this for `< 0x20`).
+>   Better still, map the CP1252 `0x80`–`0x9F` block to its true codepoints — `0x92` is U+2019, not U+0092 —
+>   but the naive form is enough to keep the frame valid. Raw TCP is unaffected; only WS text framing cares.
+> - The raw-TCP result line is `[ok]` + **TAB** + values on success, `[runtime]` + **space** + message on
+>   failure, terminated by `<<<END>>>`. Two changes there are worth knowing about if you ever parse it:
+>   `[ok]` is newly *reachable* at all (the status used to be read from a stack slot that always held a
+>   table, so **every** result — successes included — came back labelled `[runtime]`), and a junk `<table>`
+>   artifact that used to prefix every result is now skipped. Nothing in this repo parses that line, so
+>   nothing here needed changing; `tools/lua_repl.py` reads its own nonce-tagged line out of the log instead.
 
-Line numbers below are against the current `lua_bridge.c`.
+Raw TCP stays exactly as-is; WebSocket is an alternate transport on the same listener. Reference client:
+[`ess-bridge.js`](ess-bridge.js).
+
+Line numbers below are against the older `mercs2-lua-mods/mods/lua-bridge/lua_bridge.c` and are historical.
 
 ## The design in one paragraph
 
@@ -64,8 +96,18 @@ runs:
 
 ```lua
 local __ok, __r = pcall(function() <user code> end)
-Loader.WsSend("<<<WSR:q17abc>>>" .. (__ok and "OK\t" or "ERR\t") .. tostring(__r))
+local __sep = string.char(9)   -- a TAB, built without a "\t" escape -- see ess-bridge.js for why
+Loader.WsSend("<<<WSR:q17abc>>>" .. (__ok and "OK" or "ERR") .. __sep .. tostring(__r))
 ```
+
+The separator is deliberately `string.char(9)` rather than a `"\t"` escape. `\t` is standard Lua 5.1 and
+almost certainly fine, but a sweep of all 370 decompiled game scripts found **zero** uses of a `\t` escape
+inside a string literal, so nothing confirms this engine's lexer handles it — and the engine is known to
+deviate on escapes elsewhere (it reads `\ddd` as *octal*, not decimal). `string.char` **is** confirmed here:
+`src/21_input.lua` and `src/25_keys.lua` both run `string.char` loops at file-load time, so every `[Ess] ready`
+boot exercises it. If `\t` silently produced a literal backslash-t, every result would fail the client's
+`indexOf("OK\t") === 0` test and come back as `ok:false` with a mangled value — a whole-channel outage for a
+two-character reason, which is not a risk worth carrying for zero benefit.
 
 That tagged line rides the hidden `{type:"ws"}` channel back to the browser (**invisible to the log**), which
 matches `<<<WSR:q17abc>>>` and resolves the request. The bridge never has to route a result to a request — the

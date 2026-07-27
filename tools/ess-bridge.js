@@ -1,4 +1,22 @@
 /* ess-bridge.js -- a tiny, dependency-free browser client for the Mercenaries 2 lua-bridge over WebSocket.
+ *
+ * ⚠ KNOWN BRIDGE BUG -- A RETURNED BYTE >= 0x80 KILLS THE CONNECTION. Not a client bug, and not fixable here.
+ *   CONFIRMED LIVE 2026-07-25 against the running game, byte by byte:
+ *       ASCII and 0x7F .................. fine
+ *       0x80, and 0xE9 ("é" in CP1252) .. socket dies: onerror then onclose, mid-suite
+ *       0xC3 0xA9 (the SAME char as valid UTF-8) ... fine, arrives as "é"
+ *   WHY: RFC 6455 requires a WebSocket TEXT frame to carry valid UTF-8, and the receiver MUST fail the
+ *   connection on invalid UTF-8. The bridge's js_escape_into() passes every byte >= 0x20 through unchanged,
+ *   so a lone high byte goes out raw and the browser/Node WS layer drops the connection before any JS here
+ *   ever sees the frame. This matters because the engine's text path is single-byte CP1252, so any localized
+ *   name, accented character or typographic symbol in a returned string is a live grenade.
+ *   FIX BELONGS IN THE BRIDGE (Merc2-Mods-Exp/mods/lua-bridge-DEV/lua_bridge_DEV.c, js_escape_into): emit
+ *   bytes 0x80-0xFF as \u00XX escapes instead of raw, exactly as it already does for < 0x20. Ideally map the
+ *   CP1252 0x80-0x9F range to its real codepoints (0x92 is U+2019, not U+0092) rather than treating it as
+ *   Latin-1, but even the naive \u00XX form keeps the frame valid and the connection alive.
+ *   UNTIL THEN: don't return raw engine text over WS. `tools/test_bridge_client.js` covers the escaping
+ *   contract offline; the live byte-by-byte probe lives in this repo's notes rather than in CI, because it
+ *   deliberately breaks the socket it is testing.
  * Connect straight from a web page to the live game -- no Python/relay -- once the bridge speaks WS
  * (see BRIDGE_WEBSOCKET.md for exactly what the bridge needs).
  *
@@ -42,9 +60,24 @@
   // WS-only, never logged), so result plumbing doesn't pollute lua_loader_printf.log. pcall the body so the
   // line ALWAYS fires (success OR error). Single line only -- a tostring() with its own newline truncates at
   // the first, fine for scalars / coords / short strings.
+  //
+  // THE SEPARATOR IS BUILT WITH string.char(9) rather than a "\t" escape. Originally this was defensive: a
+  // sweep of all 370 decompiled game scripts found ZERO uses of a \t escape inside a string literal, so
+  // nothing confirmed this engine's lexer handled it, and the engine IS known to deviate on escapes elsewhere
+  // (it parses \ddd as OCTAL, not decimal).
+  //
+  // CONFIRMED LIVE 2026-07-25: `string.byte('\t')` returns 9 -- the escape works fine here, so that worry was
+  // unfounded. string.char(9) is kept anyway because it is equally correct, equally verified, and needs no
+  // reader to know the above. Do NOT "simplify" it back on the assumption that either form is broken; both
+  // work, and this note exists so nobody re-litigates it.
+  //
+  // ONE ARGUMENT, deliberately: Loader.WsSend joins MULTIPLE string args with a tab of its own
+  // (m2_lua_join_strings in the SDK), so passing the tag and the value separately would work by accident and
+  // break the moment that separator changed. Concatenating means the wire format is ours, not the bridge's.
   function wrap(code, tag) {
     return "local __ok, __r = pcall(function()\n" + code + "\nend)\n" +
-           "Loader.WsSend('" + tag + "' .. (__ok and 'OK\\t' or 'ERR\\t') .. tostring(__r))\n";
+           "local __sep = string.char(9)\n" +
+           "Loader.WsSend('" + tag + "' .. (__ok and 'OK' or 'ERR') .. __sep .. tostring(__r))\n";
   }
 
   function EssBridge(url, opts) {
