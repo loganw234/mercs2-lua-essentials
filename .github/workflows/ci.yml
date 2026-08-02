@@ -59,6 +59,11 @@ jobs:
           python3 -m pip install --quiet lupa
           python3 tools/checkpure.py
           python3 tools/test_bundles.py
+          # Ess.Spawn's load-bearing property is that ONE bad template in a roster spawns NOTHING -- a blank
+          # template hard-crashes the engine past pcall, and validating lazily would half-apply the call
+          # before dying. That, the roster cycling, the count cap and the placement separation are all pure
+          # logic, so they are provable here rather than only in a game.
+          python3 tools/test_spawn.py
 
       - name: Upload built zip
         uses: actions/upload-artifact@v4

@@ -15729,6 +15729,214 @@
      "desc": "How many of them actually stopped."
     }
    ]
+  },
+  "Ess.Spawn.many": {
+   "title": "Spawn: Many",
+   "desc": "Puts a whole group into the world in one action. The template box takes EITHER one name (\"Veyron\") or a roster - a Lua list of names like { 'AL Soldier', 'AL Soldier', 'AL Heavy' } - which is how you describe a section made of different unit types. Leave the count empty with a roster and you get exactly one of each, in the order written; give a count and the roster repeats to fill it, keeping its ratio exact. Everything lands spread out around a centre point rather than stacked on one spot. SAFETY: every name is checked before anything spawns, so one bad entry in a roster spawns NOTHING at all rather than half a group - a blank template crashes the game outright, and a half-applied bulk spawn is a mess you cannot undo. Hand it a tracker and the whole group cleans up in one call.",
+   "category": "Spawn",
+   "kind": "action",
+   "params": {
+    "vTemplates": {
+     "type": "lua",
+     "default": "{ 'AL Soldier', 'AL Soldier', 'AL Heavy', 'AL Sniper' }",
+     "desc": "One template name in quotes, or a Lua list of names (a roster). A roster is the point of this node: it describes a group's composition once and reuses it."
+    },
+    "nCount": {
+     "type": "number",
+     "default": 8,
+     "optional": true,
+     "desc": "How many to spawn. Leave it empty with a roster to spawn exactly one of each. Refused above 64 unless you raise opts.max deliberately - 'spawn 5000' is a plausible typo the engine will try."
+    },
+    "tOpts": {
+     "type": "table",
+     "default": "{ minDist = 8, maxDist = 25, snapToGround = true }",
+     "optional": true,
+     "desc": "WHERE: at={x,y,z} | around=<guid> | ahead=<distance in front of you, default 20>; i=player, useView=true. SHAPE: pattern='scatter'(default)|'grid'|'line'|'circle'; scatter uses minDist/maxDist, the others use spacing. EACH: yaw, faceCentre, faceAway, height, snapToGround. DRAW: pick='cycle'(default, keeps a roster's ratio)|'random', seed. ADMIN: tracker, onEach, max."
+    }
+   },
+   "returns": [
+    {
+     "name": "guids",
+     "type": "lua",
+     "desc": "The spawned units as a list - wire it straight into an AI Orders or Squad node to command them."
+    }
+   ]
+  },
+  "Ess.Spawn.mixed": {
+   "title": "Spawn: Mixed Group",
+   "desc": "Spawns several different templates with an exact count each - '6 riflemen and 2 cars' - in one shared placement. Use this when you know the precise numbers; use Spawn: Many with a roster when you want a composition that repeats to fill a total. Same all-or-nothing safety: a bad template in any spec spawns nothing at all.",
+   "category": "Spawn",
+   "kind": "action",
+   "params": {
+    "tSpecs": {
+     "type": "table",
+     "default": "{ { 'VZ Soldier', 6 }, { 'Veyron', 2 } }",
+     "desc": "A list of {template, count} pairs. Each count is exact - no cycling, no ratios."
+    },
+    "tOpts": {
+     "type": "table",
+     "default": "{ minDist = 10, maxDist = 30 }",
+     "optional": true,
+     "desc": "Same options as Spawn: Many, minus the draw mode (exact counts make it meaningless)."
+    }
+   },
+   "returns": [
+    {
+     "name": "guids",
+     "type": "lua",
+     "desc": "Every spawned unit, all specs together, as one list."
+    }
+   ]
+  },
+  "Ess.Spawn.at": {
+   "title": "Spawn: At Points",
+   "desc": "Spawns one thing per coordinate you supply - for hand-placed layouts, or for feeding a list of arena spawn points straight in. Templates cycle across the points, so two templates and six points alternate. A malformed point is skipped with a note rather than killing the whole call, since a hand-authored list is exactly where a typo lives.",
+   "category": "Spawn",
+   "kind": "action",
+   "params": {
+    "vTemplates": {
+     "type": "lua",
+     "default": "'VZ Soldier'",
+     "desc": "One name, or a list to cycle across the points."
+    },
+    "tPoints": {
+     "type": "table",
+     "default": "{ { 100, 5, 200 }, { 110, 5, 200 } }",
+     "desc": "A list of positions, each {x,y,z} or {x=,y=,z=}."
+    },
+    "tOpts": {
+     "type": "table",
+     "default": "{ snapToGround = true }",
+     "optional": true,
+     "desc": "height, yaw, snapToGround, tracker, onEach."
+    }
+   },
+   "returns": [
+    {
+     "name": "guids",
+     "type": "lua",
+     "desc": "The spawned units, in point order."
+    }
+   ]
+  },
+  "Ess.Easy.Spawn.units": {
+   "title": "Easy Spawn: Units",
+   "desc": "Drops a group of people around you, 6-20 units out, standing on the ground and facing you. Unlike Easy Spawn: Enemy Squad this does NOT start a fight - it places them and stops there, so they are yours to command, recruit or ignore.",
+   "category": "Easy Spawn",
+   "kind": "action",
+   "params": {
+    "nCount": {
+     "type": "number",
+     "default": 6,
+     "optional": true,
+     "desc": "How many. Leave empty with a roster to spawn one of each."
+    },
+    "vTemplate": {
+     "type": "lua",
+     "default": "'VZ Soldier'",
+     "optional": true,
+     "desc": "One template name, or a roster list for a mixed section. Defaults to VZ Soldier."
+    }
+   },
+   "returns": [
+    {
+     "name": "guids",
+     "type": "lua",
+     "desc": "The spawned group, as a list."
+    }
+   ]
+  },
+  "Ess.Easy.Spawn.vehicles": {
+   "title": "Easy Spawn: Vehicles",
+   "desc": "Drops a group of vehicles around you. They get a wider ring and more room than infantry, because vehicles spawned too close land inside each other and get violently shoved apart by the physics.",
+   "category": "Easy Spawn",
+   "kind": "action",
+   "params": {
+    "nCount": {
+     "type": "number",
+     "default": 6,
+     "optional": true,
+     "desc": "How many. Leave empty with a roster to spawn one of each."
+    },
+    "vTemplate": {
+     "type": "lua",
+     "default": "'Veyron'",
+     "optional": true,
+     "desc": "One template name, or a roster list for a mixed convoy. Defaults to Veyron."
+    }
+   },
+   "returns": [
+    {
+     "name": "guids",
+     "type": "lua",
+     "desc": "The spawned group, as a list."
+    }
+   ]
+  },
+  "Ess.Easy.Spawn.props": {
+   "title": "Easy Spawn: Props",
+   "desc": "Scatters scenery or clutter around you, snapped to the ground so a prop field on a slope does not end up half buried and half hovering.",
+   "category": "Easy Spawn",
+   "kind": "action",
+   "params": {
+    "nCount": {
+     "type": "number",
+     "default": 6,
+     "optional": true,
+     "desc": "How many. Leave empty with a roster to spawn one of each."
+    },
+    "vTemplate": {
+     "type": "lua",
+     "default": "'TinyGeometry'",
+     "optional": true,
+     "desc": "One template name, or a roster list to mix several kinds of prop."
+    }
+   },
+   "returns": [
+    {
+     "name": "guids",
+     "type": "lua",
+     "desc": "The spawned group, as a list."
+    }
+   ]
+  },
+  "Ess.Easy.Spawn.roster": {
+   "title": "Easy Spawn: Roster",
+   "desc": "Spawns a named group - a section, a patrol, a convoy - in a distance band around you. Define the roster once as a Lua list and reuse it: this is the shape built for menu entries, where one button spawns 'Allied Rifleman Section' every time. Omit the quantity to spawn the roster exactly once through.",
+   "category": "Easy Spawn",
+   "kind": "action",
+   "params": {
+    "vTemplates": {
+     "type": "lua",
+     "default": "{ 'AL Soldier', 'AL Soldier', 'AL Heavy', 'AL Sniper' }",
+     "desc": "The roster: a Lua list of template names describing the group's composition."
+    },
+    "nQty": {
+     "type": "number",
+     "default": 12,
+     "optional": true,
+     "desc": "How many units in total. Leave empty for exactly one of each entry."
+    },
+    "nMinDist": {
+     "type": "number",
+     "default": 20,
+     "optional": true,
+     "desc": "Closest any of them will appear (default 8)."
+    },
+    "nMaxDist": {
+     "type": "number",
+     "default": 60,
+     "optional": true,
+     "desc": "Furthest any of them will appear (default 25)."
+    }
+   },
+   "returns": [
+    {
+     "name": "guids",
+     "type": "lua",
+     "desc": "The spawned group, ready to wire into an order node."
+    }
+   ]
   }
  }
 }

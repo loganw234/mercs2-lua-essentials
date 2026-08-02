@@ -93,6 +93,32 @@ local function menu_ctx(menu)
         self:hint("SPAWN FAILED: " .. tostring(template))
         return nil
     end
+
+    -- ctx:spawnArray(vTemplates, nQty, nMinDist, nMaxDist) -> { guid, ... }
+    -- The bulk counterpart of ctx:spawn, for the menu case it was asked for: a named roster, a quantity,
+    -- and a distance band around the player.
+    --
+    --     AL_RIFLE_SECTION = { "AL Soldier", "AL Soldier", "AL Heavy", "AL Sniper" }
+    --     menu:entry("Rifleman Section", function(ctx)
+    --         ctx:spawnArray(AL_RIFLE_SECTION, 12, 20, 60)
+    --         ctx:toast("Spawned Allied Rifleman Section")
+    --     end)
+    --
+    -- vTemplates takes one template name or a roster array; omitting nQty spawns the roster exactly once
+    -- through. Delegates to Ess.Spawn.many, so the placement, the count cap and -- most importantly -- the
+    -- validate-the-WHOLE-roster-before-spawning-anything rule are the same ones every other caller gets.
+    -- Reports the outcome on the menu itself: a menu action that silently does nothing is the worst version
+    -- of this, since the menu is still sitting there looking like it worked.
+    function ctx:spawnArray(vTemplates, nQty, nMinDist, nMaxDist)
+        local spawned = Ess.Spawn.many(vTemplates, nQty, {
+            minDist = nMinDist or 8, maxDist = nMaxDist or 25, ahead = 0,
+            snapToGround = true, faceCentre = true,
+        })
+        if #spawned == 0 then
+            self:hint("SPAWN FAILED -- set Ess.DEBUG = true for the reason")
+        end
+        return spawned
+    end
     return ctx
 end
 

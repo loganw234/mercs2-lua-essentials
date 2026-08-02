@@ -9,6 +9,80 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+## [0.6.0]
+
+**`Ess.Spawn` — bulk spawning.**
+
+### Added
+
+- **`Ess.Spawn`** — put **many** things in the world in one call. `Ess.Object.spawn` places one object at one
+  coordinate; everything past that (a section, a convoy, a prop field) meant hand-rolling a loop plus
+  placement trig, which is where the mistakes live. `Ess.Easy.Spawn.enemies` was the one bulk verb and it was
+  hard-wired to hostile infantry charging the player — this generalises that shape **without changing it**.
+  - `.many(templates, count, opts)` — `templates` is one name **or a roster array**. A roster is a group's
+    composition written once: `{ "AL Soldier", "AL Soldier", "AL Heavy", "AL Sniper" }`. Omit `count` and you
+    get exactly one of each in the order written; give one and the roster repeats to fill it, keeping the
+    ratio exact (`pick="cycle"`, the default) or drawing freely (`pick="random"`).
+  - `.mixed({{template,count},…})` for exact per-template counts, `.at(templates, points)` for hand-authored
+    coordinate lists.
+  - **Easy tier:** `Ess.Easy.Spawn.units/.vehicles/.props(n, template)` — each takes one name *or* a roster —
+    plus `.roster(templates, qty, minDist, maxDist)`, the named-section case in the shape it was asked for.
+  - **`ctx:spawnArray(templates, qty, minDist, maxDist)`** on the `Ess.UI.Menu` action context, so one menu
+    entry spawns a named section: `menu:entry("Rifleman Section", function(ctx) ctx:spawnArray(AL_RIFLE_SECTION, 12, 20, 60) end)`.
+- **`tools/test_spawn.py`** — offline behavioural tests, wired into CI. The logic worth proving here is pure
+  (validation, cycling, capping, placement), so it is provable without a game.
+- **`samples/recipes/spawn_a_group.lua`** — the recipe, ending in the usual `[SMOKE]` line.
+
+### Notes
+
+- **Every template is validated before anything spawns.** One bad entry in a roster spawns *nothing*. A blank
+  template hard-CRASHES the engine in native C++ and `pcall` cannot catch a native crash — and in a bulk
+  spawner, validating lazily would place seven units, hit the bad eighth, and take the game down having
+  already half-applied the call. All-or-nothing is a call you can retry; a half-applied one is a mess.
+- **`scatter` sectors its angles rather than drawing them freely.** Each unit owns a 1/n slice of the circle
+  and is jittered inside it, so two can never land on the same spot. The naive fully-random version was
+  written first and the offline test caught it immediately (6 spawns, 2 identical positions). For infantry
+  that looks sloppy; for vehicles it is worse, since two cars spawned inside each other get violently shoved
+  apart by the physics.
+- **Placement names deliberately do NOT reuse `Ess.Squad.Formation`'s wedge/column/diamond.** Those are
+  *marching* formations, recomputed as a squad moves; these are static placements evaluated once at spawn.
+  Sharing the words would imply a formation that holds, which this does not — spawn with `grid`, then
+  `Ess.Squad.setFormation` if you want it maintained.
+- **A default cap of 64**, refused loudly via `Ess.Safe.reject` rather than attempted. `Ess.Spawn.many(t, 5000)`
+  is a plausible typo and the engine will genuinely try. Raise it with `opts.max` when you mean it.
+- Fully backwards compatible: nothing existing changed. `Ess.Easy.Spawn.enemies` is untouched.
+
+### Fixed before release (found by the live pass)
+
+- **The Easy tier's distance band was measured from the wrong point.**
+  `Ess.Easy.Spawn.roster(section, 12, 20, 60)` put units **2–53** from the player instead of 20–60: the band
+  was passed through correctly but measured from `Ess.Spawn`'s default centre *20 units ahead*, while the
+  argument names and the docs both say "from the player". All four Easy verbs and `ctx:spawnArray` now centre
+  on the player (`ahead = 0`). Re-verified in game: a `20..60` request lands at `22.0..56.6`, a `25..45`
+  request at `25.4..35.1`.
+- **The offline test had ratified that bug.** It measured from the ahead-centre — i.e. from the
+  implementation rather than from the promise — so it passed the entire time and would never have caught it.
+  Corrected to measure from the player, with the same check added for `units`/`vehicles`/`props`. A test
+  written from the code instead of from the contract will confirm whatever the code already does.
+
+### Verified in game (2026-07-26)
+
+Hot-loaded against a running game: a blank roster entry spawns **nothing** and names the offending index;
+a count-less roster gives one of each; a count keeps the ratio; **zero duplicate positions** across 8 scatter
+spawns (the sectoring fix, live); `mixed` and `at` return exact counts; the cap refuses 5000 with a readable
+reason; and one tracker `closeAll()` removed every test spawn.
+
+Not verified: `"Money (large)"` does not spawn — nor do `Money (Large)`, `Money (small)`, `Money`, or
+`money (large)`, and it appears nowhere in the decompiled corpus as a `Pg.Spawn` template (the money strings
+there are all HUD/sound/localisation). Props were confirmed with `TinyGeometry` and `Supply Drop (Treasure)`
+instead. `Object.IsTemplate` is not a usable name check — it returns nil for known-good `"Veyron"` too, so it
+takes a guid rather than a name.
+
+### Known gap (pre-existing, not from this change)
+
+`Ess.Object.spawn` reports a failed spawn through `Ess.Log` rather than `Ess.Safe.reject`, so it stays
+invisible to `Ess.lastError()` even with `Ess.DEBUG` on — the exact gap `Ess.DEBUG` exists to close.
+
 ## [0.5.2]
 
 **Install this if you are on 0.5.1 — the UI kit could not draw at all in that release.**
