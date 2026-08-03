@@ -30,9 +30,13 @@ version? It still releases, with auto-generated commit notes.) See the README's 
     uncracked core hashes are deliberately absent so `.name()` returns their bare hash rather than a label.
   - Distinct from `Ess.State` (`_G` persistence) and `Ess.Human.setState` (posture). Covered by a
     `checkpure.py` `Machine` group and `samples/recipes/machine.lua`.
-  - ⚠ **Composed from confirmed retail calls** (`ObjectState.SetState(guid, String.GetHash(node),
-    String.GetHash("CollapseState"))` and the `OnStateChange` body, both in `resident/oilrig.lua`) but **not
-    yet smoke-tested in a live game** — the call shapes are verified, the end-to-end effect is not.
+  - **Live-confirmed over the lua-bridge:** every native this uses is present and callable in a running game
+    (`ObjectState.SetState`/`GetLinkGuid`/`PrintStateMachine`, `String.GetHash`, `Sys.GuidToString`/
+    `StringToGuid`, `Object.GetHealth`), and `String.GetHash` returns the exact vocabulary hashes
+    (`CollapseState`→`0x694683EB`, `PristineState`→`0xACB51200`, …). ⚠ The one step **not yet witnessed
+    in-world** is a forced transition visibly changing a destructible + `OnStateChange` firing back — the test
+    session's game crash-looped before a stable world load. Every ingredient of that step is confirmed; the
+    step itself stays composed-not-witnessed. Call shapes are from `resident/oilrig.lua`.
 
 - **`Ess.Names`** — turn a `0xHASH` back into the name it was hashed from. The engine addresses everything by
   a one-way 32-bit `pandemic_hash_m2`, so `Ess.Name(guid)` gives you `"0x4000563D"` and there was no way
