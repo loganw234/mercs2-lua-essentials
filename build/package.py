@@ -141,6 +141,15 @@ def install_notes(ver):
         "        1_Ess.lua=5\n\n"
         "  3. Launch the game. \"[Ess] v%(ver)s ready\" appears in scripts/lua_loader_printf.log once it loads.\n"
         "     Nothing? See Ess-TROUBLESHOOTING.md.\n\n"
+        "OPTIONAL -- readable names for hashes (Ess.Names)\n"
+        "  This zip also drops scripts/OnLoad/2_EssNames.lua: a ~23k-entry table that lets Ess.Names.of(\n"
+        "  \"0x4000563D\") return \"refinery_doc_warehouse01\", and Ess.Named(guid) print a name instead of a\n"
+        "  hash. It is OFF until you opt in -- add a second line under [OnLoad] (it costs ~1 MB of memory and\n"
+        "  a moment at load, which is why it isn't on by default):\n\n"
+        "        [OnLoad]\n"
+        "        1_Ess.lua=5\n"
+        "        2_EssNames.lua=4\n\n"
+        "  \"[EssNames] N names ready\" then appears in the log. Without it, Ess.Names simply returns nil.\n\n"
         "  That's it -- every other mod just reads the global _G.Ess table. Learn the API by example from\n"
         "  Ess-samples/recipes/. Want to try one of the bind-to-a-key demos in Ess-samples/demos/? Copy the\n"
         "  .lua file into scripts/OnKey/ and add a line for it under [OnKey] in lua_loader.ini -- each\n"
@@ -163,6 +172,18 @@ def main():
     if not check_wad(wad):
         return 1
 
+    # The optional Ess.Names lookup table (src/07_names.lua reverses a 0xHASH to its name). It is ~1 MB, far
+    # too big to fold into 1_Ess.lua, so it ships as its own opt-in OnLoad file built from data/names.json.
+    # Absent data ⇒ skip it rather than fail the release: the framework works without it, the namespace just
+    # returns nil for every lookup.
+    names_lua = DIST / "EssNames.lua"
+    if (DATA / "names.json").exists():
+        if subprocess.run([sys.executable, str(ROOT / "build" / "names.py")]).returncode != 0:
+            print("[package] names.py failed -- aborting")
+            return 1
+    else:
+        print("[package] data/names.json absent -- the zip will NOT include the optional Ess.Names table")
+
     ver = version()
     out = DIST / ("Ess-%s.zip" % ver)
     files = 0
@@ -170,6 +191,10 @@ def main():
         z.writestr("Ess-README.txt", install_notes(ver)); files += 1
         z.write(ess, "scripts/OnLoad/1_Ess.lua"); files += 1
         z.write(wad, "data/vz-patch.wad"); files += 1
+        # the optional hash->name table, if it was built. Deployed alongside 1_Ess.lua but OPT-IN: it does
+        # nothing until the user adds its own [OnLoad] line (README), exactly like Ess itself.
+        if names_lua.exists():
+            z.write(names_lua, "scripts/OnLoad/2_EssNames.lua"); files += 1
 
         for p in sorted((SAMPLES / "recipes").glob("*.lua")):
             z.write(p, "Ess-samples/recipes/" + p.name); files += 1
