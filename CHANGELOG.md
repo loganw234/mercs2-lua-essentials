@@ -33,11 +33,13 @@ version? It still releases, with auto-generated commit notes.) See the README's 
   - **Smoke-tested live** over the lua-bridge in a running retail game: every native is present and callable
     (`ObjectState.SetState`/`GetLinkGuid`/`PrintStateMachine`, `String.GetHash`, `Sys.GuidToString`/
     `StringToGuid`, `Object.GetHealth`); `String.GetHash` returns the exact vocabulary hashes
-    (`CollapseState`→`0x694683EB`, `PristineState`→`0xACB51200`, …) and `name()` reverses them; `.set()` forced
+    (`CollapseState`→`0x694683EB`, `PristineState`→`0xACB51200`, …) and `name()` reverses them; `.set()` drove
     a real building's 8 structural nodes to `DestroyedState` (returned true for all 8) and the engine reported
     each transition back through `.onChange` — chained onto the world's own `OnStateChange`, hashes resolved to
     names, uncracked states falling back to the bare hash; and `.set()` refused an out-of-vocabulary state
-    before calling the engine. Call shapes are from `resident/oilrig.lua`.
+    before calling the engine. Note `.set()` is a **logical** state change (the object stays alive — visible
+    destruction is the damage path, `Ess.Object.kill`; `.set(node, "StartDestroyedState")` plays the wreck).
+    Call shapes are from `resident/oilrig.lua`.
 
 - **`Ess.Names`** — turn a `0xHASH` back into the name it was hashed from. The engine addresses everything by
   a one-way 32-bit `pandemic_hash_m2`, so `Ess.Name(guid)` gives you `"0x4000563D"` and there was no way

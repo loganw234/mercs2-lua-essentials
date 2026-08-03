@@ -34,9 +34,10 @@
 --     `String.GetHash`, `Sys.GuidToString`/`StringToGuid`, `Object.GetHealth`);
 --   * `String.GetHash` returns the EXACT vocabulary hashes below (CollapseState=0x694683EB,
 --     PristineState=0xACB51200, DestroyedState=0x7687DF41, …), and `name()` reverses them;
---   * `set()` forced a real building's 8 structural nodes to DestroyedState -- returned true for all 8, and
+--   * `set()` drove a real building's 8 structural nodes to DestroyedState -- returned true for all 8, and
 --     the engine reported each transition back through `onChange` (chained onto the world's own OnStateChange,
---     state hashes resolved to names live, uncracked states falling back to the bare hash as intended);
+--     state hashes resolved to names live, uncracked states falling back to the bare hash as intended). This
+--     is a LOGICAL state change (the object stays alive); visible destruction is the damage path -- see set();
 --   * `set()` refuses a state name outside the vocabulary before calling the engine.
 --
 -- ⚠ onChange hooks the GLOBAL `OnStateChange`. Resident mission scripts define their own; this CHAINS any it
@@ -107,6 +108,13 @@ function Ess.Machine.name(hashOrGuid)
 end
 
 -- Ess.Machine.set(uGuid, node, state) -> bool -- force a node of the object's machine to a state.
+--
+-- NOTE (live-observed): this drives the machine's LOGICAL state and fires OnStateChange, but it is not a
+-- destruction shortcut. Setting a building's nodes to `DestroyedState` flips the state (and reports back)
+-- while the object stays alive and intact -- to actually DESTROY something, damage it to 0 / `Ess.Object.kill`
+-- (the engine's break-pieces path, which is asynchronous: `alive` stays true for a few frames after). The
+-- state that PLAYS the wreck (fires/explosion/kill-self) is `StartDestroyedState`, per the destruction code
+-- map. `node` must be a real node hash (from `onChange`/`print`/`link`); node `0x0` is not valid.
 function Ess.Machine.set(uGuid, node, state)
     if not uGuid then return Ess.Safe.reject("Ess.Machine.set", "no guid") end
     if type(state) == "string" and not state:match("^0[xX]%x+$") and not KNOWN[state] then
