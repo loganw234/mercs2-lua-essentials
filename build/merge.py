@@ -37,6 +37,7 @@ MANIFEST = [
     "04_vec.lua",
     "05_sys.lua",
     "06_atmosphere.lua",
+    "07_names.lua",
     "10_player.lua",
     "11_object.lua",
     "12_vehicle.lua",

@@ -9,6 +9,26 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+### Added
+
+- **`Ess.Names`** — turn a `0xHASH` back into the name it was hashed from. The engine addresses everything by
+  a one-way 32-bit `pandemic_hash_m2`, so `Ess.Name(guid)` gives you `"0x4000563D"` and there was no way
+  back. This is the reverse side of that bridge — a lookup table, hash-verified against the retail WADs, that
+  inverts the ~23k names the game actually ships.
+  - `Ess.Names.of(hash)` → the name, or **nil on a miss — never a fabricated name** (the hash is one-way and
+    only 32 bits; past a few million candidates a "match" is a collision, so a miss is reported honestly).
+  - `Ess.Names.label(hash)` → `"name (0xHASH)"`, or the bare hash when unknown — always a string, drops
+    straight into an `Ess.Log`. `Ess.Names.installed()` / `.count()` / `.load(table)`.
+  - **`Ess.Named(guid)`** — `Ess.Name` with the meaning put back: `"refinery_doc_warehouse01 (0x4000563D)"`
+    for a placed, named object (whose guid IS its name hash); the bare hash for a transient spawn handle.
+  - The table is **optional and shipped separately** (`scripts/OnLoad/2_EssNames.lua`, ~1 MB) because it is
+    far too large to fold into `1_Ess.lua`. Opt in with one `[OnLoad]` line (see GETTING_STARTED / the README).
+    With it absent, every call degrades cleanly to nil / the bare hash.
+  - Keys are the `"0x…"` **string** form on purpose: this is Lua 5.1 with 32-bit floats, so a table keyed by
+    the numeric hash would silently collide high hashes — the same class of trap `Ess.RNG` exists to avoid.
+  - Built by `build/names.py` from the committed, hash-verified `data/names.json`; covered by a `checkpure.py`
+    group (`Names`) and a `samples/recipes/names.lua` smoke recipe.
+
 ## [0.6.0]
 
 **`Ess.Spawn` — bulk spawning.**

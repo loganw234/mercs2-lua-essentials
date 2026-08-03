@@ -29,7 +29,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 
 # the pure (or deterministically-stubbable) src files, in load order
-SRC_FILES = ["00_core.lua", "01_math.lua", "02_str.lua", "03_color.lua", "04_vec.lua",
+SRC_FILES = ["00_core.lua", "01_math.lua", "02_str.lua", "03_color.lua", "04_vec.lua", "07_names.lua",
              "22_state.lua", "23_time.lua", "53_rng.lua", "52_points.lua",
              # 30_track only touches the engine INSIDE its teardown closures, never at load time, so it
              # loads fine here -- and 98_stop's Ess.Track:any() needs Ess.Track to exist when it loads.
@@ -358,6 +358,27 @@ return true
 local ready = Ess.Time.cooldown(0.5)
 assert(ready()==true,'cooldown first free'); assert(ready()==false,'cooldown blocks in window')
 local clk = Ess.Time.clock(); assert(type(clk:delta())=='number','clock delta')
+return true
+""",
+    "Names": r"""
+local N = Ess.Names
+-- degrades honestly with no table loaded: nil, and label falls back to the bare hash
+assert(N.installed()==false,'not installed before load'); eq(N.count(),0,'count 0 uninstalled')
+assert(N.of('0x0005EB70')==nil,'of() nil when uninstalled')
+eq(N.label('0x0005EB70'),'0x0005EB70','label falls back to the bare hash')
+-- adopt a fixture (E54047D5 is al_veh_boat_destroyer -- a real, plan-cited vector)
+N.load({ ['0x0005EB70']='hp_snap_oilrig_bld_buildingC', ['0xE54047D5']='al_veh_boat_destroyer' })
+assert(N.installed()==true,'installed after load'); eq(N.count(),2,'count')
+eq(N.of('0x0005EB70'),'hp_snap_oilrig_bld_buildingC','exact hit')
+-- normalisation: the same hash written lower-case, bare, or 0x-lower all resolve
+eq(N.of('0x0005eb70'),'hp_snap_oilrig_bld_buildingC','lower-case hit')
+eq(N.of('E54047D5'),'al_veh_boat_destroyer','bare (no 0x) hit')
+eq(N.of('0xe54047d5'),'al_veh_boat_destroyer','0x + lower-case hit')
+-- a NAME is not a hash and is never coerced into one; a miss is nil, never a fabricated name
+assert(N.of('al_veh_boat_destroyer')==nil,'a name is not a hash')
+assert(N.of('0xZZ')==nil,'non-hex -> nil'); assert(N.of('0xDEADBEEF')==nil,'unknown hash -> nil, never a guess')
+eq(N.label('0xDEADBEEF'),'0xDEADBEEF','label of an unknown -> bare hash')
+eq(N.label('0x0005eb70'),'hp_snap_oilrig_bld_buildingC (0x0005EB70)','label of a known -> "name (0xHASH)"')
 return true
 """,
 }
