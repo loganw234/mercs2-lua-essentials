@@ -30,13 +30,14 @@ version? It still releases, with auto-generated commit notes.) See the README's 
     uncracked core hashes are deliberately absent so `.name()` returns their bare hash rather than a label.
   - Distinct from `Ess.State` (`_G` persistence) and `Ess.Human.setState` (posture). Covered by a
     `checkpure.py` `Machine` group and `samples/recipes/machine.lua`.
-  - **Live-confirmed over the lua-bridge:** every native this uses is present and callable in a running game
+  - **Smoke-tested live** over the lua-bridge in a running retail game: every native is present and callable
     (`ObjectState.SetState`/`GetLinkGuid`/`PrintStateMachine`, `String.GetHash`, `Sys.GuidToString`/
-    `StringToGuid`, `Object.GetHealth`), and `String.GetHash` returns the exact vocabulary hashes
-    (`CollapseState`→`0x694683EB`, `PristineState`→`0xACB51200`, …). ⚠ The one step **not yet witnessed
-    in-world** is a forced transition visibly changing a destructible + `OnStateChange` firing back — the test
-    session's game crash-looped before a stable world load. Every ingredient of that step is confirmed; the
-    step itself stays composed-not-witnessed. Call shapes are from `resident/oilrig.lua`.
+    `StringToGuid`, `Object.GetHealth`); `String.GetHash` returns the exact vocabulary hashes
+    (`CollapseState`→`0x694683EB`, `PristineState`→`0xACB51200`, …) and `name()` reverses them; `.set()` forced
+    a real building's 8 structural nodes to `DestroyedState` (returned true for all 8) and the engine reported
+    each transition back through `.onChange` — chained onto the world's own `OnStateChange`, hashes resolved to
+    names, uncracked states falling back to the bare hash; and `.set()` refused an out-of-vocabulary state
+    before calling the engine. Call shapes are from `resident/oilrig.lua`.
 
 - **`Ess.Names`** — turn a `0xHASH` back into the name it was hashed from. The engine addresses everything by
   a one-way 32-bit `pandemic_hash_m2`, so `Ess.Name(guid)` gives you `"0x4000563D"` and there was no way

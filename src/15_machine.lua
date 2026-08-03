@@ -29,14 +29,15 @@
 --                                                    (ObjectState.PrintStateMachine).
 --   Ess.Machine.STATES / .vocab()                   the known state-name vocabulary.
 --
--- ⚠ NATIVE SURFACE + VOCABULARY CONFIRMED LIVE; end-to-end transition still verify-by-composition.
--- Over the lua-bridge in a running retail game: every native this uses exists and is callable
--- (`ObjectState.SetState`/`GetLinkGuid`/`PrintStateMachine`, `String.GetHash`, `Sys.GuidToString`/
--- `StringToGuid`, `Object.GetHealth`), and `String.GetHash` returns the EXACT vocabulary hashes below
--- (CollapseState=0x694683EB, PristineState=0xACB51200, DestroyedState=0x7687DF41, …). What has NOT yet been
--- observed in-world is a forced transition actually changing a destructible + `OnStateChange` firing back --
--- the test session's game crash-looped before a stable world load. Every ingredient of that step is
--- confirmed; the step itself is composed, not yet witnessed. The call shapes come from resident/oilrig.lua.
+-- ✅ SMOKE-TESTED LIVE over the lua-bridge in a running retail game (call shapes from resident/oilrig.lua):
+--   * every native exists and is callable (`ObjectState.SetState`/`GetLinkGuid`/`PrintStateMachine`,
+--     `String.GetHash`, `Sys.GuidToString`/`StringToGuid`, `Object.GetHealth`);
+--   * `String.GetHash` returns the EXACT vocabulary hashes below (CollapseState=0x694683EB,
+--     PristineState=0xACB51200, DestroyedState=0x7687DF41, …), and `name()` reverses them;
+--   * `set()` forced a real building's 8 structural nodes to DestroyedState -- returned true for all 8, and
+--     the engine reported each transition back through `onChange` (chained onto the world's own OnStateChange,
+--     state hashes resolved to names live, uncracked states falling back to the bare hash as intended);
+--   * `set()` refuses a state name outside the vocabulary before calling the engine.
 --
 -- ⚠ onChange hooks the GLOBAL `OnStateChange`. Resident mission scripts define their own; this CHAINS any it
 -- finds (both fire) rather than clobbering it. But Lua globals are last-write-wins, so a resident script
