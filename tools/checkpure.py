@@ -30,6 +30,7 @@ SRC = ROOT / "src"
 
 # the pure (or deterministically-stubbable) src files, in load order
 SRC_FILES = ["00_core.lua", "01_math.lua", "02_str.lua", "03_color.lua", "04_vec.lua", "07_names.lua",
+             "19_inspect.lua",
              "22_state.lua", "23_time.lua", "53_rng.lua", "52_points.lua",
              # 30_track only touches the engine INSIDE its teardown closures, never at load time, so it
              # loads fine here -- and 98_stop's Ess.Track:any() needs Ess.Track to exist when it loads.
@@ -379,6 +380,42 @@ assert(N.of('al_veh_boat_destroyer')==nil,'a name is not a hash')
 assert(N.of('0xZZ')==nil,'non-hex -> nil'); assert(N.of('0xDEADBEEF')==nil,'unknown hash -> nil, never a guess')
 eq(N.label('0xDEADBEEF'),'0xDEADBEEF','label of an unknown -> bare hash')
 eq(N.label('0x0005eb70'),'hp_snap_oilrig_bld_buildingC (0x0005EB70)','label of a known -> "name (0xHASH)"')
+return true
+""",
+    "Inspect": r"""
+-- Ess.Inspect composes engine getters into a typed record; the RECORD ASSEMBLY, the handle->name resolution
+-- (Object.GetModelName returns an opaque HANDLE -> Sys.GuidToString -> Ess.Names -- verified live), the
+-- 1/0-bool coercion and the formatting are pure logic, provable against stubs shaped like the real getters.
+_G.Sys.GuidToString = function(g) if type(g)=='string' then return g end return g and g.s or nil end
+_G.Sys.StringToGuid = function(s) return s end
+_G.Object.GetName = function(g) return {s="0x000BF11E"} end          -- opaque HANDLE, not a string
+_G.Object.GetModelName = function(g) return {s="0xB4FE2B80"} end     -- (0xB4FE2B80 = civ_veh_car_veyron live)
+Ess.Object = {
+  valid=function(g) return g~='dead' end, alive=function() return true end,
+  health=function() return 42 end, maxHealth=function() return 100 end, invincible=function() return false end,
+  playerControlled=function() return 1 end,   -- engine 1/0; 0 is truthy in Lua, so it MUST be coerced
+  pos=function() return 12.0,4.0,-67.0 end, yaw=function() return 1.57 end,
+  velocity=function() return 0,0,0 end, speed=function() return 0.0 end,
+  physicsType=function() return 2 end, awake=function() return true end, hibernated=function() return false end,
+  vehicleOf=function() return nil end, parent=function() return nil end, attached=function() return {} end,
+}
+Ess.Vehicle = { driver=function() return nil end, seatOf=function() return nil end }
+Ess.Probe = { getFaction=function() return "OC" end }
+Ess.Names.load({ ["0x000BF11E"]="residential_bld_corner110x126_ruin", ["0xB4FE2B80"]="civ_veh_car_veyron" })
+
+local r = Ess.Inspect("0x4000C068")     -- callable sugar == Ess.Inspect.read
+assert(r ~= nil, 'record'); eq(r.name,'residential_bld_corner110x126_ruin','name from GetName HANDLE via Ess.Names')
+eq(r.model,'civ_veh_car_veyron','model from GetModelName handle'); eq(r.health,42,'health'); eq(r.maxHealth,100,'maxHealth')
+assert(r.playerControlled == true, '1/0 engine bool coerced to true'); assert(r.alive == true,'alive')
+assert(r.pos and r.pos.x==12.0 and r.pos.z==-67.0,'pos table'); eq(r.faction,'OC','faction')
+eq(Ess.Inspect.read('0x1').name, r.name, 'read() == callable sugar')
+assert(Ess.Inspect('dead')==nil,'invalid guid -> nil'); assert(Ess.Inspect(nil)==nil,'nil guid -> nil')
+local ln = Ess.Inspect.line('0x4000C068')
+assert(type(ln)=='string' and ln:find('residential_bld',1,true) and ln:find('hp=42/100',1,true) and ln:find('OC',1,true),'line: '..ln)
+eq(Ess.Inspect.line('dead'),'<nil or invalid>','line invalid')
+-- a handle Ess.Names can't reverse degrades to the bare hash, never a guess
+_G.Object.GetName = function(g) return {s="0xDEADBEEF"} end
+eq(Ess.Inspect.read('0x1').name,'0xDEADBEEF','unresolved handle -> bare hash')
 return true
 """,
 }
