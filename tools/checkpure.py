@@ -30,6 +30,7 @@ SRC = ROOT / "src"
 
 # the pure (or deterministically-stubbable) src files, in load order
 SRC_FILES = ["00_core.lua", "01_math.lua", "02_str.lua", "03_color.lua", "04_vec.lua", "07_names.lua",
+             "15_machine.lua",
              "22_state.lua", "23_time.lua", "53_rng.lua", "52_points.lua",
              # 30_track only touches the engine INSIDE its teardown closures, never at load time, so it
              # loads fine here -- and 98_stop's Ess.Track:any() needs Ess.Track to exist when it loads.
@@ -379,6 +380,45 @@ assert(N.of('al_veh_boat_destroyer')==nil,'a name is not a hash')
 assert(N.of('0xZZ')==nil,'non-hex -> nil'); assert(N.of('0xDEADBEEF')==nil,'unknown hash -> nil, never a guess')
 eq(N.label('0xDEADBEEF'),'0xDEADBEEF','label of an unknown -> bare hash')
 eq(N.label('0x0005eb70'),'hp_snap_oilrig_bld_buildingC (0x0005EB70)','label of a known -> "name (0xHASH)"')
+return true
+""",
+    "Machine": r"""
+-- Ess.Machine touches the engine, but its BRANCHING (name vs 0xHASH, the dead-state guard, hash resolution,
+-- and the OnStateChange dispatch/chain) is pure decision logic -- provable against recording stubs shaped
+-- like the real natives (ObjectState.SetState(g, nodeHash, stateHash) etc., confirmed in resident/oilrig.lua).
+local M = Ess.Machine
+local SET = {}
+_G.String = { GetHash = function(s) return "H:" .. s end }
+_G.Sys.GuidToString = function(g) if type(g)=='string' then return g end return g and g.s or nil end
+_G.Sys.StringToGuid = function(s) return "G:" .. s end
+_G.ObjectState = { SetState = function(g,n,st) SET[#SET+1] = {g=g,n=n,st=st} end }
+
+-- a NAME node + a KNOWN state name are both hashed through String.GetHash (== the engine's own call shape)
+Ess.DEBUG = false
+assert(M.set('OBJ','hp_snap_x','CollapseState')==true,'set name/name')
+eq(SET[1].n,'H:hp_snap_x','node name -> String.GetHash'); eq(SET[1].st,'H:CollapseState','state name -> String.GetHash')
+-- a bare 0xHASH goes the Sys.StringToGuid route, and a 0xHASH state bypasses the vocabulary check
+assert(M.set('OBJ','0x11','0xACB51200')==true,'set hash/hash'); eq(SET[2].n,'G:0x11','node hash -> StringToGuid')
+-- a state NAME outside the global vocabulary is DEAD (never reached by damage) -> refused, no call issued
+local before=#SET
+assert(M.set('OBJ','hp','BogusState')==nil,'unknown state name refused')
+eq(#SET,before,'no SetState issued for a dead state name')
+assert(M.set(nil,'hp','PristineState')==nil,'no guid refused')
+-- name(): a state hash -> its vocabulary name; unknown -> the bare hash, never a guess
+eq(M.name('0x694683EB'),'CollapseState','known state hash -> name')
+eq(M.name('0x0ACE072A'),'InitState','cracked state hash -> name')
+eq(M.name('0xDEADBEEF'),'0xDEADBEEF','unknown state hash -> bare hash')
+eq(M.name({s='0x7687DF41'}),'DestroyedState','a state GUID resolves via Sys.GuidToString')
+eq(#M.vocab(),13,'vocab lists all 13 known states')
+-- onChange: the engine fires the global with GUIDs; our dispatcher enriches + chains any prior
+local seen, prior = {}, {}
+_G.OnStateChange = function(g,n,s) prior[#prior+1]=g end     -- a "mission's own" hook present first
+local stop = M.onChange(function(g, sState, sNode) seen[#seen+1]={g=g,st=sState} end)
+_G.OnStateChange('OBJ', {s='0x1'}, {s='0x694683EB'})
+eq(#seen,1,'handler fired'); eq(seen[1].st,'CollapseState','handler got the enriched state NAME')
+eq(#prior,1,'the pre-existing OnStateChange was chained, not clobbered')
+stop(); _G.OnStateChange('OBJ2', {s='0x1'}, {s='0x7687DF41'})
+eq(#seen,1,'after stop() the handler no longer fires'); eq(#prior,2,'the chained prior still fires')
 return true
 """,
 }

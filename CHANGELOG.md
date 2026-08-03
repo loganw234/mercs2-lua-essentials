@@ -11,6 +11,29 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ### Added
 
+- **`Ess.Machine`** — the object **destruction / state machine** as a live control surface. Every destructible
+  runs a state machine over a *global* vocabulary of state hashes (`PristineState`, `DamagedState`,
+  `DestroyedState`, `GoneState`, `CollapseState`, …, shared across all destructibles, not per-object labels);
+  damage drives the transitions. This lets you drive and watch it — the "force this building to CollapseState
+  and see it" loop.
+  - `Ess.Machine.set(guid, node, state)` — force a node of the machine to a state. `node`/`state` take a name
+    (hashed via the engine's own `String.GetHash`) or a bare `0xHASH`. A state name **outside the global
+    vocabulary is refused** (`Ess.DEBUG`) rather than issued, because the damage system only ever reaches the
+    known set — a novel state ships but is dead.
+  - `Ess.Machine.onChange(fn)` → `stop()` — `fn(guid, sState, sNode)` on **every** transition, with the state
+    and node hashes resolved to names (via the vocabulary + `Ess.Names`). Installs one dispatcher for the
+    engine's global `OnStateChange` and **chains** any existing one (both fire) rather than clobbering it.
+  - `Ess.Machine.link(guid, hardpoint)` (`ObjectState.GetLinkGuid` — a multi-part building's pieces are
+    addressed this way, and `set` is node-keyed), `.name(hash)` (state hash → its vocabulary name, else the
+    bare hash — never a guess), `.print(guid)` (`ObjectState.PrintStateMachine`), `.STATES`/`.vocab()`.
+  - The vocabulary is the cracked global state set (9 authoritative + 4 shipped-script names); the two
+    uncracked core hashes are deliberately absent so `.name()` returns their bare hash rather than a label.
+  - Distinct from `Ess.State` (`_G` persistence) and `Ess.Human.setState` (posture). Covered by a
+    `checkpure.py` `Machine` group and `samples/recipes/machine.lua`.
+  - ⚠ **Composed from confirmed retail calls** (`ObjectState.SetState(guid, String.GetHash(node),
+    String.GetHash("CollapseState"))` and the `OnStateChange` body, both in `resident/oilrig.lua`) but **not
+    yet smoke-tested in a live game** — the call shapes are verified, the end-to-end effect is not.
+
 - **`Ess.Names`** — turn a `0xHASH` back into the name it was hashed from. The engine addresses everything by
   a one-way 32-bit `pandemic_hash_m2`, so `Ess.Name(guid)` gives you `"0x4000563D"` and there was no way
   back. This is the reverse side of that bridge — a lookup table, hash-verified against the retail WADs, that
