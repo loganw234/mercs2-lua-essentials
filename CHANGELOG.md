@@ -9,6 +9,51 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ## [Unreleased]
 
+## [0.6.1]
+
+**Four community contributions from @headless-rebase, merged together.** Every one of them attacks the same
+underlying problem from a different side: this engine addresses almost everything by a one-way 32-bit hash, so
+the things you can reach at runtime are mostly opaque numbers. These make them legible.
+
+`Ess.Names` reverses a hash to its name. `Ess.Inspect` uses that to turn an entity into a readable, typed
+record. `Ess.Machine` does it for the destruction state vocabulary. `Ess.Ecs` catalogues the component classes
+an entity is assembled from. Together they are the read side of the framework growing up.
+
+Fully backwards compatible: all four are new namespaces, nothing existing changed.
+
+### Data verified independently, not taken on trust
+
+All three contributions that ship hash tables claim the hashes are engine-verified. Rather than believe the
+claim, `pandemic_hash_m2` (FNV-1a, `|0x20` case-fold, `(^0x2A) * prime` finaliser) was reimplemented from the
+documentation and run over every row:
+
+| table | rows | mismatches |
+|---|---|---|
+| `Ess.Names` name map | **23,110** | **0** |
+| `Ess.Ecs` component registry | **232** (9 families, no duplicates) | **0** |
+| `Ess.Machine` state vocabulary | **13** | **0** |
+
+Every name provably hashes to its own key, across all three tables, using one shared hash function. The
+"never a fabricated name" property these namespaces promise is therefore demonstrable rather than asserted.
+The `Ess.Ecs` anchors called out as RE-verified (`Health=0x06BE1ABF`, `RuntimeHealth=0xF9B9B2A5`,
+`RuntimeNodeHealth=0x76927BF5`) all reproduce exactly.
+
+### Known follow-up (non-blocking, agreed before merge)
+
+`Ess.Machine.onChange` chains the global `OnStateChange` correctly (prior handler preserved, every handler
+`pcall`ed so one cannot break the chain or the mission). But `ensureDispatcher` guards on the persistent
+boolean `Ess.Machine._installed`, and `Ess.Machine` survives a level reload via `or {}`. If a resident mission
+script later defines its own `OnStateChange` and displaces the dispatcher, the flag stays `true` and it can
+never reinstall, so handlers go quiet permanently even if re-armed. Comparing `_G.OnStateChange` against the
+dispatcher itself, instead of a flag, would let re-arming recover.
+
+### A note for anyone rebasing work across these
+
+All four touch `CHANGELOG.md`, `tools/checkpure.py` and `CAPABILITIES.md`, so the later ones needed rebasing.
+The `checkpure.py` conflict is worth knowing about: both sides open a `TESTS` block and share its closing
+tail, so a plain keep-both-sides resolution leaves one block unterminated, silently swallows the other's tests
+into a Lua string, and **still reports green**. It was resolved properly here; all 15 groups are present.
+
 ### Added
 
 - **`Ess.Machine`** — the object **destruction / state machine** as a live control surface. Every destructible
