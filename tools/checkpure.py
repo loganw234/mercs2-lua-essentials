@@ -30,6 +30,7 @@ SRC = ROOT / "src"
 
 # the pure (or deterministically-stubbable) src files, in load order
 SRC_FILES = ["00_core.lua", "01_math.lua", "02_str.lua", "03_color.lua", "04_vec.lua", "07_names.lua",
+             "08_ecs.lua",
              "19_inspect.lua",
              "22_state.lua", "23_time.lua", "53_rng.lua", "52_points.lua",
              # 30_track only touches the engine INSIDE its teardown closures, never at load time, so it
@@ -380,6 +381,31 @@ assert(N.of('al_veh_boat_destroyer')==nil,'a name is not a hash')
 assert(N.of('0xZZ')==nil,'non-hex -> nil'); assert(N.of('0xDEADBEEF')==nil,'unknown hash -> nil, never a guess')
 eq(N.label('0xDEADBEEF'),'0xDEADBEEF','label of an unknown -> bare hash')
 eq(N.label('0x0005eb70'),'hp_snap_oilrig_bld_buildingC (0x0005EB70)','label of a known -> "name (0xHASH)"')
+return true
+""",
+    "Ecs": r"""
+-- Ess.Ecs is a pure lookup over the generated 232-class registry; the hashes are pandemic_hash_m2(name),
+-- verified against the RE (RuntimeHealth=0xF9B9B2A5, StateMachine=0x98A3661F).
+local E = Ess.Ecs
+eq(#E.classes(), 232, '232 classes')
+eq(#E.families(), 9, '9 families')
+-- exact get (case-insensitive) + the derived hash/family readers
+local c = E.get('RuntimeHealth'); assert(c and c.n=='RuntimeHealth', 'get RuntimeHealth')
+eq(c.h, '0xF9B9B2A5', 'RuntimeHealth hash'); eq(c.f, 'gameplay_state_health_mission', 'RuntimeHealth family')
+eq(E.get('runtimehealth').n, 'RuntimeHealth', 'get is case-insensitive')
+eq(E.hash('StateMachine'), '0x98A3661F', 'StateMachine hash')
+eq(E.family('ControllerCar'), 'controllers_physics', 'family()')
+-- misses are nil, never a guess
+assert(E.get('NoSuchComponent')==nil,'unknown class -> nil'); assert(E.hash('NoSuchComponent')==nil,'unknown hash -> nil')
+assert(E.hash(nil)==nil,'nil -> nil')
+-- find matches on name OR family, case-insensitive
+assert(#E.find('controller') > 1, 'find matches many controllers')
+assert(#E.find('ai_perception_population') > 1, 'find matches a whole family')
+eq(#E.find('zzzznope'), 0, 'find miss -> empty')
+-- every hash is a canonical 0x + 8 hex string (the resolver-key form, dodging the Lua-float trap)
+for _, cc in ipairs(E.classes()) do
+    assert(type(cc.h)=='string' and cc.h:match('^0x%x%x%x%x%x%x%x%x$'), 'canonical hash: '..tostring(cc.h))
+end
 return true
 """,
     "Inspect": r"""

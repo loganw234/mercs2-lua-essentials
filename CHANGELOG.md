@@ -11,6 +11,21 @@ version? It still releases, with auto-generated commit notes.) See the README's 
 
 ### Added
 
+- **`Ess.Ecs`** — the engine's ECS component-class **registry** as a Lua-queryable typed vocabulary. An entity
+  is assembled from reflection component classes (`RuntimeHealth`, `StateMachine`, `Explosive`, `AiPatrol`, …);
+  this is the catalogue of all ~232, in 9 families, each with its component **hash** — `pandemic_hash_m2(name)`,
+  the value the engine's component resolver keys on (verified against the RE: `Health=0x06BE1ABF`,
+  `RuntimeHealth=0xF9B9B2A5`, `RuntimeNodeHealth=0x76927BF5`, …).
+  - `Ess.Ecs.classes()` / `.get(name)` / `.hash(name)` / `.family(name)` / `.find(query)` (name-or-family
+    substring, case-insensitive) / `.families()`. Misses return nil, never a guess; hashes are the canonical
+    `"0x…"` string form (dodging the Lua-5.1-float trap, same as `Ess.Names`).
+  - **Scope:** this is the *naming* half — the "what is a live entity made of" vocabulary. A generic **raw**
+    per-entity component read (dump an arbitrary component's fields off an arbitrary entity) still needs a
+    native memory-read verb the bridge doesn't expose; the path is reversed (an object→component resolver and
+    the entity's 256-slot component table) and these hashes are its keys, so this ships the vocabulary that
+    read will name things with. `Ess.Inspect` reads the components the engine exposes via getters today.
+  - Generated from `data/ecs_registry.tsv` (the Mercs2 reflection RE) by `build/ecs.py`; covered by a
+    `checkpure.py` `Ecs` group and `samples/recipes/ecs.lua`.
 - **`Ess.Inspect`** — a structured, NAMED read of an entity: the "remote inspector" side of the bridge (Plan
   03's "typed reads, not eval"). `Ess.Inspect.read(guid)` (or `Ess.Inspect(guid)`) returns a typed record
   grouped the way the engine's components are — identity / transform / health / physics / vehicle / faction —
