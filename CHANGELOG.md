@@ -26,6 +26,20 @@ version? It still releases, with auto-generated commit notes.) See the README's 
     read will name things with. `Ess.Inspect` reads the components the engine exposes via getters today.
   - Generated from `data/ecs_registry.tsv` (the Mercs2 reflection RE) by `build/ecs.py`; covered by a
     `checkpure.py` `Ecs` group and `samples/recipes/ecs.lua`.
+- **`Ess.Inspect`** — a structured, NAMED read of an entity: the "remote inspector" side of the bridge (Plan
+  03's "typed reads, not eval"). `Ess.Inspect.read(guid)` (or `Ess.Inspect(guid)`) returns a typed record
+  grouped the way the engine's components are — identity / transform / health / physics / vehicle / faction —
+  each field pulled through its confirmed getter and **guarded**, so a field the engine won't answer is simply
+  absent rather than an error. `.print(guid)` logs it grouped for the console; `.line(guid)` is a one-line
+  summary.
+  - Recovers what nothing else can: a readable **name** and **model**. `Object.GetName` / `Object.GetModelName`
+    return an opaque interned HANDLE, not a string (Ess.Object's own header says you "cannot read it back") —
+    but that handle stringifies to its `0xHASH` through `Sys.GuidToString`, and `Ess.Names` reverses the hash.
+    Verified live: a spawned Veyron's model handle → `0xB4FE2B80` → `civ_veh_car_veyron`. Without the names
+    table it degrades to the bare `0x…`.
+  - Engine getters return `1`/`0` for booleans (and `0` is truthy in Lua), so the record coerces them to real
+    bools. Composed from confirmed Ess wrappers (`Ess.Object`/`Ess.Vehicle`/`Ess.Probe`) + `Ess.Names`; covered
+    by a `checkpure.py` `Inspect` group and `samples/recipes/inspect.lua`.
 
 - **`Ess.Names`** — turn a `0xHASH` back into the name it was hashed from. The engine addresses everything by
   a one-way 32-bit `pandemic_hash_m2`, so `Ess.Name(guid)` gives you `"0x4000563D"` and there was no way
